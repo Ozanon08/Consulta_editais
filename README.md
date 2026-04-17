@@ -17,11 +17,6 @@ Aplicação Streamlit para consulta de editais com:
 - **COORDENADOR**: pode consultar tudo e solicitar inclusão de temas, mas não pode substituir a base
 - **GERAL**: apenas visualização das tabelas e filtros
 
-## Usuário inicial
-
-- **Usuário:** `ADMIN`
-- **Senha:** `ADMIN123`
-
 Altere ou crie novos usuários após o primeiro acesso.
 
 ## Como executar
