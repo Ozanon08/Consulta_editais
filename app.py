@@ -15,7 +15,7 @@ import streamlit as st
 # CONFIG
 # =========================================================
 st.set_page_config(
-    page_title="Portal de Consulta de Editais - FGV PMO",
+    page_title="FGV PMO - Portal de Consulta de Editais",
     page_icon="📘",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -1183,7 +1183,7 @@ def header_principal():
         <div class="header-full-width">
             <div class="header-inner">
                 <div class="header-text-block">
-                    <div class="header-title">Portal de Consulta de Editais - FGV PMO</div>
+                    <div class="header-title">Portal de Consulta de Editais</div>
                     <div class="header-subtitle">Consulta e busca de novos editais</div>
                     <div class="header-profile"><b>Perfil ativo:</b> {st.session_state.perfil}</div>
                 </div>
