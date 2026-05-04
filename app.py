@@ -848,7 +848,7 @@ def init_db():
         """, (
             "ADMIN",
             "",
-            hash_senha("ADMIN123"),
+            hash_senha("080897Ro"),
             "ADMIN",
             1,
             agora_str(),
@@ -1183,9 +1183,9 @@ def header_principal():
         <div class="header-full-width">
             <div class="header-inner">
                 <div class="header-text-block">
-                    <div class="header-title">Portal de Consulta de Editais</div>
-                    <div class="header-subtitle">Consulta e busca de novos editais</div>
-                    <div class="header-profile"><b>Perfil ativo:</b> {st.session_state.perfil}</div>
+                    <div class="header-title">Consulta e busca de novos editais</div>
+                    <div class="header-subtitle">Para calculo de prazo completo, entrar em contato com FGV PMO</div>
+                    <div class="header-profile"><b>Perfil ativo:</b> {st.session_state.usuario}</div>
                 </div>
                 <div class="header-logo-block">
                     <img src="data:image/png;base64,{logo_b64}" class="header-logo-full"/>
@@ -1496,7 +1496,7 @@ def pagina_consulta():
         "servicos": "Serviços",
         "custo_execucao": "Custo (R$)",
         "custo": "Custo (R$)",
-        "prazo_meses": "Prazo (meses)",
+        "prazo_meses": "Prazo de execução (meses)",
         "data_edital": "Data do edital"
     }
     df_exibicao = df_exibicao.rename(columns={k: v for k, v in mapa_colunas.items() if k in df_exibicao.columns})
