@@ -1,5 +1,4 @@
 import os
-import sqlite3
 import hashlib
 import smtplib
 import base64
@@ -9,6 +8,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 import pandas as pd
+import psycopg2
 import streamlit as st
 
 # =========================================================
@@ -21,7 +21,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-DB_PATH = "editais.db"
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
 SMTP_SERVER = os.getenv("SMTP_SERVER", "")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
@@ -801,73 +801,38 @@ def aplicar_estilo(modo="light"):
 # BANCO / UTIL
 # =========================================================
 def get_conn():
-    return sqlite3.connect(DB_PATH, check_same_thread=False)
+    return psycopg2.connect(DATABASE_URL)
 
 
 def hash_senha(senha: str) -> str:
     return hashlib.sha256(senha.encode("utf-8")).hexdigest()
 
 
-def init_db():
-    conn = get_conn()
-    cur = conn.cursor()
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS usuarios (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        senha_hash TEXT NOT NULL,
-        perfil TEXT NOT NULL,
-        ativo INTEGER NOT NULL DEFAULT 1,
-        criado_em TEXT NOT NULL
-    )
-    """)
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS solicitacoes_tema (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tema_solicitado TEXT NOT NULL,
-        descricao TEXT,
-        solicitante TEXT NOT NULL,
-        perfil_solicitante TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'PENDENTE',
-        data_solicitacao TEXT NOT NULL
-    )
-    """)
-
-    garantir_coluna_se_nao_existir(cur, "usuarios", "email", "TEXT")
-    garantir_coluna_se_nao_existir(cur, "usuarios", "atualizado_em", "TEXT")
-
-    cur.execute("SELECT COUNT(*) FROM usuarios WHERE username = 'ADMIN'")
-    exists = cur.fetchone()[0]
-
-    if exists == 0:
-        cur.execute("""
-        INSERT INTO usuarios (username, email, senha_hash, perfil, ativo, criado_em, atualizado_em)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (
-            "ADMIN",
-            "",
-            hash_senha("080897Ro"),
-            "ADMIN",
-            1,
-            agora_str(),
-            agora_str()
-        ))
-
-    conn.commit()
-    conn.close()
-
-
-def garantir_coluna_se_nao_existir(cur, tabela: str, coluna: str, definicao_sql: str):
-    cur.execute(f"PRAGMA table_info({tabela})")
-    colunas = [row[1] for row in cur.fetchall()]
-    if coluna not in colunas:
-        cur.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {definicao_sql}")
-
-
 def agora_str() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def init_db():
+    """Garante que o usuário ADMIN existe. Tabelas já criadas via schema_supabase.sql."""
+    if not DATABASE_URL:
+        st.error("Variável DATABASE_URL não configurada. Defina-a nas configurações do Streamlit Cloud.")
+        st.stop()
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM usuarios WHERE username = 'ADMIN'")
+    exists = cur.fetchone()[0]
+    if exists == 0:
+        senha_inicial = os.environ.get("ADMIN_INITIAL_PASSWORD", "")
+        if not senha_inicial:
+            conn.close()
+            st.error("Defina ADMIN_INITIAL_PASSWORD nas variáveis de ambiente do Streamlit Cloud.")
+            st.stop()
+        cur.execute("""
+            INSERT INTO usuarios (username, email, senha_hash, perfil, ativo, criado_em, atualizado_em)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, ("ADMIN", "", hash_senha(senha_inicial), "ADMIN", 1, agora_str(), agora_str()))
+    conn.commit()
+    conn.close()
 
 
 def carregar_view():
@@ -885,13 +850,12 @@ def autenticar(username: str, senha: str):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
-    SELECT username, perfil, ativo, email
-    FROM usuarios
-    WHERE UPPER(username) = UPPER(?) AND senha_hash = ?
+        SELECT username, perfil, ativo, email
+        FROM usuarios
+        WHERE UPPER(username) = UPPER(%s) AND senha_hash = %s
     """, (username, hash_senha(senha)))
     row = cur.fetchone()
     conn.close()
-
     if row and row[2] == 1:
         return {"username": row[0], "perfil": row[1], "email": row[3] if len(row) > 3 else ""}
     return None
@@ -912,17 +876,9 @@ def criar_usuario(username: str, email: str, senha: str, perfil: str):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
-    INSERT INTO usuarios (username, email, senha_hash, perfil, ativo, criado_em, atualizado_em)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (
-        username.strip(),
-        email.strip(),
-        hash_senha(senha),
-        perfil,
-        1,
-        agora_str(),
-        agora_str()
-    ))
+        INSERT INTO usuarios (username, email, senha_hash, perfil, ativo, criado_em, atualizado_em)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+    """, (username.strip(), email.strip(), hash_senha(senha), perfil, 1, agora_str(), agora_str()))
     conn.commit()
     conn.close()
 
@@ -930,7 +886,7 @@ def criar_usuario(username: str, email: str, senha: str, perfil: str):
 def alterar_status_usuario(user_id: int, ativo: int):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("UPDATE usuarios SET ativo = ?, atualizado_em = ? WHERE id = ?", (ativo, agora_str(), user_id))
+    cur.execute("UPDATE usuarios SET ativo = %s, atualizado_em = %s WHERE id = %s", (ativo, agora_str(), user_id))
     conn.commit()
     conn.close()
 
@@ -938,7 +894,7 @@ def alterar_status_usuario(user_id: int, ativo: int):
 def excluir_usuario(user_id: int):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("DELETE FROM usuarios WHERE id = ?", (user_id,))
+    cur.execute("DELETE FROM usuarios WHERE id = %s", (user_id,))
     conn.commit()
     conn.close()
 
@@ -946,19 +902,16 @@ def excluir_usuario(user_id: int):
 def alterar_senha_usuario(username: str, senha_atual: str, nova_senha: str):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("SELECT senha_hash FROM usuarios WHERE UPPER(username) = UPPER(?)", (username,))
+    cur.execute("SELECT senha_hash FROM usuarios WHERE UPPER(username) = UPPER(%s)", (username,))
     row = cur.fetchone()
-
     if not row:
         conn.close()
         return False, "Usuário não encontrado."
-
     if row[0] != hash_senha(senha_atual):
         conn.close()
         return False, "Senha atual incorreta."
-
     cur.execute(
-        "UPDATE usuarios SET senha_hash = ?, atualizado_em = ? WHERE UPPER(username) = UPPER(?)",
+        "UPDATE usuarios SET senha_hash = %s, atualizado_em = %s WHERE UPPER(username) = UPPER(%s)",
         (hash_senha(nova_senha), agora_str(), username)
     )
     conn.commit()
@@ -970,18 +923,12 @@ def inserir_solicitacao(tema: str, descricao: str, solicitante: str, perfil: str
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
-    INSERT INTO solicitacoes_tema (
-        tema_solicitado, descricao, solicitante, perfil_solicitante, status, data_solicitacao
-    )
-    VALUES (?, ?, ?, ?, 'PENDENTE', ?)
-    """, (
-        tema.strip(),
-        descricao.strip(),
-        solicitante,
-        perfil,
-        agora_str()
-    ))
-    solicitacao_id = cur.lastrowid
+        INSERT INTO solicitacoes_tema
+            (tema_solicitado, descricao, solicitante, perfil_solicitante, status, data_solicitacao)
+        VALUES (%s, %s, %s, %s, 'PENDENTE', %s)
+        RETURNING id
+    """, (tema.strip(), descricao.strip(), solicitante, perfil, agora_str()))
+    solicitacao_id = cur.fetchone()[0]
     conn.commit()
     conn.close()
     return solicitacao_id
@@ -1001,7 +948,7 @@ def listar_solicitacoes():
 def atualizar_status_solicitacao(solicitacao_id: int, novo_status: str):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("UPDATE solicitacoes_tema SET status = ? WHERE id = ?", (novo_status, solicitacao_id))
+    cur.execute("UPDATE solicitacoes_tema SET status = %s WHERE id = %s", (novo_status, solicitacao_id))
     conn.commit()
     conn.close()
 
@@ -1012,7 +959,7 @@ def obter_solicitacao_por_id(solicitacao_id: int):
     cur.execute("""
         SELECT id, tema_solicitado, descricao, solicitante, perfil_solicitante, status, data_solicitacao
         FROM solicitacoes_tema
-        WHERE id = ?
+        WHERE id = %s
     """, (solicitacao_id,))
     row = cur.fetchone()
     conn.close()
@@ -1022,12 +969,9 @@ def obter_solicitacao_por_id(solicitacao_id: int):
 def buscar_emails_admins():
     conn = get_conn()
     df = pd.read_sql_query("""
-        SELECT email
-        FROM usuarios
-        WHERE perfil = 'ADMIN'
-          AND ativo = 1
-          AND email IS NOT NULL
-          AND TRIM(email) <> ''
+        SELECT email FROM usuarios
+        WHERE perfil = 'ADMIN' AND ativo = 1
+          AND email IS NOT NULL AND TRIM(email) <> ''
     """, conn)
     conn.close()
     return df["email"].tolist()
@@ -1036,7 +980,7 @@ def buscar_emails_admins():
 def buscar_email_usuario(username: str):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("SELECT email FROM usuarios WHERE UPPER(username) = UPPER(?)", (username,))
+    cur.execute("SELECT email FROM usuarios WHERE UPPER(username) = UPPER(%s)", (username,))
     row = cur.fetchone()
     conn.close()
     return row[0] if row and row[0] else ""
@@ -1718,7 +1662,7 @@ def pagina_usuarios():
                 criar_usuario(novo_user, novo_email, nova_senha, perfil)
                 st.success("Usuário criado com sucesso.")
                 st.rerun()
-            except sqlite3.IntegrityError:
+            except psycopg2.errors.UniqueViolation:
                 st.error("Já existe um usuário com esse nome ou e-mail.")
             except Exception as e:
                 st.error(f"Erro ao criar usuário: {e}")
