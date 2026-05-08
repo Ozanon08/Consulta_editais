@@ -717,7 +717,13 @@ def aplicar_estilo_light():
 
     div[data-testid="stDataFrame"] div[role="gridcell"] {
         color: #0f172a !important;
+        background: transparent !important;
         border-bottom: 1px solid #e2e8f0 !important;
+    }
+
+    div[data-testid="stDataFrame"] div[role="gridcell"] * {
+        color: #0f172a !important;
+        -webkit-text-fill-color: #0f172a !important;
     }
 
     div[data-testid="stDataFrame"] div[role="row"]:hover {
@@ -729,6 +735,27 @@ def aplicar_estilo_light():
         color: #1e3a8a !important;
         font-weight: 600 !important;
         border-bottom: 1px solid #cbd5e1 !important;
+    }
+
+    div[data-testid="stDataFrame"] div[role="columnheader"] * {
+        color: #1e3a8a !important;
+        -webkit-text-fill-color: #1e3a8a !important;
+    }
+
+    /* Dropdown do selectbox no tema light */
+    div[data-baseweb="popover"] div[data-baseweb="menu"] {
+        background-color: #ffffff !important;
+        border: 1px solid #cbd5e1 !important;
+    }
+
+    div[data-baseweb="popover"] div[data-baseweb="menu"] * {
+        background-color: transparent !important;
+        color: #0f172a !important;
+        -webkit-text-fill-color: #0f172a !important;
+    }
+
+    div[data-baseweb="popover"] li:hover {
+        background-color: #eaf2ff !important;
     }
 
     /* LOGIN */
