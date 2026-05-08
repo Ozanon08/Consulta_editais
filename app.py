@@ -1353,15 +1353,34 @@ def pagina_consulta():
 
     st.subheader("Filtros de consulta")
 
+    def opcoes(df_base, col):
+        if not col:
+            return ["Todos"]
+        return ["Todos"] + sorted(df_base[col].dropna().replace("", pd.NA).dropna().unique().tolist())
+
+    # Filtros em cascata: cada filtro restringe as opções dos seguintes
+    filtrado = df.copy()
+
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        tema = st.selectbox("Tema", ["Todos"] + sorted(df[col_tema].dropna().replace("", pd.NA).dropna().unique().tolist()) if col_tema else ["Todos"])
+        tema = st.selectbox("Tema", opcoes(filtrado, col_tema))
+    if col_tema and tema != "Todos":
+        filtrado = filtrado[filtrado[col_tema] == tema]
+
     with c2:
-        subtema = st.selectbox("Subtema", ["Todos"] + sorted(df[col_subtema].dropna().replace("", pd.NA).dropna().unique().tolist()) if col_subtema else ["Todos"])
+        subtema = st.selectbox("Subtema", opcoes(filtrado, col_subtema))
+    if col_subtema and subtema != "Todos":
+        filtrado = filtrado[filtrado[col_subtema] == subtema]
+
     with c3:
-        estado = st.selectbox("Estado", ["Todos"] + sorted(df[col_estado].dropna().replace("", pd.NA).dropna().unique().tolist()) if col_estado else ["Todos"])
+        estado = st.selectbox("Estado", opcoes(filtrado, col_estado))
+    if col_estado and estado != "Todos":
+        filtrado = filtrado[filtrado[col_estado] == estado]
+
     with c4:
-        municipio = st.selectbox("Município", ["Todos"] + sorted(df[col_municipio].dropna().replace("", pd.NA).dropna().unique().tolist()) if col_municipio else ["Todos"])
+        municipio = st.selectbox("Município", opcoes(filtrado, col_municipio))
+    if col_municipio and municipio != "Todos":
+        filtrado = filtrado[filtrado[col_municipio] == municipio]
 
     busca = st.text_input("Busca textual", placeholder="Nome, descrição, código...")
 
@@ -1371,16 +1390,6 @@ def pagina_consulta():
     prazo_min = c11.number_input("Prazo mínimo (meses)", min_value=0.0, value=0.0, step=1.0, format="%.2f")
     prazo_max = c12.number_input("Prazo máximo (meses)", min_value=0.0, value=0.0, step=1.0, format="%.2f")
     st.markdown('</div>', unsafe_allow_html=True)
-
-    filtrado = df.copy()
-    if col_tema and tema != "Todos":
-        filtrado = filtrado[filtrado[col_tema] == tema]
-    if col_subtema and subtema != "Todos":
-        filtrado = filtrado[filtrado[col_subtema] == subtema]
-    if col_estado and estado != "Todos":
-        filtrado = filtrado[filtrado[col_estado] == estado]
-    if col_municipio and municipio != "Todos":
-        filtrado = filtrado[filtrado[col_municipio] == municipio]
 
     if busca:
         texto_cols = [c for c in [col_nome, col_desc, col_codigo, col_obs] if c]
