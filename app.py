@@ -1047,6 +1047,8 @@ def processar_upload_planilha(arquivo):
         "Fonte de Dados": "fonte_dado", "OBS": "observacao",
         "Custo de Execução": "custo_execucao", "Data edital (mês/ano)": "data_edital",
         "Min": "valor_min", "Máx": "valor_max",
+        "Metodo de Calculo": "metodo_calculo",
+        "Método de Cálculo": "metodo_calculo",
     }
 
     df = pd.read_excel(arquivo, sheet_name="Base")
@@ -1079,8 +1081,22 @@ def processar_upload_planilha(arquivo):
     cur.execute("DELETE FROM subtema")
     cur.execute("DELETE FROM tema")
 
+    def limpar(val):
+        """Converte qualquer valor para string limpa ou None."""
+        if val is None:
+            return None
+        import math
+        try:
+            if isinstance(val, float) and math.isnan(val):
+                return None
+        except Exception:
+            pass
+        s = str(val).strip()
+        return None if s in ("", "-", "nan", "None", "NaN", "<NA>") else s
+
     def upsert(table, nome):
-        if not nome or str(nome) in ("None", "nan", ""):
+        nome = limpar(nome)
+        if not nome:
             return None
         cur.execute(f"SELECT id FROM {table} WHERE nome = %s", (nome,))
         row = cur.fetchone()
@@ -1094,71 +1110,96 @@ def processar_upload_planilha(arquivo):
 
     for _, row in df.iterrows():
         tema_id = None
-        if row.get("tema"):
-            tema_id = tema_map.get(row["tema"]) or upsert("tema", row["tema"])
-            tema_map[row["tema"]] = tema_id
+        v = limpar(row.get("tema"))
+        if v:
+            tema_id = tema_map.get(v) or upsert("tema", v)
+            tema_map[v] = tema_id
 
         subtema_id = None
-        if row.get("subtema"):
-            key = (tema_id, row["subtema"])
+        v = limpar(row.get("subtema"))
+        if v:
+            key = (tema_id, v)
             if key not in subtema_map:
-                cur.execute("SELECT id FROM subtema WHERE tema_id IS NOT DISTINCT FROM %s AND nome = %s", (tema_id, row["subtema"]))
+                cur.execute("SELECT id FROM subtema WHERE tema_id IS NOT DISTINCT FROM %s AND nome = %s", (tema_id, v))
                 found = cur.fetchone()
                 if found:
                     subtema_map[key] = found[0]
                 else:
-                    cur.execute("INSERT INTO subtema (tema_id, nome) VALUES (%s, %s) RETURNING id", (tema_id, row["subtema"]))
+                    cur.execute("INSERT INTO subtema (tema_id, nome) VALUES (%s, %s) RETURNING id", (tema_id, v))
                     subtema_map[key] = cur.fetchone()[0]
             subtema_id = subtema_map[key]
 
         pais_id = None
-        if row.get("pais"):
-            pais_id = pais_map.get(row["pais"]) or upsert("pais", row["pais"])
-            pais_map[row["pais"]] = pais_id
+        v = limpar(row.get("pais"))
+        if v:
+            pais_id = pais_map.get(v) or upsert("pais", v)
+            pais_map[v] = pais_id
 
         estado_id = None
-        if row.get("estado"):
-            if row["estado"] not in estado_map:
-                cur.execute("SELECT id FROM estado WHERE nome = %s", (row["estado"],))
+        v = limpar(row.get("estado"))
+        if v:
+            if v not in estado_map:
+                cur.execute("SELECT id FROM estado WHERE nome = %s", (v,))
                 found = cur.fetchone()
                 if found:
-                    estado_map[row["estado"]] = found[0]
+                    estado_map[v] = found[0]
                 else:
-                    cur.execute("INSERT INTO estado (pais_id, nome) VALUES (%s, %s) RETURNING id", (pais_id, row["estado"]))
-                    estado_map[row["estado"]] = cur.fetchone()[0]
-            estado_id = estado_map[row["estado"]]
+                    cur.execute("INSERT INTO estado (pais_id, nome) VALUES (%s, %s) RETURNING id", (pais_id, v))
+                    estado_map[v] = cur.fetchone()[0]
+            estado_id = estado_map[v]
 
         municipio_id = None
-        if row.get("municipio"):
-            key = (estado_id, row["municipio"])
+        v = limpar(row.get("municipio"))
+        if v:
+            key = (estado_id, v)
             if key not in municipio_map:
-                cur.execute("SELECT id FROM municipio WHERE estado_id IS NOT DISTINCT FROM %s AND nome = %s", (estado_id, row["municipio"]))
+                cur.execute("SELECT id FROM municipio WHERE estado_id IS NOT DISTINCT FROM %s AND nome = %s", (estado_id, v))
                 found = cur.fetchone()
                 if found:
                     municipio_map[key] = found[0]
                 else:
-                    cur.execute("INSERT INTO municipio (estado_id, nome) VALUES (%s, %s) RETURNING id", (estado_id, row["municipio"]))
+                    cur.execute("INSERT INTO municipio (estado_id, nome) VALUES (%s, %s) RETURNING id", (estado_id, v))
                     municipio_map[key] = cur.fetchone()[0]
             municipio_id = municipio_map[key]
 
         tipo_id = None
-        if row.get("tipo_edital"):
-            tipo_id = tipo_map.get(row["tipo_edital"]) or upsert("tipo_edital", row["tipo_edital"])
-            tipo_map[row["tipo_edital"]] = tipo_id
+        v = limpar(row.get("tipo_edital"))
+        if v:
+            tipo_id = tipo_map.get(v) or upsert("tipo_edital", v)
+            tipo_map[v] = tipo_id
 
         unidade_id = None
-        if row.get("unidade"):
-            unidade_id = unidade_map.get(row["unidade"]) or upsert("unidade", row["unidade"])
-            unidade_map[row["unidade"]] = unidade_id
+        v = limpar(row.get("unidade"))
+        if v:
+            unidade_id = unidade_map.get(v) or upsert("unidade", v)
+            unidade_map[v] = unidade_id
 
         fonte_id = None
-        if row.get("fonte_dado"):
-            fonte_id = fonte_map.get(row["fonte_dado"]) or upsert("fonte_dado", row["fonte_dado"])
-            fonte_map[row["fonte_dado"]] = fonte_id
+        v = limpar(row.get("fonte_dado"))
+        if v:
+            fonte_id = fonte_map.get(v) or upsert("fonte_dado", v)
+            fonte_map[v] = fonte_id
 
         def safe_float(v):
+            if v is None:
+                return None
             try:
-                return None if pd.isna(v) else float(v)
+                if pd.isna(v):
+                    return None
+            except Exception:
+                pass
+            s = str(v).strip()
+            if s in ("", "-", "nan", "None", "NaN"):
+                return None
+            # Trata formato brasileiro: 1.234.567,89 → 1234567.89
+            if "," in s and "." in s:
+                s = s.replace(".", "").replace(",", ".")
+            elif "," in s:
+                s = s.replace(",", ".")
+            # Remove espaços internos (ex: "5 77.413,08")
+            s = s.replace(" ", "")
+            try:
+                return float(s)
             except Exception:
                 return None
 
@@ -1172,11 +1213,11 @@ def processar_upload_planilha(arquivo):
             RETURNING id
         """, (
             tema_id, subtema_id, pais_id, estado_id, municipio_id,
-            row.get("nome_edital"), row.get("descricao"), row.get("esforco"),
+            limpar(row.get("nome_edital")), limpar(row.get("descricao")), limpar(row.get("esforco")),
             unidade_id, safe_float(row.get("prazo_meses")), tipo_id,
-            row.get("codigo_planilha"), fonte_id, row.get("observacao"),
-            safe_float(row.get("custo_execucao")), row.get("data_edital"),
-            row.get("metodo_calculo"),
+            limpar(row.get("codigo_planilha")), fonte_id, limpar(row.get("observacao")),
+            safe_float(row.get("custo_execucao")), limpar(row.get("data_edital")),
+            limpar(row.get("metodo_calculo")),
             safe_float(row.get("valor_min")), safe_float(row.get("valor_max")),
         ))
         edital_id = cur.fetchone()[0]
