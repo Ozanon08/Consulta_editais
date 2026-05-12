@@ -1255,39 +1255,132 @@ def enviar_email(destinatarios, assunto: str, corpo_html: str):
         return False, str(e)
 
 
+def _base_email(conteudo_interno: str) -> str:
+    return f"""
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head><meta charset="UTF-8"></head>
+    <body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:32px 0;">
+        <tr><td align="center">
+          <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+            <!-- Cabeçalho -->
+            <tr>
+              <td style="background:#1e3a8a;padding:24px 32px;">
+                <p style="margin:0;color:#ffffff;font-size:18px;font-weight:bold;">FGV PMO</p>
+                <p style="margin:4px 0 0;color:#93c5fd;font-size:13px;">Portal de Consulta de Editais</p>
+              </td>
+            </tr>
+            <!-- Conteúdo -->
+            <tr>
+              <td style="padding:32px;">
+                {conteudo_interno}
+              </td>
+            </tr>
+            <!-- Rodapé -->
+            <tr>
+              <td style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0;">
+                <p style="margin:0;color:#94a3b8;font-size:12px;">
+                  Este é um e-mail automático enviado pelo Portal de Editais FGV PMO. Por favor, não responda diretamente a esta mensagem.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td></tr>
+      </table>
+    </body>
+    </html>
+    """
+
+
+def _linha_info(label: str, valor: str) -> str:
+    return f"""
+    <tr>
+      <td style="padding:8px 12px;font-size:13px;color:#64748b;font-weight:600;width:160px;vertical-align:top;">{label}</td>
+      <td style="padding:8px 12px;font-size:13px;color:#0f172a;vertical-align:top;">{valor}</td>
+    </tr>"""
+
+
+def _badge_status(status: str) -> str:
+    cores = {
+        "PENDENTE":    ("#fef3c7", "#92400e"),
+        "EM ANÁLISE":  ("#dbeafe", "#1e40af"),
+        "CONCLUÍDA":   ("#dcfce7", "#166534"),
+        "RECUSADA":    ("#fee2e2", "#991b1b"),
+    }
+    bg, fg = cores.get(status, ("#f1f5f9", "#475569"))
+    return f'<span style="background:{bg};color:{fg};padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;">{status}</span>'
+
+
 def enviar_email_nova_solicitacao_para_admins(tema: str, descricao: str, solicitante: str, perfil: str, solicitacao_id: int):
+    import html as _html
     emails_admin = buscar_emails_admins()
     if not emails_admin:
         return False, "Nenhum ADMIN com e-mail cadastrado."
 
-    assunto = f"Nova solicitação de edital - ID {solicitacao_id}"
-    corpo = f"""
-    <h3>Nova solicitação cadastrada</h3>
-    <p><b>ID:</b> {solicitacao_id}</p>
-    <p><b>Solicitante:</b> {solicitante}</p>
-    <p><b>Perfil:</b> {perfil}</p>
-    <p><b>Tema:</b> {tema}</p>
-    <p><b>Descrição:</b> {descricao if descricao else '-'}</p>
-    <p><b>Data:</b> {agora_str()}</p>
+    assunto = f"[FGV PMO] Nova solicitação de busca de edital — #{solicitacao_id}"
+    conteudo = f"""
+        <h2 style="margin:0 0 8px;color:#1e3a8a;font-size:20px;">Nova solicitação recebida</h2>
+        <p style="margin:0 0 24px;color:#64748b;font-size:14px;">
+          Uma nova solicitação de busca de edital foi registrada no Portal e aguarda análise.
+        </p>
+        <table width="100%" cellpadding="0" cellspacing="0"
+               style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:24px;">
+          {_linha_info("Nº da solicitação", f"#{solicitacao_id}")}
+          {_linha_info("Data", agora_str())}
+          {_linha_info("Solicitante", _html.escape(solicitante))}
+          {_linha_info("Perfil", perfil)}
+          {_linha_info("Tema solicitado", _html.escape(tema))}
+          {_linha_info("Descrição", _html.escape(descricao) if descricao else "—")}
+          {_linha_info("Status atual", _badge_status("PENDENTE"))}
+        </table>
+        <p style="margin:0;font-size:14px;color:#475569;">
+          Acesse o Portal para analisar e atualizar o status desta solicitação.
+        </p>
     """
-    return enviar_email(emails_admin, assunto, corpo)
+    return enviar_email(emails_admin, assunto, _base_email(conteudo))
 
 
 def enviar_email_atualizacao_status_para_solicitante(solicitacao_id: int, tema: str, solicitante: str, novo_status: str):
+    import html as _html
     email_solicitante = buscar_email_usuario(solicitante)
     if not email_solicitante:
         return False, "Solicitante sem e-mail cadastrado."
 
-    assunto = f"Atualização da solicitação de edital - ID {solicitacao_id}"
-    corpo = f"""
-    <h3>Status da solicitação atualizado</h3>
-    <p><b>ID:</b> {solicitacao_id}</p>
-    <p><b>Tema:</b> {tema}</p>
-    <p><b>Solicitante:</b> {solicitante}</p>
-    <p><b>Novo status:</b> {novo_status}</p>
-    <p><b>Data da atualização:</b> {agora_str()}</p>
+    mensagens_status = {
+        "EM ANÁLISE": "Sua solicitação está sendo analisada pela equipe do FGV PMO. Em breve você receberá uma atualização.",
+        "CONCLUÍDA":  "Sua solicitação foi concluída. Os editais relacionados ao tema solicitado já estão disponíveis para consulta no Portal.",
+        "RECUSADA":   "Após análise, sua solicitação não pôde ser atendida no momento. Entre em contato com o FGV PMO para mais informações.",
+        "PENDENTE":   "Sua solicitação foi recebida e está na fila de análise.",
+    }
+    mensagem = mensagens_status.get(novo_status, "O status da sua solicitação foi atualizado.")
+
+    assunto = f"[FGV PMO] Atualização da solicitação #{solicitacao_id} — {novo_status}"
+    conteudo = f"""
+        <h2 style="margin:0 0 8px;color:#1e3a8a;font-size:20px;">Atualização da sua solicitação</h2>
+        <p style="margin:0 0 24px;color:#64748b;font-size:14px;">
+          Olá, <b>{_html.escape(solicitante)}</b>. O status da sua solicitação foi atualizado.
+        </p>
+        <table width="100%" cellpadding="0" cellspacing="0"
+               style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:24px;">
+          {_linha_info("Nº da solicitação", f"#{solicitacao_id}")}
+          {_linha_info("Data da atualização", agora_str())}
+          {_linha_info("Tema solicitado", _html.escape(tema))}
+          {_linha_info("Novo status", _badge_status(novo_status))}
+        </table>
+        <table width="100%" cellpadding="0" cellspacing="0"
+               style="background:#eff6ff;border-left:4px solid #3b82f6;border-radius:0 6px 6px 0;padding:0;margin-bottom:24px;">
+          <tr>
+            <td style="padding:16px 20px;font-size:14px;color:#1e40af;">
+              {mensagem}
+            </td>
+          </tr>
+        </table>
+        <p style="margin:0;font-size:14px;color:#475569;">
+          Acesse o Portal para acompanhar suas solicitações e consultar os editais disponíveis.
+        </p>
     """
-    return enviar_email([email_solicitante], assunto, corpo)
+    return enviar_email([email_solicitante], assunto, _base_email(conteudo))
 
 
 def to_excel_bytes(df: pd.DataFrame) -> bytes:
