@@ -1013,6 +1013,183 @@ def buscar_email_usuario(username: str):
     return row[0] if row and row[0] else ""
 
 
+def normalizar_servicos(value) -> list:
+    if not value or str(value).strip() in ("", "nan", "None", "-"):
+        return []
+    text = str(value).strip().rstrip(".")
+    separators = [",", ";", "|", " / "]
+    parts = [text]
+    for sep in separators:
+        new_parts = []
+        for item in parts:
+            new_parts.extend(item.split(sep))
+        parts = new_parts
+    parts = [p.strip(" .;") for p in parts if str(p).strip(" .;")]
+    seen = set()
+    result = []
+    for part in parts:
+        key = part.casefold()
+        if key not in seen:
+            seen.add(key)
+            result.append(part)
+    return result
+
+
+def processar_upload_planilha(arquivo):
+    import pandas as pd
+
+    COLUMN_MAP = {
+        "Tema": "tema", "Subtema": "subtema", "Serviços": "servicos",
+        "País": "pais", "Estado": "estado", "Município": "municipio",
+        "Nome Edital": "nome_edital", "Descrição": "descricao", "Esforço": "esforco",
+        "Unidade": "unidade", "Prazo (meses)": "prazo_meses",
+        "Tipo de Edital": "tipo_edital", "Código Planilha": "codigo_planilha",
+        "Fonte de Dados": "fonte_dado", "OBS": "observacao",
+        "Custo de Execução": "custo_execucao", "Data edital (mês/ano)": "data_edital",
+        "Min": "valor_min", "Máx": "valor_max",
+    }
+
+    df = pd.read_excel(arquivo, sheet_name="Base")
+    df = df.rename(columns=COLUMN_MAP)
+    for col in df.columns:
+        if df[col].dtype == object:
+            df[col] = df[col].astype(str).str.strip().replace({"nan": None, "None": None, "": None})
+    for col in ["prazo_meses", "custo_execucao", "valor_min", "valor_max"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    if "data_edital" in df.columns:
+        dt = pd.to_datetime(df["data_edital"], errors="coerce", dayfirst=True)
+        mask = dt.notna()
+        df.loc[mask, "data_edital"] = dt.loc[mask].dt.strftime("%Y-%m")
+
+    conn = get_conn()
+    conn.autocommit = False
+    cur = conn.cursor()
+
+    # Limpa apenas os editais (preserva usuários e solicitações)
+    cur.execute("DELETE FROM edital_servico")
+    cur.execute("DELETE FROM edital")
+    cur.execute("DELETE FROM servico")
+    cur.execute("DELETE FROM fonte_dado")
+    cur.execute("DELETE FROM unidade")
+    cur.execute("DELETE FROM tipo_edital")
+    cur.execute("DELETE FROM municipio")
+    cur.execute("DELETE FROM estado")
+    cur.execute("DELETE FROM pais")
+    cur.execute("DELETE FROM subtema")
+    cur.execute("DELETE FROM tema")
+
+    def upsert(table, nome):
+        if not nome or str(nome) in ("None", "nan", ""):
+            return None
+        cur.execute(f"SELECT id FROM {table} WHERE nome = %s", (nome,))
+        row = cur.fetchone()
+        if row:
+            return row[0]
+        cur.execute(f"INSERT INTO {table} (nome) VALUES (%s) RETURNING id", (nome,))
+        return cur.fetchone()[0]
+
+    tema_map, subtema_map, pais_map, estado_map = {}, {}, {}, {}
+    municipio_map, tipo_map, unidade_map, fonte_map, servico_map = {}, {}, {}, {}, {}
+
+    for _, row in df.iterrows():
+        tema_id = None
+        if row.get("tema"):
+            tema_id = tema_map.get(row["tema"]) or upsert("tema", row["tema"])
+            tema_map[row["tema"]] = tema_id
+
+        subtema_id = None
+        if row.get("subtema"):
+            key = (tema_id, row["subtema"])
+            if key not in subtema_map:
+                cur.execute("SELECT id FROM subtema WHERE tema_id IS NOT DISTINCT FROM %s AND nome = %s", (tema_id, row["subtema"]))
+                found = cur.fetchone()
+                if found:
+                    subtema_map[key] = found[0]
+                else:
+                    cur.execute("INSERT INTO subtema (tema_id, nome) VALUES (%s, %s) RETURNING id", (tema_id, row["subtema"]))
+                    subtema_map[key] = cur.fetchone()[0]
+            subtema_id = subtema_map[key]
+
+        pais_id = None
+        if row.get("pais"):
+            pais_id = pais_map.get(row["pais"]) or upsert("pais", row["pais"])
+            pais_map[row["pais"]] = pais_id
+
+        estado_id = None
+        if row.get("estado"):
+            if row["estado"] not in estado_map:
+                cur.execute("SELECT id FROM estado WHERE nome = %s", (row["estado"],))
+                found = cur.fetchone()
+                if found:
+                    estado_map[row["estado"]] = found[0]
+                else:
+                    cur.execute("INSERT INTO estado (pais_id, nome) VALUES (%s, %s) RETURNING id", (pais_id, row["estado"]))
+                    estado_map[row["estado"]] = cur.fetchone()[0]
+            estado_id = estado_map[row["estado"]]
+
+        municipio_id = None
+        if row.get("municipio"):
+            key = (estado_id, row["municipio"])
+            if key not in municipio_map:
+                cur.execute("SELECT id FROM municipio WHERE estado_id IS NOT DISTINCT FROM %s AND nome = %s", (estado_id, row["municipio"]))
+                found = cur.fetchone()
+                if found:
+                    municipio_map[key] = found[0]
+                else:
+                    cur.execute("INSERT INTO municipio (estado_id, nome) VALUES (%s, %s) RETURNING id", (estado_id, row["municipio"]))
+                    municipio_map[key] = cur.fetchone()[0]
+            municipio_id = municipio_map[key]
+
+        tipo_id = None
+        if row.get("tipo_edital"):
+            tipo_id = tipo_map.get(row["tipo_edital"]) or upsert("tipo_edital", row["tipo_edital"])
+            tipo_map[row["tipo_edital"]] = tipo_id
+
+        unidade_id = None
+        if row.get("unidade"):
+            unidade_id = unidade_map.get(row["unidade"]) or upsert("unidade", row["unidade"])
+            unidade_map[row["unidade"]] = unidade_id
+
+        fonte_id = None
+        if row.get("fonte_dado"):
+            fonte_id = fonte_map.get(row["fonte_dado"]) or upsert("fonte_dado", row["fonte_dado"])
+            fonte_map[row["fonte_dado"]] = fonte_id
+
+        def safe_float(v):
+            try:
+                return None if pd.isna(v) else float(v)
+            except Exception:
+                return None
+
+        cur.execute("""
+            INSERT INTO edital (
+                tema_id, subtema_id, pais_id, estado_id, municipio_id, nome_edital,
+                descricao, esforco, unidade_id, prazo_meses, tipo_edital_id,
+                codigo_planilha, fonte_dado_id, observacao, custo_execucao,
+                data_edital, metodo_calculo, valor_min, valor_max
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            RETURNING id
+        """, (
+            tema_id, subtema_id, pais_id, estado_id, municipio_id,
+            row.get("nome_edital"), row.get("descricao"), row.get("esforco"),
+            unidade_id, safe_float(row.get("prazo_meses")), tipo_id,
+            row.get("codigo_planilha"), fonte_id, row.get("observacao"),
+            safe_float(row.get("custo_execucao")), row.get("data_edital"),
+            row.get("metodo_calculo"),
+            safe_float(row.get("valor_min")), safe_float(row.get("valor_max")),
+        ))
+        edital_id = cur.fetchone()[0]
+
+        for serv in normalizar_servicos(row.get("servicos")):
+            servico_id = servico_map.get(serv) or upsert("servico", serv)
+            servico_map[serv] = servico_id
+            cur.execute("INSERT INTO edital_servico (edital_id, servico_id) VALUES (%s, %s) ON CONFLICT DO NOTHING", (edital_id, servico_id))
+
+    conn.commit()
+    conn.close()
+
+
 def enviar_email(destinatarios, assunto: str, corpo_html: str):
     if not destinatarios:
         return False, "Nenhum destinatário informado."
@@ -1316,7 +1493,8 @@ def menu_sidebar():
         if pode_solicitar(st.session_state.perfil):
             opcoes.append("Solicitações")
 
-        opcoes.append("Base de dados")
+        if pode_substituir_base(st.session_state.perfil):
+            opcoes.append("Base de dados")
         opcoes.append("Minha conta")
 
         if pode_gerenciar_usuarios(st.session_state.perfil):
@@ -1456,7 +1634,7 @@ def pagina_consulta():
     st.subheader("Resultados")
 
     colunas_remover = [
-        "tipo_edital", "codigo_planilha", "fonte_dado", "metodo_calculo", "valor_min", "valor_max", "observacao"
+        "id", "tipo_edital", "codigo_planilha", "fonte_dado", "metodo_calculo", "valor_min", "valor_max", "observacao"
     ]
     colunas_remover_existentes = [c for c in colunas_remover if c in filtrado.columns]
     df_exibicao = filtrado.drop(columns=colunas_remover_existentes)
@@ -1622,11 +1800,18 @@ def pagina_base():
     if pode_substituir_base(st.session_state.perfil):
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
         st.subheader("Substituir base de dados")
-        st.info("Área reservada para ADMIN e PMO. Aqui você pode implementar a carga de uma nova planilha para atualizar a base.")
+        st.info("Área reservada para ADMIN e PMO. O upload substitui todos os editais da base pelos da nova planilha. Usuários e solicitações não são afetados.")
         arquivo = st.file_uploader("Selecione uma planilha", type=["xlsx", "xls", "csv"])
         if arquivo is not None:
             st.success(f"Arquivo carregado: {arquivo.name}")
-            st.caption("Neste ponto você pode conectar a rotina que lê a planilha e atualiza o banco.")
+            if st.button("Processar e atualizar base", type="primary"):
+                with st.spinner("Processando planilha e atualizando o banco..."):
+                    try:
+                        processar_upload_planilha(arquivo)
+                        st.success("Base atualizada com sucesso! Recarregue a página para ver os novos dados.")
+                        st.cache_data.clear()
+                    except Exception as e:
+                        st.error(f"Erro ao processar a planilha: {e}")
         st.markdown('</div>', unsafe_allow_html=True)
 
 
