@@ -1341,46 +1341,31 @@ def enviar_email_nova_solicitacao_para_admins(tema: str, descricao: str, solicit
     return enviar_email(emails_admin, assunto, _base_email(conteudo))
 
 
-def enviar_email_atualizacao_status_para_solicitante(solicitacao_id: int, tema: str, solicitante: str, novo_status: str):
+def enviar_email_atualizacao_status_para_admins(solicitacao_id: int, tema: str, solicitante: str, novo_status: str):
     import html as _html
-    email_solicitante = buscar_email_usuario(solicitante)
-    if not email_solicitante:
-        return False, "Solicitante sem e-mail cadastrado."
+    emails_admin = buscar_emails_admins()
+    if not emails_admin:
+        return False, "Nenhum ADMIN com e-mail cadastrado."
 
-    mensagens_status = {
-        "EM ANÁLISE": "Sua solicitação está sendo analisada pela equipe do FGV PMO. Em breve você receberá uma atualização.",
-        "CONCLUÍDA":  "Sua solicitação foi concluída. Os editais relacionados ao tema solicitado já estão disponíveis para consulta no Portal.",
-        "RECUSADA":   "Após análise, sua solicitação não pôde ser atendida no momento. Entre em contato com o FGV PMO para mais informações.",
-        "PENDENTE":   "Sua solicitação foi recebida e está na fila de análise.",
-    }
-    mensagem = mensagens_status.get(novo_status, "O status da sua solicitação foi atualizado.")
-
-    assunto = f"[FGV PMO] Atualização da solicitação #{solicitacao_id} — {novo_status}"
+    assunto = f"[FGV PMO] Atualização de status — Solicitação #{solicitacao_id}"
     conteudo = f"""
-        <h2 style="margin:0 0 8px;color:#1e3a8a;font-size:20px;">Atualização da sua solicitação</h2>
+        <h2 style="margin:0 0 8px;color:#1e3a8a;font-size:20px;">Status de solicitação atualizado</h2>
         <p style="margin:0 0 24px;color:#64748b;font-size:14px;">
-          Olá, <b>{_html.escape(solicitante)}</b>. O status da sua solicitação foi atualizado.
+          O status da solicitação abaixo foi atualizado no Portal.
         </p>
         <table width="100%" cellpadding="0" cellspacing="0"
                style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:24px;">
           {_linha_info("Nº da solicitação", f"#{solicitacao_id}")}
           {_linha_info("Data da atualização", agora_str())}
+          {_linha_info("Solicitante", _html.escape(solicitante))}
           {_linha_info("Tema solicitado", _html.escape(tema))}
           {_linha_info("Novo status", _badge_status(novo_status))}
         </table>
-        <table width="100%" cellpadding="0" cellspacing="0"
-               style="background:#eff6ff;border-left:4px solid #3b82f6;border-radius:0 6px 6px 0;padding:0;margin-bottom:24px;">
-          <tr>
-            <td style="padding:16px 20px;font-size:14px;color:#1e40af;">
-              {mensagem}
-            </td>
-          </tr>
-        </table>
         <p style="margin:0;font-size:14px;color:#475569;">
-          Acesse o Portal para acompanhar suas solicitações e consultar os editais disponíveis.
+          Acesse o Portal para gerenciar as solicitações.
         </p>
     """
-    return enviar_email([email_solicitante], assunto, _base_email(conteudo))
+    return enviar_email(emails_admin, assunto, _base_email(conteudo))
 
 
 def to_excel_bytes(df: pd.DataFrame) -> bytes:
@@ -1889,14 +1874,14 @@ def pagina_solicitacoes():
                 else:
                     _, tema_solicitado, _, solicitante, _, _, _ = dados_sol
                     atualizar_status_solicitacao(solicitacao_id, novo_status)
-                    ok_email, msg_email = enviar_email_atualizacao_status_para_solicitante(
+                    ok_email, msg_email = enviar_email_atualizacao_status_para_admins(
                         solicitacao_id=solicitacao_id,
                         tema=tema_solicitado,
                         solicitante=solicitante,
                         novo_status=novo_status
                     )
                     if ok_email:
-                        st.success("Status atualizado e e-mail enviado ao solicitante.")
+                        st.success("Status atualizado e e-mail enviado aos administradores.")
                     else:
                         st.success("Status atualizado.")
                         st.info(f"Aviso sobre e-mail: {msg_email}")
