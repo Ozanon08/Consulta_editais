@@ -100,7 +100,10 @@ CREATE TABLE IF NOT EXISTS edital_servico (
 );
 
 -- =========================================================
--- USUÁRIOS (ALINHADO COM O APP)
+-- USUÁRIOS
+-- IMPORTANTE: O usuário ADMIN é criado pelo script load_data.py
+-- usando a variável de ambiente ADMIN_INITIAL_PASSWORD.
+-- NUNCA insira senhas ou hashes de senhas diretamente neste arquivo.
 -- =========================================================
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,19 +115,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
     criado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- ADMIN123
-INSERT OR IGNORE INTO usuarios (username, email, senha_hash, perfil, ativo, criado_em)
-VALUES (
-    'ADMIN',
-    NULL,
-    'e0bebd22819993425814866b62701e2919ea26f13704979f2e7f53e7c6a82d6f',
-    'ADMIN',
-    1,
-    CURRENT_TIMESTAMP
-);
-
 -- =========================================================
--- SOLICITAÇÕES DE NOVOS TEMAS (ALINHADO COM O APP)
+-- SOLICITAÇÕES DE NOVOS TEMAS
 -- =========================================================
 CREATE TABLE IF NOT EXISTS solicitacoes_tema (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
