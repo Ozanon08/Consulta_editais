@@ -1,5 +1,6 @@
 import os
 import hashlib
+import bcrypt
 import smtplib
 import base64
 from datetime import datetime
@@ -832,7 +833,17 @@ def get_conn():
 
 
 def hash_senha(senha: str) -> str:
-    return hashlib.sha256(senha.encode("utf-8")).hexdigest()
+    """Retorna o hash bcrypt da senha. Compatível com verificação via verificar_senha()."""
+    return bcrypt.hashpw(senha.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def verificar_senha(senha: str, hash_armazenado: str) -> bool:
+    """Verifica senha contra hash bcrypt ou SHA-256 legado (migração automática)."""
+    try:
+        return bcrypt.checkpw(senha.encode("utf-8"), hash_armazenado.encode("utf-8"))
+    except Exception:
+        # Fallback para hashes SHA-256 antigos (migração)
+        return hashlib.sha256(senha.encode("utf-8")).hexdigest() == hash_armazenado
 
 
 def agora_str() -> str:
@@ -873,18 +884,56 @@ def carregar_view():
     return df
 
 
+# Controle de tentativas de login (por sessão Streamlit)
+_MAX_TENTATIVAS = 5
+_BLOQUEIO_SEGUNDOS = 300  # 5 minutos
+
+
+def _checar_bloqueio_login() -> tuple[bool, int]:
+    """Retorna (bloqueado, segundos_restantes)."""
+    import time
+    agora = time.time()
+    tentativas = st.session_state.get("_login_tentativas", 0)
+    bloqueio_ate = st.session_state.get("_login_bloqueio_ate", 0)
+    if bloqueio_ate and agora < bloqueio_ate:
+        return True, int(bloqueio_ate - agora)
+    if bloqueio_ate and agora >= bloqueio_ate:
+        # Limpa após expirar
+        st.session_state["_login_tentativas"] = 0
+        st.session_state["_login_bloqueio_ate"] = 0
+    return False, 0
+
+
+def _registrar_falha_login():
+    import time
+    tentativas = st.session_state.get("_login_tentativas", 0) + 1
+    st.session_state["_login_tentativas"] = tentativas
+    if tentativas >= _MAX_TENTATIVAS:
+        st.session_state["_login_bloqueio_ate"] = time.time() + _BLOQUEIO_SEGUNDOS
+
+
+def _resetar_tentativas_login():
+    st.session_state["_login_tentativas"] = 0
+    st.session_state["_login_bloqueio_ate"] = 0
+
+
 def autenticar(username: str, senha: str):
+    bloqueado, restante = _checar_bloqueio_login()
+    if bloqueado:
+        raise PermissionError(f"Muitas tentativas incorretas. Aguarde {restante} segundos.")
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
-        SELECT username, perfil, ativo, email
+        SELECT username, perfil, ativo, email, senha_hash
         FROM usuarios
-        WHERE UPPER(username) = UPPER(%s) AND senha_hash = %s
-    """, (username, hash_senha(senha)))
+        WHERE UPPER(username) = UPPER(%s)
+    """, (username,))
     row = cur.fetchone()
     conn.close()
-    if row and row[2] == 1:
+    if row and row[2] == 1 and verificar_senha(senha, row[4]):
+        _resetar_tentativas_login()
         return {"username": row[0], "perfil": row[1], "email": row[3] if len(row) > 3 else ""}
+    _registrar_falha_login()
     return None
 
 
@@ -899,7 +948,19 @@ def listar_usuarios():
     return df
 
 
+_SENHA_MIN = 8
+
+
+def validar_senha(senha: str) -> tuple[bool, str]:
+    if len(senha) < _SENHA_MIN:
+        return False, f"A senha deve ter ao menos {_SENHA_MIN} caracteres."
+    return True, ""
+
+
 def criar_usuario(username: str, email: str, senha: str, perfil: str):
+    ok, msg = validar_senha(senha)
+    if not ok:
+        raise ValueError(msg)
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -931,12 +992,13 @@ def alterar_senha_usuario(username: str, senha_atual: str, nova_senha: str):
     cur = conn.cursor()
     cur.execute("SELECT senha_hash FROM usuarios WHERE UPPER(username) = UPPER(%s)", (username,))
     row = cur.fetchone()
-    if not row:
+    if not row or not verificar_senha(senha_atual, row[0]):
         conn.close()
-        return False, "Usuário não encontrado."
-    if row[0] != hash_senha(senha_atual):
+        return False, "Usuário ou senha atual inválidos."
+    ok, msg = validar_senha(nova_senha)
+    if not ok:
         conn.close()
-        return False, "Senha atual incorreta."
+        return False, msg
     cur.execute(
         "UPDATE usuarios SET senha_hash = %s, atualizado_em = %s WHERE UPPER(username) = UPPER(%s)",
         (hash_senha(nova_senha), agora_str(), username)
