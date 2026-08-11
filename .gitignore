@@ -1,3 +1,33 @@
-editais.db
-*.db
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
 .env
+*.env
+
+# Banco de dados local — nunca versionar
+*.db
+*.sqlite
+*.sqlite3
+
+# Segredos / credenciais
+.env*
+secrets.toml
+*.key
+*.pem
+
+# Streamlit
+.streamlit/secrets.toml
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
