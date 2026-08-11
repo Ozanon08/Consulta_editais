@@ -929,10 +929,20 @@ def autenticar(username: str, senha: str):
         WHERE UPPER(username) = UPPER(%s)
     """, (username,))
     row = cur.fetchone()
-    conn.close()
     if row and row[2] == 1 and verificar_senha(senha, row[4]):
         _resetar_tentativas_login()
+        # Upgrade automático: se o hash ainda é SHA-256 (não começa com $2b$), migra para bcrypt
+        hash_atual = row[4]
+        if not hash_atual.startswith("$2b$") and not hash_atual.startswith("$2a$"):
+            novo_hash = hash_senha(senha)
+            cur.execute(
+                "UPDATE usuarios SET senha_hash = %s WHERE UPPER(username) = UPPER(%s)",
+                (novo_hash, row[0])
+            )
+            conn.commit()
+        conn.close()
         return {"username": row[0], "perfil": row[1], "email": row[3] if len(row) > 3 else ""}
+    conn.close()
     _registrar_falha_login()
     return None
 
