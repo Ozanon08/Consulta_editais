@@ -83,6 +83,18 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def run() -> None:
+    import os
+
+    # Senha do admin via variável de ambiente — nunca hardcoded
+    senha_inicial = os.environ.get("ADMIN_INITIAL_PASSWORD", "")
+    if not senha_inicial:
+        raise SystemExit(
+            "Defina a variável de ambiente ADMIN_INITIAL_PASSWORD antes de executar este script.\n"
+            "Exemplo: ADMIN_INITIAL_PASSWORD='SenhaForte!2024' python load_data.py"
+        )
+    if len(senha_inicial) < 8:
+        raise SystemExit("ADMIN_INITIAL_PASSWORD deve ter ao menos 8 caracteres.")
+
     df = pd.read_excel(XLSX_PATH, sheet_name="Base")
     df = normalize_dataframe(df)
 
@@ -221,13 +233,13 @@ def run() -> None:
 
     cur.execute(
         "INSERT OR IGNORE INTO user_account (username, display_name, password_hash, role, is_active) VALUES (?, ?, ?, ?, 1)",
-        ("ADMIN", "Administrador", hash_password("ADMIN123"), "ADMIN"),
+        ("ADMIN", "Administrador", hash_password(senha_inicial), "ADMIN"),
     )
 
     conn.commit()
     conn.close()
     print("Banco criado com sucesso em", DB_PATH)
-    print("Usuário inicial: ADMIN | Senha inicial: ADMIN123")
+    # NUNCA imprima a senha aqui
 
 
 if __name__ == "__main__":
