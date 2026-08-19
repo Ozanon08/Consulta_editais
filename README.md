@@ -10,30 +10,7 @@ Aplicação Streamlit para consulta de editais com:
 - substituição da base por nova planilha Excel
 - filtros, detalhe, resumo e exportação CSV
 
-## Perfis
 
-- **ADMIN**: acesso total
-- **PMO**: acesso total, exceto criação de novos usuários
-- **COORDENADOR**: pode consultar tudo e solicitar inclusão de temas, mas não pode substituir a base
-- **GERAL**: apenas visualização das tabelas e filtros
-
-Altere ou crie novos usuários após o primeiro acesso.
-
-## Como executar
-
-```bash
-pip install -r requirements.txt
-python load_data.py
-streamlit run app.py
-```
-
-## Estrutura principal
-
-- `app.py`: aplicação Streamlit
-- `schema.sql`: estrutura SQLite completa
-- `load_data.py`: carga da planilha Excel para o banco
-- `Modelo dados.xlsx`: base inicial
-- `editais.db`: banco SQLite gerado localmente
 
 ## Observações
 
