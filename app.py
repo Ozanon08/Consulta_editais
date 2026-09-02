@@ -536,15 +536,35 @@ def aplicar_estilo_light():
     }
     div[data-baseweb="select"] * { color: var(--ink-primary) !important; -webkit-text-fill-color: var(--ink-primary) !important; }
     div[data-baseweb="select"] svg { fill: var(--fgv-blue) !important; }
-    div[data-baseweb="menu"], div[data-baseweb="popover"] div[data-baseweb="menu"] {
-        background: #fff !important; border: 1px solid var(--border-strong) !important;
-        border-radius: var(--radius-md) !important; box-shadow: var(--shadow-lg) !important;
+    div[data-baseweb="menu"],
+    div[data-baseweb="popover"] div[data-baseweb="menu"],
+    div[data-baseweb="popover"],
+    div[data-baseweb="popover"] > div,
+    div[data-baseweb="popover"] > div > div,
+    ul[data-baseweb="menu"] {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        border: 1px solid var(--border-strong) !important;
+        border-radius: var(--radius-md) !important;
+        box-shadow: 0 8px 24px rgba(11,31,58,.12) !important;
     }
-    div[data-baseweb="menu"] *, div[data-baseweb="popover"] div[data-baseweb="menu"] * {
-        color: var(--ink-primary) !important; -webkit-text-fill-color: var(--ink-primary) !important;
-        background: transparent !important;
+    div[data-baseweb="menu"] *,
+    div[data-baseweb="popover"] *,
+    ul[data-baseweb="menu"] li {
+        color: var(--ink-primary) !important;
+        -webkit-text-fill-color: var(--ink-primary) !important;
+        background-color: transparent !important;
     }
-    div[data-baseweb="menu"] li:hover, div[data-baseweb="popover"] li:hover { background: var(--surface-2) !important; }
+    div[data-baseweb="menu"] li:hover,
+    div[data-baseweb="popover"] li:hover,
+    div[data-baseweb="option"]:hover {
+        background: var(--surface-2) !important;
+        background-color: var(--surface-2) !important;
+    }
+    div[data-baseweb="option"][aria-selected="true"] {
+        background: var(--surface-3) !important;
+        background-color: var(--surface-3) !important;
+    }
     label { color: var(--ink-secondary) !important; font-size: 0.85rem !important; font-weight: 500 !important; }
     .stMarkdown p, .stMarkdown li, .stMarkdown span { color: var(--ink-primary) !important; }
     .stNumberInput button { background: #f5f8fd !important; color: var(--ink-primary) !important; border: 1px solid var(--border-strong) !important; }
