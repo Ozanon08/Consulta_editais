@@ -2539,7 +2539,8 @@ def processar_upload_projetos_concluidos(arquivo):
 
 def inserir_projeto_concluido(nome, tema, subtema, pais=None, estado=None, municipio=None,
                                data_inicio=None, data_conclusao=None, custo_contratado=None,
-                               custo_final=None, observacoes=None, criado_por=None):
+                               custo_final=None, observacoes=None, criado_por=None,
+                               esforco=None, unidade=None, esforco2=None, unidade2=None):
     from datetime import date
     prazo_real = None
     if data_inicio and data_conclusao:
@@ -2557,14 +2558,16 @@ def inserir_projeto_concluido(nome, tema, subtema, pais=None, estado=None, munic
         INSERT INTO projetos_concluidos
             (nome_projeto, tema, subtema, pais, estado, municipio,
              data_inicio, data_conclusao, prazo_real_meses,
-             custo_contratado, custo_final, observacoes, criado_por, criado_em, atualizado_em)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+             custo_contratado, custo_final, observacoes, criado_por, criado_em, atualizado_em,
+             esforco, unidade, esforco2, unidade2)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING id
     """, (nome, tema, subtema, pais, estado, municipio,
           str(data_inicio) if data_inicio else None,
           str(data_conclusao) if data_conclusao else None,
           prazo_real, custo_contratado, custo_final,
-          observacoes, criado_por, agora_str(), agora_str()))
+          observacoes, criado_por, agora_str(), agora_str(),
+          esforco or None, unidade or None, esforco2 or None, unidade2 or None))
     proj_id = cur.fetchone()[0]
     conn.commit()
     conn.close()
@@ -2582,37 +2585,65 @@ def excluir_projeto_concluido(proj_id: int):
 def kerzner_total_para_projeto(subtema: str, esforco) -> dict | None:
     """
     Calcula o prazo TOTAL Kerzner (min e max) para um projeto,
-    usando o esforço do projeto e a regressão do subtema.
-    Se não houver esforço ou correlação fraca, usa min/max histórico * 2.5 (total = exec/0.4).
+    usando o esforço do projeto e a regressão do subtema (ou tema como fallback).
+    Se não houver esforço ou correlação fraca, usa min/max histórico / 0.4.
     Retorna {"total_min": x, "total_max": y} ou None.
     """
     import math
 
-    conn = get_conn()
-    try:
-        df = pd.read_sql_query("""
-            SELECT prazo_meses, esforco FROM vw_consulta_editais
-            WHERE subtema = %s
-              AND prazo_meses IS NOT NULL AND prazo_meses > 0
-              AND esforco IS NOT NULL
-        """, conn, params=(subtema,))
-    except Exception:
-        return None
-    finally:
-        conn.close()
+    def _buscar_df(campo, valor):
+        conn = get_conn()
+        try:
+            return pd.read_sql_query(f"""
+                SELECT prazo_meses, esforco FROM vw_consulta_editais
+                WHERE {campo} = %s
+                  AND prazo_meses IS NOT NULL AND prazo_meses > 0
+                  AND esforco IS NOT NULL
+            """, conn, params=(valor,))
+        except Exception:
+            return pd.DataFrame()
+        finally:
+            conn.close()
+
+    # Tenta primeiro como subtema, depois como tema
+    df = _buscar_df("subtema", subtema)
+    if len(df) < 3:
+        df = _buscar_df("tema", subtema)
+    if len(df) < 3:
+        # Último fallback: busca sem filtro de esforço para ter ao menos o histórico
+        conn = get_conn()
+        try:
+            df = pd.read_sql_query("""
+                SELECT prazo_meses, esforco FROM vw_consulta_editais
+                WHERE (subtema = %s OR tema = %s)
+                  AND prazo_meses IS NOT NULL AND prazo_meses > 0
+            """, conn, params=(subtema, subtema))
+        except Exception:
+            return None
+        finally:
+            conn.close()
 
     if len(df) < 3:
         return None
 
     xs = pd.to_numeric(df["esforco"], errors="coerce").dropna().tolist()
-    ys = pd.to_numeric(df["prazo_meses"], errors="coerce").dropna().tolist()
-    if len(xs) < 3:
-        return None
+    ys_all = pd.to_numeric(df["prazo_meses"], errors="coerce").dropna().tolist()
+    # Align xs and ys to only rows that have both
+    df_valid = df.dropna(subset=["esforco"])
+    df_valid = df_valid[pd.to_numeric(df_valid["esforco"], errors="coerce").notna()]
+    xs = pd.to_numeric(df_valid["esforco"], errors="coerce").tolist()
+    ys = pd.to_numeric(df_valid["prazo_meses"], errors="coerce").tolist()
 
-    pearson = calcular_pearson(xs, ys)
-    spearman = calcular_spearman(xs, ys)
+    # Need at least prazos for hist_min/max even without esforco pairs
+    if not ys_all:
+        return None
+    # If xs < 3, can't do regression — use full prazo history for hist bounds
+    tem_regressao = len(xs) >= 3
+
+    pearson = calcular_pearson(xs, ys) if tem_regressao else 0.0
+    spearman = calcular_spearman(xs, ys) if tem_regressao else 0.0
     max_corr = max(abs(pearson), abs(spearman))
-    corr_forte = max_corr >= 0.6
+    corr_forte = max_corr >= 0.6 and tem_regressao
 
     # Tenta converter esforco do projeto
     esforco_val = None
@@ -2622,8 +2653,8 @@ def kerzner_total_para_projeto(subtema: str, esforco) -> dict | None:
         except Exception:
             esforco_val = None
 
-    # Estatísticas históricas de prazo de execução
-    s_prazos = sorted(ys)
+    # Estatísticas históricas de prazo de execução (usa todos os projetos do tema/subtema)
+    s_prazos = sorted(ys_all)
     n = len(s_prazos)
     hist_min = s_prazos[0]
     hist_max = s_prazos[-1]
@@ -2795,8 +2826,8 @@ def pagina_projetos_concluidos():
                     estado_proj = st.text_input("Estado")
                     municipio_proj = st.text_input("Município")
                 with c3:
-                    data_inicio_proj = st.date_input("Data de início", value=None)
-                    data_conclusao_proj = st.date_input("Data de conclusão", value=None)
+                    data_inicio_proj = st.date_input("Data de início", value=None, format="DD/MM/YYYY")
+                    data_conclusao_proj = st.date_input("Data de conclusão", value=None, format="DD/MM/YYYY")
 
                 st.markdown("**Parâmetros**")
                 p1, p2, p3, p4 = st.columns(4)
@@ -2833,7 +2864,11 @@ def pagina_projetos_concluidos():
                         custo_contratado=custo_contratado_proj or None,
                         custo_final=custo_final_proj or None,
                         observacoes=obs_proj or None,
-                        criado_por=st.session_state.usuario
+                        criado_por=st.session_state.usuario,
+                        esforco=esforco_proj.strip() or None,
+                        unidade=unidade_proj.strip() or None,
+                        esforco2=esforco2_proj.strip() or None,
+                        unidade2=unidade2_proj.strip() or None,
                     )
                     prazo_msg = f" Prazo real calculado: **{prazo_real:.1f} meses**." if prazo_real else ""
                     st.success(f"Projeto registrado com sucesso!{prazo_msg}")
@@ -2988,30 +3023,7 @@ def pagina_projetos_concluidos():
         except Exception:
             pass
 
-    #  Gráfico custo contratado vs realizado
-    df_custo_g = df_exib.dropna(subset=["custo_contratado","custo_final"])
-    df_custo_g = df_custo_g[(df_custo_g["custo_contratado"] > 0) | (df_custo_g["custo_final"] > 0)]
-    if not df_custo_g.empty and HAS_PLOTLY:
-        st.markdown("### Custo contratado vs. realizado")
-        fig_c = go.Figure()
-        nomes = df_custo_g["nome_projeto"].tolist()
-        fig_c.add_trace(go.Bar(name="Contratado", x=nomes,
-                               y=df_custo_g["custo_contratado"].tolist(),
-                               marker_color="#3b82f6"))
-        fig_c.add_trace(go.Bar(name="Realizado", x=nomes,
-                               y=df_custo_g["custo_final"].tolist(),
-                               marker_color="#ef4444"))
-        if tem_ipca:
-            corrigidos = df_custo_g.apply(
-                lambda r: corrigir_ipca(r["custo_contratado"],
-                                        str(r.get("data_edital") or r.get("data_inicio") or "")[:7],
-                                        data_ref_ipca, ipca) or 0, axis=1).tolist()
-            fig_c.add_trace(go.Bar(name=f"Contratado corr. IPCA ({data_ref_ipca})", x=nomes,
-                                   y=corrigidos, marker_color="#8b5cf6", opacity=0.7))
-        fig_c.update_layout(barmode="group", height=380, template="plotly_white",
-                            xaxis_title="Projeto", yaxis_title="R$",
-                            legend=dict(orientation="h", yanchor="bottom", y=1.02))
-        st.plotly_chart(fig_c, use_container_width=True)
+
 
     #  Excluir projeto com confirmação
     if st.session_state.perfil in ("ADMIN", "PMO"):
@@ -3033,126 +3045,146 @@ def pagina_projetos_concluidos():
 
     #  Comparação com Análise de Prazos
     st.markdown("---")
-    st.markdown("### Comparação: Prazo Real vs. Estimativa Estatística")
+    st.markdown("### Comparação: Prazo Real vs. Estimativa Kerzner")
 
     subtemas_comp = sorted(df_proj["subtema"].dropna().unique().tolist())
     if not subtemas_comp:
         st.info("Nenhum projeto com subtema definido para comparação.")
         return
 
-    subtema_comp = st.selectbox("Selecione o subtema para comparar", subtemas_comp, key="pc_subtema_comp")
-    df_comp = df_proj[df_proj["subtema"] == subtema_comp].dropna(subset=["prazo_real_meses"])
+    # ── Filtros de comparação ──
+    fc1, fc2 = st.columns([1, 2])
+    with fc1:
+        subtema_comp = st.selectbox("Subtema", subtemas_comp, key="pc_subtema_comp")
 
-    est = calcular_estatisticas_subtema(subtema_comp)
+    # Projetos disponíveis no subtema com prazo real
+    df_sub = df_proj[df_proj["subtema"] == subtema_comp].dropna(subset=["prazo_real_meses"])
 
-    if df_comp.empty:
-        st.info("Nenhum projeto concluído com prazo real para este subtema.")
-    elif not est:
-        st.info("Não há dados de editais suficientes para calcular a estimativa deste subtema.")
+    with fc2:
+        opcoes_proj = df_sub["nome_projeto"].tolist()
+        proj_sel = st.multiselect(
+            "Selecione os projetos para os gráficos",
+            opcoes_proj,
+            default=opcoes_proj,
+            key="pc_proj_sel"
+        )
+
+    if not proj_sel:
+        st.info("Selecione ao menos um projeto para visualizar os gráficos.")
+        return
+
+    df_comp = df_sub[df_sub["nome_projeto"].isin(proj_sel)].copy()
+
+    # ── Calcular estimativa Kerzner pela média dos esforços selecionados ──
+    esforcos_sel = pd.to_numeric(df_comp["esforco"], errors="coerce").dropna()
+    if not esforcos_sel.empty:
+        media_esforco = esforcos_sel.mean()
+        kz = kerzner_total_para_projeto(subtema_comp, media_esforco)
+        esforco_label = f"média {media_esforco:.1f} ({df_comp['unidade'].dropna().iloc[0] if not df_comp['unidade'].dropna().empty else ''})"
     else:
-        # Métricas de comparação
-        prazo_real_medio = df_comp["prazo_real_meses"].mean()
-        est_min = est["lower"] if est["lower"] > 0 else est["min"]
-        est_max = est["upper"] if est["upper"] > est["max"] else est["max"]
-        est_medio = est["mean"]
+        kz = kerzner_total_para_projeto(subtema_comp, None)
+        esforco_label = "sem esforço — usando histórico"
 
-        ce1, ce2, ce3, ce4 = st.columns(4)
-        # Para a comparação geral, usa intervalo Kerzner médio do subtema (sem esforço específico)
-        kz_geral = kerzner_total_para_projeto(subtema_comp, None)
-        t_min_geral = kz_geral["total_min"] if kz_geral else est["min"] * 2.5
-        t_max_geral = kz_geral["total_max"] if kz_geral else est["max"] * 2.5
+    if not kz:
+        st.info("Não há dados suficientes na base para calcular a estimativa Kerzner deste subtema.")
+        return
 
-        ce1.metric("Estimativa Kerzner mínima (total)", f"{t_min_geral:.1f} m")
-        ce2.metric("Estimativa Kerzner máxima (total)", f"{t_max_geral:.1f} m")
-        ce3.metric("Prazo real médio", f"{prazo_real_medio:.1f} m",
-                   delta=f"{prazo_real_medio - (t_min_geral+t_max_geral)/2:.1f} m vs. média Kerzner")
-        dentro = df_comp[(df_comp["prazo_real_meses"] >= t_min_geral) &
-                         (df_comp["prazo_real_meses"] <= t_max_geral)]
-        ce4.metric("Dentro do intervalo Kerzner", f"{len(dentro)}/{len(df_comp)}")
+    t_min = kz["total_min"]
+    t_max = kz["total_max"]
+    t_medio = (t_min + t_max) / 2
+    prazo_real_medio = df_comp["prazo_real_meses"].mean()
 
-        if HAS_PLOTLY:
-            # Gráfico 1: Barras comparando prazo real de cada projeto com intervalo estimado
-            fig1 = go.Figure()
+    # ── Métricas ──
+    ce1, ce2, ce3, ce4 = st.columns(4)
+    ce1.metric("Kerzner mínimo (total)", f"{t_min:.1f} m")
+    ce2.metric("Kerzner máximo (total)", f"{t_max:.1f} m")
+    ce3.metric("Prazo real médio", f"{prazo_real_medio:.1f} m",
+               delta=f"{prazo_real_medio - t_medio:+.1f} m vs. Kerzner")
+    dentro = df_comp[(df_comp["prazo_real_meses"] >= t_min) & (df_comp["prazo_real_meses"] <= t_max)]
+    ce4.metric("Dentro do intervalo Kerzner", f"{len(dentro)}/{len(df_comp)}")
 
-            # Faixa de intervalo histórico como área
-            projetos_nomes = df_comp["nome_projeto"].tolist()
-            prazos_reais = df_comp["prazo_real_meses"].tolist()
+    st.caption(f"Estimativa calculada pelo esforço: {esforco_label} | "
+               f"Kerzner: exec/0.4 = total | "
+               f"{'Correlação forte — regressão usada' if kz.get('corr_forte') else 'Correlação fraca — min/max histórico'}")
 
-            fig1.add_trace(go.Bar(
-                x=projetos_nomes, y=prazos_reais,
-                name="Prazo real",
-                marker_color=["#10b981" if t_min_geral <= p <= t_max_geral else "#ef4444" for p in prazos_reais],
-                hovertemplate="<b>%{x}</b><br>Prazo real: %{y:.1f} meses<extra></extra>"
+    if HAS_PLOTLY:
+        projetos_nomes = df_comp["nome_projeto"].tolist()
+        prazos_reais = df_comp["prazo_real_meses"].tolist()
+
+        # Gráfico 1: Barras prazo real por projeto com linha Kerzner
+        fig1 = go.Figure()
+        fig1.add_trace(go.Bar(
+            x=projetos_nomes, y=prazos_reais,
+            name="Prazo real",
+            marker_color=["#10b981" if t_min <= p <= t_max else "#ef4444" for p in prazos_reais],
+            hovertemplate="<b>%{x}</b><br>Prazo real: %{y:.1f} meses<extra></extra>"
+        ))
+        fig1.add_hline(y=t_min, line_dash="dash", line_color="#3b82f6",
+                       annotation_text=f"Kerzner mín.: {t_min:.1f}m",
+                       annotation_position="top right")
+        fig1.add_hline(y=t_max, line_dash="dash", line_color="#f59e0b",
+                       annotation_text=f"Kerzner máx.: {t_max:.1f}m",
+                       annotation_position="top right")
+        fig1.add_hline(y=t_medio, line_dash="dot", line_color="#8b5cf6",
+                       annotation_text=f"Kerzner médio: {t_medio:.1f}m",
+                       annotation_position="top right")
+        fig1.update_layout(
+            title=f"Prazo real por projeto — {subtema_comp}",
+            xaxis_title="Projeto", yaxis_title="Meses",
+            height=400, template="plotly_white", showlegend=True
+        )
+        st.plotly_chart(fig1, use_container_width=True)
+        st.caption("Verde = dentro do intervalo Kerzner   Vermelho = fora do intervalo Kerzner")
+
+        # Gráfico 2: Evolução do prazo ao longo do tempo
+        df_comp_ord = df_comp.sort_values("data_conclusao")
+        if not df_comp_ord["data_conclusao"].isna().all():
+            fig2 = go.Figure()
+            fig2.add_trace(go.Scatter(
+                x=df_comp_ord["data_conclusao"].astype(str).tolist(),
+                y=df_comp_ord["prazo_real_meses"].tolist(),
+                mode="markers+lines",
+                marker=dict(size=10, color="#2563eb"),
+                line=dict(color="#93c5fd", width=1, dash="dot"),
+                text=df_comp_ord["nome_projeto"].tolist(),
+                hovertemplate="<b>%{text}</b><br>Conclusão: %{x}<br>Prazo real: %{y:.1f} meses<extra></extra>",
+                name="Prazo real"
             ))
-
-            # Linhas de referência
-            fig1.add_hline(y=t_min_geral, line_dash="dash", line_color="#3b82f6",
-                           annotation_text=f"Kerzner mín.: {t_min_geral:.1f}m",
+            fig2.add_hrect(y0=t_min, y1=t_max,
+                           fillcolor="#3b82f6", opacity=0.08,
+                           annotation_text=f"Intervalo Kerzner ({t_min:.1f}–{t_max:.1f}m)",
                            annotation_position="top right")
-            fig1.add_hline(y=t_max_geral, line_dash="dash", line_color="#f59e0b",
-                           annotation_text=f"Kerzner máx.: {t_max_geral:.1f}m",
-                           annotation_position="top right")
-            fig1.add_hline(y=(t_min_geral+t_max_geral)/2, line_dash="dot", line_color="#8b5cf6",
-                           annotation_text=f"Kerzner médio: {(t_min_geral+t_max_geral)/2:.1f}m",
-                           annotation_position="top right")
-
-            fig1.update_layout(
-                title=f"Prazo real por projeto — {subtema_comp}",
-                xaxis_title="Projeto", yaxis_title="Meses",
-                height=400, template="plotly_white",
-                showlegend=True
+            fig2.update_layout(
+                title="Evolução do prazo real ao longo do tempo",
+                xaxis_title="Data de conclusão", yaxis_title="Meses",
+                height=350, template="plotly_white"
             )
-            st.plotly_chart(fig1, use_container_width=True)
-            st.caption("🟢 Dentro do intervalo histórico    Fora do intervalo histórico")
+            st.plotly_chart(fig2, use_container_width=True)
 
-            # Gráfico 2: Dispersão prazo real ao longo do tempo
-            df_comp_ord = df_comp.sort_values("data_conclusao")
-            if not df_comp_ord["data_conclusao"].isna().all():
-                fig2 = go.Figure()
-                fig2.add_trace(go.Scatter(
-                    x=df_comp_ord["data_conclusao"].astype(str).tolist(),
-                    y=df_comp_ord["prazo_real_meses"].tolist(),
-                    mode="markers+lines",
-                    marker=dict(size=10, color="#2563eb"),
-                    line=dict(color="#93c5fd", width=1, dash="dot"),
-                    text=df_comp_ord["nome_projeto"].tolist(),
-                    hovertemplate="<b>%{text}</b><br>Conclusão: %{x}<br>Prazo real: %{y:.1f} meses<extra></extra>",
-                    name="Prazo real"
-                ))
-                fig2.add_hrect(y0=t_min_geral, y1=t_max_geral,
-                               fillcolor="#3b82f6", opacity=0.08,
-                               annotation_text="Intervalo histórico", annotation_position="top right")
-                fig2.update_layout(
-                    title="Evolução do prazo real ao longo do tempo",
-                    xaxis_title="Data de conclusão", yaxis_title="Meses",
-                    height=350, template="plotly_white"
-                )
-                st.plotly_chart(fig2, use_container_width=True)
-
-            # Gráfico 3: Custo contratado vs realizado
-            df_custo = df_comp.dropna(subset=["custo_contratado", "custo_final"])
-            if not df_custo.empty:
-                fig3 = go.Figure()
-                fig3.add_trace(go.Bar(
-                    name="Custo contratado",
-                    x=df_custo["nome_projeto"].tolist(),
-                    y=df_custo["custo_contratado"].tolist(),
-                    marker_color="#3b82f6"
-                ))
-                fig3.add_trace(go.Bar(
-                    name="Custo final realizado",
-                    x=df_custo["nome_projeto"].tolist(),
-                    y=df_custo["custo_final"].tolist(),
-                    marker_color="#ef4444"
-                ))
-                fig3.update_layout(
-                    title="Custo contratado vs. realizado",
-                    xaxis_title="Projeto", yaxis_title="R$",
-                    barmode="group", height=380, template="plotly_white"
-                )
-                st.plotly_chart(fig3, use_container_width=True)
-        else:
-            st.info("Instale plotly para ver os gráficos: pip install plotly")
+        # Gráfico 3: Custo contratado vs realizado
+        df_custo = df_comp.dropna(subset=["custo_contratado", "custo_final"])
+        if not df_custo.empty:
+            fig3 = go.Figure()
+            fig3.add_trace(go.Bar(
+                name="Custo contratado",
+                x=df_custo["nome_projeto"].tolist(),
+                y=df_custo["custo_contratado"].tolist(),
+                marker_color="#3b82f6"
+            ))
+            fig3.add_trace(go.Bar(
+                name="Custo final realizado",
+                x=df_custo["nome_projeto"].tolist(),
+                y=df_custo["custo_final"].tolist(),
+                marker_color="#ef4444"
+            ))
+            fig3.update_layout(
+                title="Custo contratado vs. realizado",
+                xaxis_title="Projeto", yaxis_title="R$",
+                barmode="group", height=380, template="plotly_white"
+            )
+            st.plotly_chart(fig3, use_container_width=True)
+    else:
+        st.info("Instale plotly para ver os gráficos: pip install plotly")
 
     # Exportar
     st.markdown("---")
