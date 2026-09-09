@@ -22,7 +22,7 @@ import streamlit as st
 # =========================================================
 st.set_page_config(
     page_title="FGV PMO - Portal de Consulta de Editais",
-    page_icon="📘",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -44,7 +44,7 @@ def aplicar_estilo_dark():
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-    /* ── TOKENS ── */
+    /*  TOKENS  */
     :root {
         --fgv-navy:      #0b1f3a;
         --fgv-blue:      #1a3f6f;
@@ -69,7 +69,7 @@ def aplicar_estilo_dark():
         --font: 'Inter', system-ui, sans-serif;
     }
 
-    /* ── BASE ── */
+    /*  BASE  */
     .stApp { background: var(--surface-0) !important; color: var(--ink-primary) !important; font-family: var(--font) !important; }
     .block-container { padding: 0 !important; max-width: 100% !important; color: var(--ink-primary) !important; }
     header[data-testid="stHeader"] { background: transparent !important; height: 0 !important; }
@@ -101,7 +101,7 @@ def aplicar_estilo_dark():
     button[style*="top: 0"] { display: none !important; }
     button[style*="top:0"] { display: none !important; }
 
-    /* ── SIDEBAR ── */
+    /*  SIDEBAR  */
     section[data-testid="stSidebar"] {
         background: linear-gradient(170deg, var(--fgv-navy) 0%, var(--fgv-blue) 100%) !important;
         border-right: 1px solid var(--border-strong) !important;
@@ -120,7 +120,7 @@ def aplicar_estilo_dark():
     section[data-testid="stSidebar"] .stButton > button:hover { background: var(--fgv-mid) !important; }
 
 
-    /* ── NAV MENU (light) ── */
+    /*  NAV MENU (light)  */
     section[data-testid="stSidebar"] .stButton > button {
         background: rgba(255,255,255,0.06) !important;
         color: rgba(255,255,255,0.85) !important;
@@ -149,7 +149,7 @@ def aplicar_estilo_dark():
         transform: none !important;
     }
 
-    /* ── NAV ITEM ATIVO ── */
+    /*  NAV ITEM ATIVO  */
     .nav-ativo {
         background: rgba(255,255,255,0.15) !important;
         border: none !important;
@@ -167,7 +167,7 @@ def aplicar_estilo_dark():
         line-height: 1.5 !important;
     }
 
-    /* ── SIDEBAR NAV RADIO ── */
+    /*  SIDEBAR NAV RADIO  */
     section[data-testid="stSidebar"] div[role="radiogroup"] { gap: 2px !important; }
     section[data-testid="stSidebar"] label[data-testid="stWidgetLabel"] { display: none !important; }
     section[data-testid="stSidebar"] div[data-testid="stRadio"] > div { gap: 2px !important; }
@@ -198,7 +198,7 @@ def aplicar_estilo_dark():
     }
 
 
-    /* ── NAV MENU (dark) ── */
+    /*  NAV MENU (dark)  */
     section[data-testid="stSidebar"] .stButton > button {
         background: transparent !important;
         color: rgba(255,255,255,0.75) !important;
@@ -226,7 +226,7 @@ def aplicar_estilo_dark():
         transform: none !important;
     }
 
-    /* ── NAV ITEM ATIVO ── */
+    /*  NAV ITEM ATIVO  */
     .nav-ativo {
         background: rgba(255,255,255,0.15) !important;
         border: none !important;
@@ -244,7 +244,7 @@ def aplicar_estilo_dark():
         line-height: 1.5 !important;
     }
 
-    /* ── SIDEBAR NAV RADIO (dark) ── */
+    /*  SIDEBAR NAV RADIO (dark)  */
     section[data-testid="stSidebar"] div[data-testid="stRadio"] > div { gap: 2px !important; }
     section[data-testid="stSidebar"] div[data-testid="stRadio"] label {
         display: flex !important; align-items: center !important;
@@ -266,7 +266,7 @@ def aplicar_estilo_dark():
     }
     section[data-testid="stSidebar"] div[data-testid="stRadio"] input[type="radio"] { display: none !important; }
 
-        /* ── HEADER ── */
+        /*  HEADER  */
     .header-full-width {
         background: linear-gradient(100deg, var(--fgv-navy) 0%, var(--fgv-blue) 50%, var(--fgv-mid) 100%);
         padding: 28px 36px 24px; color: #fff; min-height: 128px;
@@ -284,7 +284,7 @@ def aplicar_estilo_dark():
         padding: 5px 12px; border-radius: 999px; font-size: 0.85rem; color: #fff;
     }
 
-    /* ── SECTION CARDS ── */
+    /*  SECTION CARDS  */
     .section-card {
         background: var(--surface-1); border: 1px solid var(--border);
         border-radius: var(--radius-lg); padding: 20px;
@@ -298,7 +298,7 @@ def aplicar_estilo_dark():
     .metric-value { color: var(--fgv-bright) !important; font-weight: 800; font-size: 1.7rem; line-height: 1.1; }
     .metric-sub { color: var(--ink-muted) !important; font-size: 0.8rem; margin-top: 2px; }
 
-    /* ── INPUTS ── */
+    /*  INPUTS  */
     .stTextInput input, .stNumberInput input, .stTextArea textarea,
     input[type="text"], input[type="number"], textarea {
         background: var(--surface-2) !important; color: var(--ink-primary) !important;
@@ -325,7 +325,7 @@ def aplicar_estilo_dark():
     label { color: var(--ink-secondary) !important; font-size: 0.85rem !important; font-weight: 500 !important; }
     .stNumberInput button { background: var(--surface-2) !important; color: var(--ink-primary) !important; border: 1px solid var(--border-strong) !important; }
 
-    /* ── BUTTONS ── */
+    /*  BUTTONS  */
     .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {
         background: var(--fgv-accent) !important; color: #fff !important;
         -webkit-text-fill-color: #fff !important; border: none !important;
@@ -338,7 +338,7 @@ def aplicar_estilo_dark():
     .stButton > button:disabled { background: var(--surface-3) !important; color: var(--ink-muted) !important; -webkit-text-fill-color: var(--ink-muted) !important; box-shadow: none !important; transform: none !important; }
 
 
-    /* ── SELECTBOX MODERNO (dark) ── */
+    /*  SELECTBOX MODERNO (dark)  */
     div[data-baseweb="select"] {
         border-radius: var(--radius-md) !important;
     }
@@ -376,7 +376,7 @@ def aplicar_estilo_dark():
     div[data-baseweb="option"][aria-selected="true"] {
         background: rgba(41,121,212,.25) !important;
     }
-    /* ── TABLE ── */
+    /*  TABLE  */
     div[data-testid="stDataFrame"] { background: var(--surface-1) !important; border: 1px solid var(--border) !important; border-radius: var(--radius-md) !important; }
     div[data-testid="stDataFrame"] div[role="grid"] { background: var(--surface-1) !important; }
     div[data-testid="stDataFrame"] div[role="row"] { background: var(--surface-1) !important; }
@@ -385,18 +385,18 @@ def aplicar_estilo_dark():
     div[data-testid="stDataFrame"] div[role="gridcell"] { color: var(--ink-primary) !important; border-bottom: 1px solid var(--border) !important; }
     div[data-testid="stDataFrame"] div[role="columnheader"] { background: var(--surface-3) !important; color: var(--fgv-bright) !important; font-weight: 600 !important; font-size: 0.8rem !important; text-transform: uppercase !important; letter-spacing: .04em !important; border-bottom: 1px solid var(--border-strong) !important; }
 
-    /* ── LOGIN ── */
+    /*  LOGIN  */
     .login-card { background: var(--surface-1) !important; border: 1px solid var(--border-strong) !important; border-radius: var(--radius-lg) !important; box-shadow: var(--shadow-lg) !important; padding: 10px !important; }
     .login-title { color: var(--fgv-bright) !important; font-size: 1.6rem !important; font-weight: 700 !important; letter-spacing: -0.02em !important; }
     .login-subtitle, .small-muted { color: var(--ink-secondary) !important; }
 
-    /* ── ALERTS ── */
+    /*  ALERTS  */
     div[data-testid="stAlert"] { border-radius: var(--radius-md) !important; border-left-width: 3px !important; }
 
-    /* ── EXPANDER ── */
+    /*  EXPANDER  */
     div[data-testid="stExpander"] { background: var(--surface-2) !important; border: 1px solid var(--border) !important; border-radius: var(--radius-md) !important; }
 
-    /* ── METRICS ── */
+    /*  METRICS  */
     div[data-testid="stMetric"] { background: var(--surface-2) !important; border: 1px solid var(--border) !important; border-radius: var(--radius-md) !important; padding: 12px 16px !important; }
     div[data-testid="stMetric"] label { color: var(--ink-secondary) !important; }
     div[data-testid="stMetric"] [data-testid="stMetricValue"] { color: var(--fgv-bright) !important; }
@@ -410,7 +410,7 @@ def aplicar_estilo_light():
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-    /* ── TOKENS ── */
+    /*  TOKENS  */
     :root {
         --fgv-navy:      #0b1f3a;
         --fgv-blue:      #1a3f6f;
@@ -435,7 +435,7 @@ def aplicar_estilo_light():
         --font: 'Inter', system-ui, sans-serif;
     }
 
-    /* ── BASE ── */
+    /*  BASE  */
     .stApp { background: var(--surface-0) !important; color: var(--ink-primary) !important; font-family: var(--font) !important; }
     .block-container { padding: 0 !important; max-width: 100% !important; color: var(--ink-primary) !important; }
     header[data-testid="stHeader"] { background: transparent !important; height: 0 !important; }
@@ -467,7 +467,7 @@ def aplicar_estilo_light():
     button[style*="top: 0"] { display: none !important; }
     button[style*="top:0"] { display: none !important; }
 
-    /* ── SIDEBAR ── */
+    /*  SIDEBAR  */
     section[data-testid="stSidebar"] {
         background: linear-gradient(170deg, var(--fgv-navy) 0%, var(--fgv-blue) 100%) !important;
         border-right: 1px solid var(--border-strong) !important;
@@ -486,7 +486,7 @@ def aplicar_estilo_light():
     }
     section[data-testid="stSidebar"] .stButton > button:hover { background: var(--fgv-mid) !important; }
 
-    /* ── HEADER ── */
+    /*  HEADER  */
     .header-full-width {
         background: linear-gradient(100deg, var(--fgv-navy) 0%, var(--fgv-blue) 50%, var(--fgv-mid) 100%);
         padding: 28px 36px 24px; color: #fff; min-height: 128px;
@@ -504,7 +504,7 @@ def aplicar_estilo_light():
         padding: 5px 12px; border-radius: 999px; font-size: 0.85rem; color: #fff;
     }
 
-    /* ── SECTION CARDS ── */
+    /*  SECTION CARDS  */
     .section-card {
         background: var(--surface-1); border: 1px solid var(--border);
         border-radius: var(--radius-lg); padding: 20px;
@@ -518,7 +518,7 @@ def aplicar_estilo_light():
     .metric-value { color: var(--fgv-blue) !important; font-weight: 800; font-size: 1.7rem; line-height: 1.1; }
     .metric-sub { color: var(--ink-muted) !important; font-size: 0.8rem; margin-top: 2px; }
 
-    /* ── INPUTS ── */
+    /*  INPUTS  */
     .stTextInput input, .stNumberInput input, .stTextArea textarea,
     input[type="text"], input[type="number"], textarea {
         background: #f5f8fd !important; color: var(--ink-primary) !important;
@@ -569,7 +569,7 @@ def aplicar_estilo_light():
     .stMarkdown p, .stMarkdown li, .stMarkdown span { color: var(--ink-primary) !important; }
     .stNumberInput button { background: #f5f8fd !important; color: var(--ink-primary) !important; border: 1px solid var(--border-strong) !important; }
 
-    /* ── BUTTONS ── */
+    /*  BUTTONS  */
     .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {
         background: var(--fgv-accent) !important; color: #fff !important;
         -webkit-text-fill-color: #fff !important; border: none !important;
@@ -582,7 +582,7 @@ def aplicar_estilo_light():
     .stButton > button:disabled { background: var(--surface-2) !important; color: var(--ink-muted) !important; -webkit-text-fill-color: var(--ink-muted) !important; box-shadow: none !important; transform: none !important; }
 
 
-    /* ── SELECTBOX MODERNO (light) ── */
+    /*  SELECTBOX MODERNO (light)  */
     div[data-baseweb="select"] {
         border-radius: var(--radius-md) !important;
     }
@@ -623,7 +623,7 @@ def aplicar_estilo_light():
         color: var(--fgv-blue) !important;
         font-weight: 600 !important;
     }
-    /* ── TABLE ── */
+    /*  TABLE  */
     div[data-testid="stDataFrame"] { background: #fff !important; border: 1px solid var(--border) !important; border-radius: var(--radius-md) !important; }
     div[data-testid="stDataFrame"] div[role="grid"] { background: #fff !important; }
     div[data-testid="stDataFrame"] div[role="row"] { background: #fff !important; }
@@ -634,19 +634,19 @@ def aplicar_estilo_light():
     div[data-testid="stDataFrame"] div[role="columnheader"] { background: var(--surface-2) !important; color: var(--fgv-blue) !important; -webkit-text-fill-color: var(--fgv-blue) !important; font-weight: 700 !important; font-size: 0.8rem !important; text-transform: uppercase !important; letter-spacing: .04em !important; border-bottom: 2px solid var(--border-strong) !important; }
     div[data-testid="stDataFrame"] div[role="columnheader"] * { color: var(--fgv-blue) !important; -webkit-text-fill-color: var(--fgv-blue) !important; }
 
-    /* ── LOGIN ── */
+    /*  LOGIN  */
     .login-card { background: #fff !important; border: 1px solid var(--border) !important; border-radius: var(--radius-lg) !important; box-shadow: var(--shadow-lg) !important; padding: 10px !important; }
     .login-title { color: var(--fgv-blue) !important; font-size: 1.6rem !important; font-weight: 700 !important; letter-spacing: -0.02em !important; }
     .login-subtitle, .small-muted, .login-footer { color: var(--ink-secondary) !important; }
     .login-card .stTextInput input { background: #f5f8fd !important; border: 1px solid var(--border-strong) !important; }
 
-    /* ── ALERTS ── */
+    /*  ALERTS  */
     div[data-testid="stAlert"] { border-radius: var(--radius-md) !important; border-left-width: 3px !important; }
 
-    /* ── EXPANDER ── */
+    /*  EXPANDER  */
     div[data-testid="stExpander"] { background: var(--surface-1) !important; border: 1px solid var(--border) !important; border-radius: var(--radius-md) !important; }
 
-    /* ── METRICS ── */
+    /*  METRICS  */
     div[data-testid="stMetric"] { background: var(--surface-1) !important; border: 1px solid var(--border) !important; border-radius: var(--radius-md) !important; padding: 12px 16px !important; }
     div[data-testid="stMetric"] label { color: var(--ink-secondary) !important; }
     div[data-testid="stMetric"] [data-testid="stMetricValue"] { color: var(--fgv-blue) !important; }
@@ -683,7 +683,7 @@ def verificar_senha(senha: str, hash_armazenado: str) -> bool:
         return hmac.compare_digest(calculado, hash_armazenado or "")
 
 
-# ── Rate limiting em memória ──────────────────────────────
+#  Rate limiting em memória
 _DUMMY_BCRYPT_HASH = "$2b$12$KIXdR5v2FJjBi3vkHxBnL.aBGz8zVkxRZl1GQoqsJZJw5c5gVkIUC"
 _login_lock = threading.Lock()
 _login_attempts: dict = {}
@@ -1381,7 +1381,7 @@ def get_base64_logo():
         return ""
     with open(LOGO_PATH, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
-    
+
 def get_base64_logo_completo():
     with open("assets/FGV_PMO_LOGO_COMPLETO.png", "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
@@ -1588,13 +1588,13 @@ def menu_sidebar():
         col1, col2, col3 = st.columns([1, 1, 2])
 
         with col1:
-            if st.button("☀", key="btn_light", use_container_width=True):
+            if st.button("", key="btn_light", use_container_width=True):
                 if tema_atual != "Light":
                     st.session_state.tema_visual = "Light"
                     st.rerun()
 
         with col2:
-            if st.button("☾", key="btn_dark", use_container_width=True):
+            if st.button("", key="btn_dark", use_container_width=True):
                 if tema_atual != "Dark":
                     st.session_state.tema_visual = "Dark"
                     st.rerun()
@@ -1843,7 +1843,7 @@ def pagina_consulta():
             lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if pd.notnull(x) else ""
         )
 
-    # ── Paginação ──
+    #  Paginação
     PAGE_SIZE = 50
     total = len(df_exibicao)
     n_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
@@ -1862,7 +1862,7 @@ def pagina_consulta():
     # Controles de paginação
     pg1, pg2, pg3, pg4, pg5 = st.columns([1, 1, 3, 1, 1])
     with pg1:
-        if st.button("⟪ Primeira", use_container_width=True, disabled=pg_atual == 1):
+        if st.button(" Primeira", use_container_width=True, disabled=pg_atual == 1):
             st.session_state["pagina_consulta"] = 1
             st.rerun()
     with pg2:
@@ -1881,7 +1881,7 @@ def pagina_consulta():
             st.session_state["pagina_consulta"] += 1
             st.rerun()
     with pg5:
-        if st.button("Última ⟫", use_container_width=True, disabled=pg_atual == n_pages):
+        if st.button("Última ", use_container_width=True, disabled=pg_atual == n_pages):
             st.session_state["pagina_consulta"] = n_pages
             st.rerun()
 
@@ -1904,7 +1904,7 @@ def pagina_consulta():
                 use_container_width=False
             )
 
-    # ── Gráfico de evolução por tema ──
+    #  Gráfico de evolução por tema
     if not filtrado.empty and "data_edital" in filtrado.columns and "tema" in filtrado.columns:
         try:
             import plotly.graph_objects as go
@@ -2022,7 +2022,7 @@ def pagina_solicitacoes():
                     st.rerun()
 
         st.markdown('</div>', unsafe_allow_html=True)
-    # ── Histórico próprio (todos os perfis veem suas solicitações) ──
+    #  Histórico próprio (todos os perfis veem suas solicitações)
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
     st.subheader("Minhas solicitações")
     df_todas = listar_solicitacoes()
@@ -2184,7 +2184,7 @@ def pagina_base():
                         st.error("Erro ao processar a planilha. Verifique o formato do arquivo e tente novamente.")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Inclusão de edital individual ──
+    #  Inclusão de edital individual
     if pode_substituir_base(st.session_state.perfil):
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
         st.subheader("Incluir novo edital individualmente")
@@ -2537,9 +2537,9 @@ def processar_upload_projetos_concluidos(arquivo):
     return inseridos
 
 
-def inserir_projeto_concluido(nome, tema, subtema, estado, municipio,
-                               data_inicio, data_conclusao, custo_contratado,
-                               custo_final, observacoes, criado_por):
+def inserir_projeto_concluido(nome, tema, subtema, pais=None, estado=None, municipio=None,
+                               data_inicio=None, data_conclusao=None, custo_contratado=None,
+                               custo_final=None, observacoes=None, criado_por=None):
     from datetime import date
     prazo_real = None
     if data_inicio and data_conclusao:
@@ -2555,12 +2555,12 @@ def inserir_projeto_concluido(nome, tema, subtema, estado, municipio,
     cur = conn.cursor()
     cur.execute("""
         INSERT INTO projetos_concluidos
-            (nome_projeto, tema, subtema, estado, municipio,
+            (nome_projeto, tema, subtema, pais, estado, municipio,
              data_inicio, data_conclusao, prazo_real_meses,
              custo_contratado, custo_final, observacoes, criado_por, criado_em, atualizado_em)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING id
-    """, (nome, tema, subtema, estado, municipio,
+    """, (nome, tema, subtema, pais, estado, municipio,
           str(data_inicio) if data_inicio else None,
           str(data_conclusao) if data_conclusao else None,
           prazo_real, custo_contratado, custo_final,
@@ -2747,9 +2747,9 @@ def pagina_projetos_concluidos():
     st.markdown("## Projetos Concluídos")
     st.markdown("Registre projetos finalizados e compare o prazo real com as estimativas da análise estatística.")
 
-    # ── Upload de planilha (PMO e ADMIN) ──
+    #  Upload de planilha (PMO e ADMIN)
     if st.session_state.perfil in ("ADMIN", "PMO"):
-        with st.expander("📥 Importar projetos via planilha", expanded=True):
+        with st.expander(" Importar projetos via planilha", expanded=True):
             st.info("Envie a Planilha Modelo preenchida pelas áreas. Todos os registros serão adicionados à base de projetos concluídos.")
             arquivo_pc = st.file_uploader("Selecione a planilha", type=["xlsx", "xls"], key="pc_upload")
             if arquivo_pc is not None:
@@ -2765,9 +2765,9 @@ def pagina_projetos_concluidos():
                             logger.error("Erro ao importar projetos: %s", e)
                             st.error("Erro ao importar a planilha. Verifique o formato e tente novamente.")
 
-    # ── Formulário de cadastro manual ──
+    #  Formulário de cadastro manual
     if st.session_state.perfil in ("ADMIN", "PMO"):
-        with st.expander("✏️ Registrar projeto manualmente", expanded=False):
+        with st.expander(" Registrar projeto manualmente", expanded=False):
             conn_view = get_conn()
             try:
                 df_temas = pd.read_sql_query("SELECT DISTINCT tema, subtema FROM vw_consulta_editais WHERE tema IS NOT NULL ORDER BY tema, subtema", conn_view)
@@ -2839,15 +2839,15 @@ def pagina_projetos_concluidos():
                     st.success(f"Projeto registrado com sucesso!{prazo_msg}")
                     st.rerun()
 
-    # ── Lista de projetos ──
+    #  Lista de projetos
     df_proj = listar_projetos_concluidos()
 
     if df_proj.empty:
         st.info("Nenhum projeto concluído registrado ainda.")
         return
 
-    # ── Busca textual + Filtros ──
-    busca_proj = st.text_input("🔍 Busca por nome do projeto", placeholder="Digite parte do nome...", key="pc_busca")
+    #  Busca textual + Filtros
+    busca_proj = st.text_input(" Busca por nome do projeto", placeholder="Digite parte do nome...", key="pc_busca")
 
     cf1, cf2, cf3 = st.columns(3)
     with cf1:
@@ -2871,7 +2871,7 @@ def pagina_projetos_concluidos():
     if estado_f != "Todos":
         df_exib = df_exib[df_exib["estado"] == estado_f]
 
-    # ── Métricas resumo ──
+    #  Métricas resumo
     prazo_vals = df_exib["prazo_real_meses"].dropna()
     custo_dif = (df_exib["custo_final"] - df_exib["custo_contratado"]).dropna()
     var_pct = (custo_dif / df_exib["custo_contratado"].replace(0, None)).dropna() * 100
@@ -2889,13 +2889,13 @@ def pagina_projetos_concluidos():
     else:
         m4.metric("Variação de custo média", "—")
 
-    # ── IPCA: carrega série e calcula data de referência ──
+    #  IPCA: carrega série e calcula data de referência
     ipca = carregar_ipca()
     from datetime import datetime as _dt
     data_ref_ipca = f"{_dt.now().year}-{_dt.now().month:02d}"
     tem_ipca = bool(ipca)
 
-    # ── Tabela com badge de prazo e custo corrigido ──
+    #  Tabela com badge de prazo e custo corrigido
     st.markdown("### Projetos registrados")
 
     df_tabela = df_exib.copy()
@@ -2914,9 +2914,9 @@ def pagina_projetos_concluidos():
         if t_min <= prazo <= t_max:
             return f"🟢 {prazo:.1f} m"
         elif prazo < t_min:
-            return f"🔵 {prazo:.1f} m"
+            return f" {prazo:.1f} m"
         else:
-            return f"🔴 {prazo:.1f} m"
+            return f" {prazo:.1f} m"
 
     df_tabela["Prazo"] = df_tabela.apply(badge_prazo, axis=1)
     df_tabela["Estimativa Kerzner"] = df_tabela.apply(
@@ -2946,8 +2946,13 @@ def pagina_projetos_concluidos():
                 lambda x: f"R$ {x:,.2f}".replace(",","X").replace(".",",").replace("X",".") if pd.notnull(x) and x > 0 else "—"
             )
 
+    # Formata datas para DD/MM/AAAA
+    for col_dt in ["data_inicio", "data_conclusao"]:
+        if col_dt in df_tabela.columns:
+            df_tabela[col_dt] = pd.to_datetime(df_tabela[col_dt], errors="coerce").dt.strftime("%d/%m/%Y").fillna("—")
+
     colunas_exib = ["nome_projeto","tema","subtema","estado","municipio",
-                    "data_inicio","data_conclusao","Prazo","Estimativa Kerzner",
+                    "data_inicio","data_conclusao","esforco","unidade","Prazo","Estimativa Kerzner",
                     "Custo contratado (R$)","Custo final (R$)"]
     if tem_ipca:
         colunas_exib.append("Custo corr. IPCA")
@@ -2956,17 +2961,18 @@ def pagina_projetos_concluidos():
     rename_map = {"nome_projeto":"Projeto","tema":"Tema","subtema":"Subtema",
                   "estado":"Estado","municipio":"Município",
                   "data_inicio":"Início","data_conclusao":"Conclusão",
+                  "esforco":"Esforço","unidade":"Unidade",
                   "observacoes":"Obs.","criado_por":"Registrado por"}
 
     df_show = df_tabela[[c for c in colunas_exib if c in df_tabela.columns]].rename(columns=rename_map)
     st.dataframe(df_show, use_container_width=True, hide_index=True)
 
     if tem_ipca:
-        st.caption(f"🔵 Prazo abaixo do mínimo Kerzner   🟢 Prazo dentro do intervalo Kerzner   🔴 Prazo acima do máximo Kerzner   |   Estimativa Kerzner = prazo total (Planejamento + Execução + Encerramento) calculado pelo esforço do projeto   |   Custo corr. IPCA atualizado até {data_ref_ipca}")
+        st.caption(f" Prazo abaixo do mínimo Kerzner   🟢 Prazo dentro do intervalo Kerzner    Prazo acima do máximo Kerzner   |   Estimativa Kerzner = prazo total (Planejamento + Execução + Encerramento) calculado pelo esforço do projeto   |   Custo corr. IPCA atualizado até {data_ref_ipca}")
     else:
-        st.caption("🔵 Prazo abaixo do mínimo Kerzner   🟢 Prazo dentro do intervalo Kerzner   🔴 Prazo acima do máximo Kerzner   |   Estimativa Kerzner = prazo total calculado pelo esforço do projeto")
+        st.caption(" Prazo abaixo do mínimo Kerzner   🟢 Prazo dentro do intervalo Kerzner    Prazo acima do máximo Kerzner   |   Estimativa Kerzner = prazo total calculado pelo esforço do projeto")
 
-    # ── Exportar Excel ──
+    #  Exportar Excel
     if not df_exib.empty:
         try:
             buf = __import__("io").BytesIO()
@@ -2974,7 +2980,7 @@ def pagina_projetos_concluidos():
             buf.seek(0)
             from datetime import datetime as _dt2
             st.download_button(
-                "📊 Exportar Excel",
+                " Exportar Excel",
                 data=buf.read(),
                 file_name=f"projetos_concluidos_{_dt2.now().strftime('%Y-%m-%d')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -2982,7 +2988,7 @@ def pagina_projetos_concluidos():
         except Exception:
             pass
 
-    # ── Gráfico custo contratado vs realizado ──
+    #  Gráfico custo contratado vs realizado
     df_custo_g = df_exib.dropna(subset=["custo_contratado","custo_final"])
     df_custo_g = df_custo_g[(df_custo_g["custo_contratado"] > 0) | (df_custo_g["custo_final"] > 0)]
     if not df_custo_g.empty and HAS_PLOTLY:
@@ -3007,9 +3013,9 @@ def pagina_projetos_concluidos():
                             legend=dict(orientation="h", yanchor="bottom", y=1.02))
         st.plotly_chart(fig_c, use_container_width=True)
 
-    # ── Excluir projeto com confirmação ──
+    #  Excluir projeto com confirmação
     if st.session_state.perfil in ("ADMIN", "PMO"):
-        with st.expander("🗑️ Excluir projeto"):
+        with st.expander(" Excluir projeto"):
             if not df_exib.empty:
                 proj_id_del = st.selectbox(
                     "Selecione o projeto",
@@ -3025,7 +3031,7 @@ def pagina_projetos_concluidos():
                     st.success("Projeto excluído.")
                     st.rerun()
 
-    # ── Comparação com Análise de Prazos ──
+    #  Comparação com Análise de Prazos
     st.markdown("---")
     st.markdown("### Comparação: Prazo Real vs. Estimativa Estatística")
 
@@ -3097,7 +3103,7 @@ def pagina_projetos_concluidos():
                 showlegend=True
             )
             st.plotly_chart(fig1, use_container_width=True)
-            st.caption("🟢 Dentro do intervalo histórico   🔴 Fora do intervalo histórico")
+            st.caption("🟢 Dentro do intervalo histórico    Fora do intervalo histórico")
 
             # Gráfico 2: Dispersão prazo real ao longo do tempo
             df_comp_ord = df_comp.sort_values("data_conclusao")
@@ -3203,7 +3209,7 @@ def exportar_analise_excel(data: dict) -> bytes:
 
     wb=openpyxl.Workbook()
 
-    # ─── ABA 1: Resumo ───────────────────────────────────
+    #  ABA 1: Resumo
     ws1=wb.active; ws1.title="Resumo da Análise"
     ws1.sheet_view.showGridLines=False
     cols_w(ws1,{1:34,2:30})
@@ -3274,7 +3280,7 @@ def exportar_analise_excel(data: dict) -> bytes:
     if alerts:
         r+=1
         ws1.merge_cells(start_row=r,start_column=1,end_row=r,end_column=2)
-        c=ws1.cell(r,1,"⚠ ALERTA: ESTIMATIVA FORA DO INTERVALO HISTÓRICO")
+        c=ws1.cell(r,1," ALERTA: ESTIMATIVA FORA DO INTERVALO HISTÓRICO")
         c.font=Font(name="Arial",bold=True,size=10,color=WHITE)
         c.fill=PatternFill("solid",fgColor="FFDC2626")
         c.alignment=Alignment(horizontal="left",vertical="center")
@@ -3286,7 +3292,7 @@ def exportar_analise_excel(data: dict) -> bytes:
             c.fill=PatternFill("solid",fgColor="FFFFF1F1")
             c.alignment=Alignment(wrap_text=True); r+=1
 
-    # ─── ABA 2: Cronograma ───────────────────────────────
+    #  ABA 2: Cronograma
     ws2=wb.create_sheet("Cronograma Kerzner")
     ws2.sheet_view.showGridLines=False
     cols_w(ws2,{1:30,2:22,3:22,4:22})
@@ -3350,7 +3356,7 @@ def exportar_analise_excel(data: dict) -> bytes:
         val(ws2,r,4,f"{total_max*pct:.4f}",align="center",bg=bg); r+=1
     borders(ws2,r-4,r-1,1,4)
 
-    # ─── ABA 3: Estatísticas ─────────────────────────────
+    #  ABA 3: Estatísticas
     ws3=wb.create_sheet("Estatísticas")
     ws3.sheet_view.showGridLines=False
     cols_w(ws3,{1:28,2:18,3:18})
@@ -3390,7 +3396,7 @@ def exportar_analise_excel(data: dict) -> bytes:
     val(ws3,r,3,forca(spearman),align="center"); r+=1
     borders(ws3,r-2,r-1,1,3)
 
-    # ─── ABA 4: Projetos ─────────────────────────────────
+    #  ABA 4: Projetos
     ws4=wb.create_sheet("Projetos")
     ws4.sheet_view.showGridLines=False
     cols_w(ws4,{1:55,2:10,3:16,4:12,5:12,6:14,7:14,8:16})
@@ -3513,7 +3519,7 @@ from datetime import datetime
 from io import BytesIO
 
 
-# ── Paleta de cores FGV ──────────────────────────────────────────
+#  Paleta de cores FGV
 C_NAVY   = "0B1F3A"   # cabeçalhos principais
 C_BLUE   = "1A3F6F"   # cabeçalhos de seção
 C_MID    = "1E5799"   # cabeçalhos de tabela
@@ -3583,7 +3589,7 @@ def gerar_relatorio_excel(
         if a >= 0.3: return "Fraca"
         return "Muito fraca"
 
-    # ── ABA 1: Resumo da Análise ─────────────────────────────────
+    #  ABA 1: Resumo da Análise
     ws1 = wb.active
     ws1.title = "Resumo da Análise"
     ws1.column_dimensions["A"].width = 38
@@ -3638,7 +3644,7 @@ def gerar_relatorio_excel(
 
     if alerts:
         ws1.row_dimensions[row].height = 6; row += 1
-        c = ws1.cell(row=row, column=1, value="⚠ ALERTA: ESTIMATIVA DE EXECUÇÃO FORA DO INTERVALO HISTÓRICO")
+        c = ws1.cell(row=row, column=1, value=" ALERTA: ESTIMATIVA DE EXECUÇÃO FORA DO INTERVALO HISTÓRICO")
         c.font = _ft(bold=True, color="92400E", size=10)
         c.fill = _fill(C_WARN)
         c.alignment = _align()
@@ -3650,7 +3656,7 @@ def gerar_relatorio_excel(
             ac.fill = _fill(C_WARN)
             row += 1
 
-    # ── ABA 2: Cronograma Kerzner ─────────────────────────────────
+    #  ABA 2: Cronograma Kerzner
     ws2 = wb.create_sheet("Cronograma Kerzner")
     for col, w in enumerate([28, 28, 22, 22], 1):
         ws2.column_dimensions[get_column_letter(col)].width = w
@@ -3723,7 +3729,7 @@ def gerar_relatorio_excel(
             c.alignment = _align("center" if col > 1 else "left")
         r += 1
 
-    # ── ABA 3: Estatísticas ───────────────────────────────────────
+    #  ABA 3: Estatísticas
     ws3 = wb.create_sheet("Estatísticas")
     for col, w in enumerate([30, 20, 20], 1):
         ws3.column_dimensions[get_column_letter(col)].width = w
@@ -3775,7 +3781,7 @@ def gerar_relatorio_excel(
             c.alignment = _align("center" if col > 1 else "left")
         r3 += 1
 
-    # ── ABA 4: Projetos ───────────────────────────────────────────
+    #  ABA 4: Projetos
     ws4 = wb.create_sheet("Projetos")
     ws4.column_dimensions["A"].width = 55
     for col, w in enumerate([14, 18, 12, 12, 18, 18, 16], 2):
@@ -3834,7 +3840,7 @@ def gerar_relatorio_excel(
     c.font = _ft(bold=True, color="1A3F6F", size=10)
     ws4.merge_cells(start_row=row4, start_column=1, end_row=row4, end_column=8)
 
-    # ── Salvar ────────────────────────────────────────────────────
+    #  Salvar
     buf = BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -3856,7 +3862,7 @@ def pagina_analise_prazos():
         if col in df_edit.columns:
             df_edit[col] = pd.to_numeric(df_edit[col], errors="coerce")
 
-    # ── Filtros ──
+    #  Filtros
     cf1, cf2, cf3, cf4 = st.columns(4)
     with cf1:
         temas = sorted(df_edit["tema"].dropna().unique().tolist())
@@ -3883,7 +3889,7 @@ def pagina_analise_prazos():
     if estado_sel != "Todos":
         df_tema = df_tema[df_tema["estado"] == estado_sel]
 
-    # ── Exclusões ──
+    #  Exclusões
     label_analise = subtema_sel if subtema_sel != "Todos" else tema_sel
     excluir_key = f"excluir_{label_analise}_{pais_sel}_{estado_sel}"
     if excluir_key not in st.session_state:
@@ -3899,7 +3905,7 @@ def pagina_analise_prazos():
     df_valido = df_valido[(df_valido["prazo_meses"] > 0) & (df_valido["esforco"] > 0)]
     is_san = "SAN-" in subtema_sel.upper() or (subtema_sel == "Todos" and "SAN-" in tema_sel.upper())
 
-    # ── Estatísticas ──
+    #  Estatísticas
     def stats(vals):
         if not vals: return {}
         s = sorted(vals)
@@ -3919,7 +3925,7 @@ def pagina_analise_prazos():
     st_prazos = stats(prazos)
     st_esforcos = stats(esforcos)
 
-    # ── Correlações ──
+    #  Correlações
     pearson, spearman = 0.0, 0.0
     reg_linear, reg_log = None, None
 
@@ -3935,7 +3941,7 @@ def pagina_analise_prazos():
     max_corr = max(abs(pearson), abs(spearman))
     corr_forte = max_corr >= 0.6
 
-    # ── Seletor de Tipo de Regressão ──
+    #  Seletor de Tipo de Regressão
     reg_type_sel = "auto"
     if corr_forte and reg_linear and reg_log:
         st.markdown("### Tipo de Regressão")
@@ -3954,7 +3960,7 @@ def pagina_analise_prazos():
                     st.rerun()
         reg_type_sel = st.session_state.get("reg_type_ap", "auto")
 
-    # ── Determina regressão ativa ──
+    #  Determina regressão ativa
     reg = None
     reg_type_label = ""
     if corr_forte and reg_linear and reg_log:
@@ -3968,13 +3974,13 @@ def pagina_analise_prazos():
         else:
             reg = reg_log; reg_type_label = "Logarítmica"
 
-    # ── Status correlação ──
+    #  Status correlação
     if corr_forte:
-        st.success(f"✅ Correlação forte detectada! Máxima: {max_corr:.2f} (≥ 0,6) — Regressão **{reg_type_label}** será usada.")
+        st.success(f" Correlação forte detectada! Máxima: {max_corr:.2f} (≥ 0,6) — Regressão **{reg_type_label}** será usada.")
     else:
-        st.warning(f"⚠️ Correlação fraca ({max_corr:.2f} < 0,6). Serão usados os valores históricos mínimos e máximos.")
+        st.warning(f" Correlação fraca ({max_corr:.2f} < 0,6). Serão usados os valores históricos mínimos e máximos.")
 
-    # ── Gráfico dispersão ──
+    #  Gráfico dispersão
     if len(df_valido) >= 2:
         try:
             import plotly.graph_objects as go
@@ -4008,7 +4014,7 @@ def pagina_analise_prazos():
         except ImportError:
             st.info("Instale plotly: pip install plotly")
 
-    # ── Análise de Correlação ──
+    #  Análise de Correlação
     st.markdown("### Análise de Correlação")
     cc1, cc2 = st.columns(2)
     def corr_badge(val):
@@ -4022,7 +4028,7 @@ def pagina_analise_prazos():
 
     with cc1:
         em_uso_p = reg and reg.get("type") == "linear"
-        badge_uso = ' <span style="background:#2563eb;color:#fff;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">✓ Em uso</span>' if em_uso_p else ''
+        badge_uso = ' <span style="background:#2563eb;color:#fff;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;"> Em uso</span>' if em_uso_p else ''
         st.markdown(f"""
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -4036,7 +4042,7 @@ def pagina_analise_prazos():
 
     with cc2:
         em_uso_s = reg and reg.get("type") == "logaritmica"
-        badge_uso_s = ' <span style="background:#2563eb;color:#fff;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">✓ Em uso</span>' if em_uso_s else ''
+        badge_uso_s = ' <span style="background:#2563eb;color:#fff;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;"> Em uso</span>' if em_uso_s else ''
         st.markdown(f"""
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -4058,7 +4064,7 @@ def pagina_analise_prazos():
         </div>
         """, unsafe_allow_html=True)
 
-    # ── Estatísticas ──
+    #  Estatísticas
     st.markdown("### Estatísticas")
     sc1, sc2 = st.columns(2)
     def stat_table(data):
@@ -4082,10 +4088,10 @@ def pagina_analise_prazos():
                 "Mínimo histórico": f"{st_esforcos['min']:.2f}", "Máximo histórico": f"{st_esforcos['max']:.2f}",
             }), hide_index=True, use_container_width=True)
 
-    # ── Calculadora Kerzner ──
+    #  Calculadora Kerzner
     st.markdown("### Calculadora de Prazos (Metodologia Kerzner)")
     if is_san:
-        st.info("🌿 Tema SAN — Encerramento = 10% da execução.")
+        st.info(" Tema SAN — Encerramento = 10% da execução.")
 
     esforco_input = 0.0
     if corr_forte and reg:
@@ -4142,7 +4148,7 @@ def pagina_analise_prazos():
         st.markdown("#### Cronograma Completo do Projeto")
         fases = [
             ("🟡 Planejamento", "50% do projeto total", plan_min, plan_max, "#f59e0b"),
-            ("🔵 Execução", "40% do projeto total", exec_min, exec_max, "#3b82f6"),
+            (" Execução", "40% do projeto total", exec_min, exec_max, "#3b82f6"),
             (f"🟢 Encerramento", enc_desc, enc_min, enc_max, "#10b981"),
             ("🟣 Total", "Projeto completo", total_min, total_max, "#8b5cf6"),
         ]
@@ -4167,7 +4173,7 @@ def pagina_analise_prazos():
         if exec_max > hist_exec_max:
             alerts.append(f"Prazo máximo de execução estimado ({exec_max:.1f} m) está **acima** do máximo histórico observado ({hist_exec_max:.1f} m)")
         if alerts:
-            st.warning("⚠️ **Atenção: estimativa de execução fora do intervalo histórico**\n\n" + "\n\n".join(alerts) +
+            st.warning(" **Atenção: estimativa de execução fora do intervalo histórico**\n\n" + "\n\n".join(alerts) +
                       f"\n\nIntervalo histórico de execução: **{hist_exec_min:.1f}** a **{hist_exec_max:.1f}** meses. Use os valores com cautela.")
 
         # Cronograma visual
@@ -4211,7 +4217,7 @@ def pagina_analise_prazos():
         </div>
         """, unsafe_allow_html=True)
 
-    # ── Classificação dos projetos ──
+    #  Classificação dos projetos
     st.markdown("### Classificação dos Projetos")
 
     def classificar(prazo, excluido):
@@ -4281,7 +4287,7 @@ def pagina_analise_prazos():
         try:
             xlsx_bytes = exportar_analise_excel(export_data)
             fname = f"Relatorio_Analise_{subtema_sel.replace(' ','_')}_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
-            st.download_button("📊 Exportar Relatório Excel", xlsx_bytes, file_name=fname,
+            st.download_button(" Exportar Relatório Excel", xlsx_bytes, file_name=fname,
                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                use_container_width=True)
         except Exception as ex:
