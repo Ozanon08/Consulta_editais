@@ -3013,14 +3013,13 @@ def corrigir_ipca(valor: float, data_base: str, data_ref: str, ipca: dict) -> fl
 
 def exportar_projetos_excel(df_tabela: "pd.DataFrame", df_comp: "pd.DataFrame",
                              figs: list, subtema_comp: str,
-                             t_min: float, t_max: float, esforco_label: str) -> bytes:
-    """Gera Excel com aba de dados e gráficos dos projetos concluídos."""
+                             t_min: float, t_max: float, esforco_label: str) -> tuple:
+    """Gera Excel com dados + ZIP contendo Excel e HTML com gráficos interativos."""
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
-    from openpyxl.drawing.image import Image as XLImage
     from io import BytesIO
-    import tempfile, os
+    import zipfile
 
     NAVY = "FF0B1F3A"; BLUE = "FF1A3F6F"; WHITE = "FFFFFFFF"
     LGRAY = "FFF0F4F9"; MGRAY = "FFE8EEF6"; DGRAY = "FF3D5575"
@@ -3104,49 +3103,37 @@ def exportar_projetos_excel(df_tabela: "pd.DataFrame", df_comp: "pd.DataFrame",
         r += 1
     borders(ws1, 4, r-1, 1, len(cols_disp))
 
-    # ── ABA 2: Gráficos ───────────────────────────────────
-    if figs:
-        ws2 = wb.create_sheet("Gráficos")
-        ws2.sheet_view.showGridLines = False
-        ws2.column_dimensions["A"].width = 2
-
-        ws2.merge_cells("B1:K1")
-        c = ws2.cell(1, 2, f"GRÁFICOS — {subtema_comp}")
-        c.font = Font(name="Arial", bold=True, size=12, color=WHITE)
-        c.fill = PatternFill("solid", fgColor=NAVY)
-        c.alignment = Alignment(horizontal="center", vertical="center")
-        ws2.row_dimensions[1].height = 28
-
-        ws2.cell(2, 2, f"Estimativa Kerzner: {t_min:.1f}–{t_max:.1f} meses  |  Esforço: {esforco_label}")
-        ws2.cell(2, 2).font = Font(name="Arial", size=9, color=DGRAY, italic=True)
-        ws2.row_dimensions[2].height = 14
-
-        current_row = 4
-        titulos = ["Prazo real por projeto", "Evolução do prazo ao longo do tempo", "Custo contratado vs. realizado"]
-        for i, fig in enumerate(figs):
-            if fig is None:
-                continue
-            try:
-                img_bytes = fig.to_image(format="png", width=900, height=380, scale=1.5)
-                img_stream = BytesIO(img_bytes)
-                img = XLImage(img_stream)
-                img.width = 700
-                img.height = 300
-                # Title row
-                ws2.merge_cells(start_row=current_row, start_column=2, end_row=current_row, end_column=10)
-                tc = ws2.cell(current_row, 2, titulos[i] if i < len(titulos) else f"Gráfico {i+1}")
-                tc.font = Font(name="Arial", bold=True, size=10, color=BLUE)
-                ws2.row_dimensions[current_row].height = 16
-                current_row += 1
-                ws2.add_image(img, f"B{current_row}")
-                # Advance rows for image height (~300px / 20px per row ≈ 15 rows)
-                for rr in range(current_row, current_row + 16):
-                    ws2.row_dimensions[rr].height = 20
-                current_row += 17
-            except Exception:
-                # kaleido not available — skip image
-                ws2.cell(current_row, 2, f"[Gráfico {i+1} não disponível — instale kaleido: pip install kaleido]")
-                current_row += 2
+    # ── Gera HTML com gráficos interativos ───────────────
+    from datetime import datetime as _dt_html
+    titulos_fig = ["Prazo real por projeto", "Evolução do prazo ao longo do tempo", "Custo contratado vs. realizado"]
+    html_parts = [f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Gráficos — {subtema_comp}</title>
+<style>
+  body {{ font-family: Arial, sans-serif; background: #f0f4f9; margin: 0; padding: 24px; }}
+  h1 {{ color: #0b1f3a; font-size: 1.4rem; margin-bottom: 4px; }}
+  .sub {{ color: #3d5575; font-size: 0.85rem; margin-bottom: 24px; }}
+  .card {{ background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 20px;
+           box-shadow: 0 2px 8px rgba(11,31,58,.08); }}
+  h2 {{ color: #1a3f6f; font-size: 1rem; margin: 0 0 12px; }}
+</style>
+</head>
+<body>
+<h1>Projetos Concluídos — {subtema_comp}</h1>
+<div class="sub">Estimativa Kerzner: {t_min:.1f}–{t_max:.1f} meses &nbsp;|&nbsp; Esforço: {esforco_label} &nbsp;|&nbsp; Gerado em: {_dt_html.now().strftime('%d/%m/%Y %H:%M')}</div>
+"""]
+    figs_validos = [f for f in figs if f is not None]
+    for i, fig in enumerate(figs_validos):
+        try:
+            titulo = titulos_fig[i] if i < len(titulos_fig) else f"Gráfico {i+1}"
+            fig_html = fig.to_html(full_html=False, include_plotlyjs=(i == 0))
+            html_parts.append(f'<div class="card"><h2>{titulo}</h2>{fig_html}</div>')
+        except Exception:
+            pass
+    html_parts.append("</body></html>")
+    html_bytes = "\n".join(html_parts).encode("utf-8")
 
     # ── ABA 3: Estimativa Kerzner ─────────────────────────
     ws3 = wb.create_sheet("Estimativa Kerzner")
@@ -3181,10 +3168,22 @@ def exportar_projetos_excel(df_tabela: "pd.DataFrame", df_comp: "pd.DataFrame",
         r += 1
     borders(ws3, 3, r-1, 1, 2)
 
-    buf = BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    return buf.read()
+    # ── Salva Excel ────────────────────────────────────────
+    buf_xlsx = BytesIO()
+    wb.save(buf_xlsx)
+    buf_xlsx.seek(0)
+    xlsx_bytes = buf_xlsx.read()
+
+    # ── Empacota ZIP: Excel + HTML ──────────────────────────
+    from datetime import datetime as _dt_zip
+    buf_zip = BytesIO()
+    with zipfile.ZipFile(buf_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+        fname = f"projetos_concluidos_{_dt_zip.now().strftime('%Y-%m-%d')}"
+        zf.writestr(f"{fname}.xlsx", xlsx_bytes)
+        if html_bytes:
+            zf.writestr(f"{fname}_graficos.html", html_bytes)
+    buf_zip.seek(0)
+    return buf_zip.read(), xlsx_bytes
 
 
 def pagina_projetos_concluidos():
@@ -3619,7 +3618,7 @@ def pagina_projetos_concluidos():
     st.markdown("---")
     from datetime import datetime as _dt_exp
     try:
-        xlsx_bytes = exportar_projetos_excel(
+        zip_bytes, xlsx_only = exportar_projetos_excel(
             df_tabela=df_show,
             df_comp=df_comp,
             figs=_figs_export,
@@ -3627,12 +3626,24 @@ def pagina_projetos_concluidos():
             t_min=t_min, t_max=t_max,
             esforco_label=esforco_label
         )
-        st.download_button(
-            "Exportar Excel",
-            data=xlsx_bytes,
-            file_name=f"projetos_concluidos_{_dt_exp.now().strftime('%Y-%m-%d')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        ec1, ec2 = st.columns(2)
+        with ec1:
+            st.download_button(
+                "Exportar Excel + Gráficos (ZIP)",
+                data=zip_bytes,
+                file_name=f"projetos_concluidos_{_dt_exp.now().strftime('%Y-%m-%d')}.zip",
+                mime="application/zip",
+                use_container_width=True
+            )
+        with ec2:
+            st.download_button(
+                "Exportar Excel (somente dados)",
+                data=xlsx_only,
+                file_name=f"projetos_concluidos_{_dt_exp.now().strftime('%Y-%m-%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        st.caption("O ZIP contém o Excel com os dados e um arquivo HTML com os gráficos interativos.")
     except Exception as _ex:
         logger.error("Erro ao exportar Excel projetos: %s", _ex)
         csv_proj = df_exib.drop(columns=["id"], errors="ignore").to_csv(index=False).encode("utf-8")
