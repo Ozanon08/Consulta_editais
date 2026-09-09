@@ -2194,9 +2194,8 @@ def pagina_base():
         try:
             temas_ref = pd.read_sql_query("SELECT DISTINCT nome FROM tema ORDER BY nome", conn_ref)["nome"].tolist()
             estados_ref = pd.read_sql_query("SELECT DISTINCT nome FROM estado ORDER BY nome", conn_ref)["nome"].tolist()
-            unidades_ref = pd.read_sql_query("SELECT DISTINCT nome FROM unidade ORDER BY nome", conn_ref)["nome"].tolist()
         except Exception:
-            temas_ref, estados_ref, unidades_ref = [], [], []
+            temas_ref, estados_ref = [], []
         finally:
             conn_ref.close()
 
@@ -2220,7 +2219,7 @@ def pagina_base():
             c3, c4, c5 = st.columns(3)
             with c3:
                 ne_esforco = st.number_input("Esforço", min_value=0.0, step=0.1, format="%.2f")
-                ne_unidade = st.selectbox("Unidade", [""] + unidades_ref)
+                ne_unidade = st.text_input("Unidade de medida", placeholder="Ex: km, m², unid...")
             with c4:
                 ne_prazo = st.number_input("Prazo (meses)", min_value=0.0, step=0.5, format="%.1f")
                 ne_custo = st.number_input("Custo de execução (R$)", min_value=0.0, step=1000.0, format="%.2f")
@@ -2625,7 +2624,7 @@ def pagina_projetos_concluidos():
 
     # ── Upload de planilha (PMO e ADMIN) ──
     if st.session_state.perfil in ("ADMIN", "PMO"):
-        with st.expander("📥 Importar projetos via planilha", expanded=False):
+        with st.expander("📥 Importar projetos via planilha", expanded=True):
             st.info("Envie a Planilha Modelo preenchida pelas áreas. Todos os registros serão adicionados à base de projetos concluídos.")
             arquivo_pc = st.file_uploader("Selecione a planilha", type=["xlsx", "xls"], key="pc_upload")
             if arquivo_pc is not None:
@@ -2643,7 +2642,7 @@ def pagina_projetos_concluidos():
 
     # ── Formulário de cadastro manual ──
     if st.session_state.perfil in ("ADMIN", "PMO"):
-        with st.expander("Registrar novo projeto concluído", expanded=False):
+        with st.expander("✏️ Registrar projeto manualmente", expanded=False):
             conn_view = get_conn()
             try:
                 df_temas = pd.read_sql_query("SELECT DISTINCT tema, subtema FROM vw_consulta_editais WHERE tema IS NOT NULL ORDER BY tema, subtema", conn_view)
