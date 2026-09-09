@@ -2055,7 +2055,7 @@ def pagina_consulta():
                 df_br = df_br.dropna(subset=["uf"])
 
                 if not df_br.empty:
-                    st.markdown("### Distribuição geográfica dos editais")
+                    st.markdown("### Distribuição geográfica dos projetos")
                     tab_mapa, tab_tabela = st.tabs(["Mapa", "Tabela por estado"])
 
                     with tab_mapa:
@@ -2073,36 +2073,32 @@ def pagina_consulta():
                                 [0.6, "#3b82f6"],
                                 [1.0, "#1e3a8a"],
                             ],
-                            labels={"qtd": "Editais"},
-                            title="Editais por estado (Brasil)",
+                            labels={"qtd": "Projetos"},
+                            title="Projetos por estado (Brasil)",
                         )
-                        fig_mapa.update_geos(
-                            fitbounds="locations",
-                            visible=False,
-                        )
+                        fig_mapa.update_geos(fitbounds="locations", visible=False)
                         fig_mapa.update_layout(
                             height=500,
                             margin=dict(l=0, r=0, t=40, b=0),
-                            coloraxis_colorbar=dict(title="Qtd. editais"),
+                            coloraxis_colorbar=dict(title="Qtd. projetos"),
                         )
                         st.plotly_chart(fig_mapa, use_container_width=True)
 
                     with tab_tabela:
                         df_tab = (
                             df_mapa.sort_values("qtd", ascending=False)
-                            .rename(columns={"pais": "País", "estado": "Estado", "qtd": "Editais"})
+                            .rename(columns={"pais": "País", "estado": "Estado", "qtd": "Projetos"})
                         )
                         st.dataframe(df_tab, use_container_width=True, hide_index=True)
 
-                        # Gráfico de barras horizontais por estado
                         df_top = df_br.sort_values("qtd", ascending=True).tail(20)
                         fig_bar = px.bar(
                             df_top, x="qtd", y="estado",
                             orientation="h",
-                            labels={"qtd": "Editais", "estado": "Estado"},
+                            labels={"qtd": "Projetos", "estado": "Estado"},
                             color="qtd",
                             color_continuous_scale=["#93c5fd", "#1e3a8a"],
-                            title="Top 20 estados por número de editais",
+                            title="Top 20 estados por número de projetos",
                         )
                         fig_bar.update_layout(
                             height=420, template="plotly_white",
@@ -2112,18 +2108,17 @@ def pagina_consulta():
                         st.plotly_chart(fig_bar, use_container_width=True)
 
             elif tem_pais:
-                # Sem estado — mapa por país
                 df_pais = (
                     filtrado.groupby("pais", dropna=True)
                     .size()
                     .reset_index(name="qtd")
                 )
-                st.markdown("### Distribuição geográfica dos editais")
+                st.markdown("### Distribuição geográfica dos projetos")
                 fig_pais = px.bar(
                     df_pais.sort_values("qtd", ascending=False),
                     x="pais", y="qtd",
-                    labels={"pais": "País", "qtd": "Editais"},
-                    title="Editais por país",
+                    labels={"pais": "País", "qtd": "Projetos"},
+                    title="Projetos por país",
                     color="qtd",
                     color_continuous_scale=["#93c5fd", "#1e3a8a"],
                 )
