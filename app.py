@@ -1634,14 +1634,14 @@ def menu_sidebar():
         col1, col2, col3 = st.columns([1, 1, 2])
 
         with col1:
-            label_light = "[ L ]" if tema_atual == "Light" else "  L  "
+            label_light = "●" if tema_atual == "Light" else "○"
             if st.button(label_light, key="btn_light", use_container_width=True):
                 if tema_atual != "Light":
                     st.session_state.tema_visual = "Light"
                     st.rerun()
 
         with col2:
-            label_dark = "[ D ]" if tema_atual == "Dark" else "  D  "
+            label_dark = "●" if tema_atual == "Dark" else "○"
             if st.button(label_dark, key="btn_dark", use_container_width=True):
                 if tema_atual != "Dark":
                     st.session_state.tema_visual = "Dark"
