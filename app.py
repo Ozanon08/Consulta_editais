@@ -967,7 +967,10 @@ def processar_upload_planilha(arquivo):
         "Método de Cálculo": "metodo_calculo",
     }
 
-    df = pd.read_excel(arquivo, sheet_name="Base")
+    # Aceita aba "Base" ou usa a primeira aba disponível
+    xl = pd.ExcelFile(arquivo)
+    sheet = "Base" if "Base" in xl.sheet_names else xl.sheet_names[0]
+    df = pd.read_excel(arquivo, sheet_name=sheet)
     df = df.rename(columns=COLUMN_MAP)
     for col in df.columns:
         if df[col].dtype == object:
@@ -1782,7 +1785,7 @@ def pagina_consulta():
     st.subheader("Resultados")
 
     colunas_remover = [
-        "id", "tipo_edital", "codigo_planilha", "fonte_dado", "metodo_calculo", "valor_min", "valor_max", "observacao"
+        "id", "tipo_edital", "codigo_planilha", "metodo_calculo", "valor_min", "valor_max", "observacao"
     ]
     colunas_remover_existentes = [c for c in colunas_remover if c in filtrado.columns]
     df_exibicao = filtrado.drop(columns=colunas_remover_existentes)
@@ -1803,7 +1806,8 @@ def pagina_consulta():
         "custo_execucao": "Custo (R$)",
         "custo": "Custo (R$)",
         "prazo_meses": "Prazo de execução (meses)",
-        "data_edital": "Data do edital"
+        "data_edital": "Data do edital",
+        "fonte_dado": "URL"
     }
     df_exibicao = df_exibicao.rename(columns={k: v for k, v in mapa_colunas.items() if k in df_exibicao.columns})
 
