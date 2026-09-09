@@ -110,6 +110,29 @@ def aplicar_estilo_dark():
     section[data-testid="stSidebar"] .block-container { padding: 0 0.75rem !important; }
     section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] > div:first-child { margin-top: -14px !important; }
     .theme-toggle-mini { margin: -6px 4px 2px !important; }
+
+    /* Theme toggle buttons */
+    .theme-toggle-mini .stButton > button {
+        font-size: 0.7rem !important;
+        padding: 2px 6px !important;
+        height: 26px !important;
+        letter-spacing: 0.08em !important;
+        font-weight: 600 !important;
+        color: rgba(255,255,255,0.7) !important;
+        -webkit-text-fill-color: rgba(255,255,255,0.7) !important;
+        background: transparent !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        border-radius: 4px !important;
+        box-shadow: none !important;
+        transform: none !important;
+        min-height: 26px !important;
+    }
+    .theme-toggle-mini .stButton > button:hover {
+        background: rgba(255,255,255,0.12) !important;
+        color: #fff !important;
+        -webkit-text-fill-color: #fff !important;
+        transform: none !important;
+    }
     .sidebar-logo-wrap { display: flex; justify-content: center; padding: 2px 0 10px; }
     .sidebar-logo-img { width: 220px; max-width: 100%; object-fit: contain; }
     section[data-testid="stSidebar"] .stButton > button {
@@ -476,6 +499,29 @@ def aplicar_estilo_light():
     section[data-testid="stSidebar"] .block-container { padding: 0 0.75rem !important; }
     section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] > div:first-child { margin-top: -14px !important; }
     .theme-toggle-mini { margin: -6px 4px 2px !important; }
+
+    /* Theme toggle buttons */
+    .theme-toggle-mini .stButton > button {
+        font-size: 0.7rem !important;
+        padding: 2px 6px !important;
+        height: 26px !important;
+        letter-spacing: 0.08em !important;
+        font-weight: 600 !important;
+        color: rgba(255,255,255,0.7) !important;
+        -webkit-text-fill-color: rgba(255,255,255,0.7) !important;
+        background: transparent !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        border-radius: 4px !important;
+        box-shadow: none !important;
+        transform: none !important;
+        min-height: 26px !important;
+    }
+    .theme-toggle-mini .stButton > button:hover {
+        background: rgba(255,255,255,0.12) !important;
+        color: #fff !important;
+        -webkit-text-fill-color: #fff !important;
+        transform: none !important;
+    }
     .sidebar-logo-wrap { display: flex; justify-content: center; padding: 2px 0 10px; }
     .sidebar-logo-img { width: 220px; max-width: 100%; object-fit: contain; filter: brightness(1.3); }
     section[data-testid="stSidebar"] .stButton > button {
@@ -1588,13 +1634,15 @@ def menu_sidebar():
         col1, col2, col3 = st.columns([1, 1, 2])
 
         with col1:
-            if st.button("", key="btn_light", use_container_width=True):
+            label_light = "[ L ]" if tema_atual == "Light" else "  L  "
+            if st.button(label_light, key="btn_light", use_container_width=True):
                 if tema_atual != "Light":
                     st.session_state.tema_visual = "Light"
                     st.rerun()
 
         with col2:
-            if st.button("", key="btn_dark", use_container_width=True):
+            label_dark = "[ D ]" if tema_atual == "Dark" else "  D  "
+            if st.button(label_dark, key="btn_dark", use_container_width=True):
                 if tema_atual != "Dark":
                     st.session_state.tema_visual = "Dark"
                     st.rerun()
@@ -1868,6 +1916,14 @@ def pagina_consulta():
     else:
         df_exibicao["Custo Recalculado com base no IPCA (R$)"] = ""
 
+    # Reordena colunas para colocar os dois custos lado a lado
+    if "Custo Inicial (R$)" in df_exibicao.columns and "Custo Recalculado com base no IPCA (R$)" in df_exibicao.columns:
+        cols = list(df_exibicao.columns)
+        idx_custo = cols.index("Custo Inicial (R$)")
+        cols.remove("Custo Recalculado com base no IPCA (R$)")
+        cols.insert(idx_custo + 1, "Custo Recalculado com base no IPCA (R$)")
+        df_exibicao = df_exibicao[cols]
+
     #  Paginação
     PAGE_SIZE = 50
     total = len(df_exibicao)
@@ -1965,7 +2021,118 @@ def pagina_consulta():
         except ImportError:
             pass
 
+    # ── Mapa de editais por estado/país ──
+    if not filtrado.empty:
+        try:
+            import plotly.express as px
 
+            # Agrupa por país e estado
+            tem_estado = "estado" in filtrado.columns and filtrado["estado"].notna().any()
+            tem_pais   = "pais"   in filtrado.columns and filtrado["pais"].notna().any()
+
+            if tem_estado:
+                df_mapa = (
+                    filtrado.groupby(["pais", "estado"], dropna=True)
+                    .size()
+                    .reset_index(name="qtd")
+                )
+                df_mapa = df_mapa[df_mapa["qtd"] > 0]
+
+                # Mapa coroplético Brasil por estado (abreviações UF)
+                # Tabela de siglas para estados brasileiros
+                uf_map = {
+                    "Acre":"AC","Alagoas":"AL","Amapá":"AP","Amazonas":"AM",
+                    "Bahia":"BA","Ceará":"CE","Distrito Federal":"DF",
+                    "Espírito Santo":"ES","Goiás":"GO","Maranhão":"MA",
+                    "Mato Grosso":"MT","Mato Grosso do Sul":"MS","Minas Gerais":"MG",
+                    "Pará":"PA","Paraíba":"PB","Paraná":"PR","Pernambuco":"PE",
+                    "Piauí":"PI","Rio de Janeiro":"RJ","Rio Grande do Norte":"RN",
+                    "Rio Grande do Sul":"RS","Rondônia":"RO","Roraima":"RR",
+                    "Santa Catarina":"SC","São Paulo":"SP","Sergipe":"SE","Tocantins":"TO",
+                }
+                df_br = df_mapa[df_mapa["pais"] == "Brasil"].copy()
+                df_br["uf"] = df_br["estado"].map(uf_map)
+                df_br = df_br.dropna(subset=["uf"])
+
+                if not df_br.empty:
+                    st.markdown("### Distribuição geográfica dos editais")
+                    tab_mapa, tab_tabela = st.tabs(["Mapa", "Tabela por estado"])
+
+                    with tab_mapa:
+                        fig_mapa = px.choropleth(
+                            df_br,
+                            geojson="https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson",
+                            locations="uf",
+                            featureidkey="properties.sigla",
+                            color="qtd",
+                            hover_name="estado",
+                            hover_data={"qtd": True, "uf": False},
+                            color_continuous_scale=[
+                                [0,   "#dbeafe"],
+                                [0.3, "#93c5fd"],
+                                [0.6, "#3b82f6"],
+                                [1.0, "#1e3a8a"],
+                            ],
+                            labels={"qtd": "Editais"},
+                            title="Editais por estado (Brasil)",
+                        )
+                        fig_mapa.update_geos(
+                            fitbounds="locations",
+                            visible=False,
+                        )
+                        fig_mapa.update_layout(
+                            height=500,
+                            margin=dict(l=0, r=0, t=40, b=0),
+                            coloraxis_colorbar=dict(title="Qtd. editais"),
+                        )
+                        st.plotly_chart(fig_mapa, use_container_width=True)
+
+                    with tab_tabela:
+                        df_tab = (
+                            df_mapa.sort_values("qtd", ascending=False)
+                            .rename(columns={"pais": "País", "estado": "Estado", "qtd": "Editais"})
+                        )
+                        st.dataframe(df_tab, use_container_width=True, hide_index=True)
+
+                        # Gráfico de barras horizontais por estado
+                        df_top = df_br.sort_values("qtd", ascending=True).tail(20)
+                        fig_bar = px.bar(
+                            df_top, x="qtd", y="estado",
+                            orientation="h",
+                            labels={"qtd": "Editais", "estado": "Estado"},
+                            color="qtd",
+                            color_continuous_scale=["#93c5fd", "#1e3a8a"],
+                            title="Top 20 estados por número de editais",
+                        )
+                        fig_bar.update_layout(
+                            height=420, template="plotly_white",
+                            showlegend=False, coloraxis_showscale=False,
+                            margin=dict(l=10, r=10, t=40, b=10),
+                        )
+                        st.plotly_chart(fig_bar, use_container_width=True)
+
+            elif tem_pais:
+                # Sem estado — mapa por país
+                df_pais = (
+                    filtrado.groupby("pais", dropna=True)
+                    .size()
+                    .reset_index(name="qtd")
+                )
+                st.markdown("### Distribuição geográfica dos editais")
+                fig_pais = px.bar(
+                    df_pais.sort_values("qtd", ascending=False),
+                    x="pais", y="qtd",
+                    labels={"pais": "País", "qtd": "Editais"},
+                    title="Editais por país",
+                    color="qtd",
+                    color_continuous_scale=["#93c5fd", "#1e3a8a"],
+                )
+                fig_pais.update_layout(height=350, template="plotly_white",
+                                       showlegend=False, coloraxis_showscale=False)
+                st.plotly_chart(fig_pais, use_container_width=True)
+
+        except ImportError:
+            pass
 
 
 # =========================================================
