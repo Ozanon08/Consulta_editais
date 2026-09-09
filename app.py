@@ -2408,8 +2408,9 @@ def listar_projetos_concluidos():
     conn = get_conn()
     try:
         df = pd.read_sql_query("""
-            SELECT id, nome_projeto, tema, subtema, estado, municipio,
+            SELECT id, nome_projeto, tema, subtema, pais, estado, municipio,
                    data_inicio, data_conclusao, prazo_real_meses,
+                   esforco, unidade, esforco2, unidade2,
                    custo_contratado, custo_final, observacoes, criado_por, criado_em
             FROM projetos_concluidos
             ORDER BY data_conclusao DESC NULLS LAST, id DESC
