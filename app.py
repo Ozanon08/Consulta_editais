@@ -1828,8 +1828,8 @@ def pagina_consulta():
         "esforco": "Parâmetro utilizado para verificação do prazo",
         "unidade": "Unidade de Medida do Parâmetro ",
         "servicos": "Serviços",
-        "custo_execucao": "Custo (R$)",
-        "custo": "Custo (R$)",
+        "custo_execucao": "Custo Inicial (R$)",
+        "custo": "Custo Inicial (R$)",
         "prazo_meses": "Prazo de execução (meses)",
         "data_edital": "Data do edital",
         "fonte_dado": "URL"
@@ -1838,10 +1838,35 @@ def pagina_consulta():
 
     if "Data do edital" in df_exibicao.columns:
         df_exibicao["Data do edital"] = pd.to_datetime(df_exibicao["Data do edital"], errors="coerce").dt.strftime("%d/%m/%Y")
-    if "Custo (R$)" in df_exibicao.columns:
-        df_exibicao["Custo (R$)"] = df_exibicao["Custo (R$)"].apply(
-            lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if pd.notnull(x) else ""
-        )
+
+    def fmt_brl(x):
+        if pd.isnull(x) or x == 0:
+            return ""
+        return f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    if "Custo Inicial (R$)" in df_exibicao.columns:
+        df_exibicao["Custo Inicial (R$)"] = df_exibicao["Custo Inicial (R$)"].apply(fmt_brl)
+
+    # Custo corrigido pelo IPCA
+    ipca_bd = carregar_ipca()
+    from datetime import datetime as _dt_now
+    data_ref_bd = f"{_dt_now.now().year}-{_dt_now.now().month:02d}"
+
+    if ipca_bd and "custo_execucao" in filtrado.columns and "data_edital" in filtrado.columns:
+        def _corrigir_linha(row):
+            custo = row.get("custo_execucao")
+            data_b = row.get("data_edital")
+            if not custo or not data_b or pd.isnull(custo) or pd.isnull(data_b):
+                return ""
+            try:
+                data_str = str(data_b)[:7]  # YYYY-MM
+                v = corrigir_ipca(float(custo), data_str, data_ref_bd, ipca_bd)
+                return fmt_brl(v) if v else ""
+            except Exception:
+                return ""
+        df_exibicao["Custo Recalculado com base no IPCA (R$)"] = filtrado.apply(_corrigir_linha, axis=1)
+    else:
+        df_exibicao["Custo Recalculado com base no IPCA (R$)"] = ""
 
     #  Paginação
     PAGE_SIZE = 50
@@ -2182,6 +2207,63 @@ def pagina_base():
                     except Exception as e:
                         logger.error("Erro ao processar planilha: %s", e)
                         st.error("Erro ao processar a planilha. Verifique o formato do arquivo e tente novamente.")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    #  Atualização do IPCA
+    if pode_substituir_base(st.session_state.perfil):
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+        st.subheader("Atualizar índice IPCA")
+        st.info(
+            "Faça upload do CSV do IPCA (Banco Central, série SGS 433) para atualizar "
+            "os custos corrigidos. Baixe em: "
+            "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=csv"
+        )
+
+        arquivo_ipca = st.file_uploader(
+            "Selecione o arquivo CSV do IPCA (bcdata_sgs_433.csv)",
+            type=["csv"], key="ipca_upload"
+        )
+        if arquivo_ipca is not None:
+            st.success(f"Arquivo carregado: {arquivo_ipca.name}")
+            if st.button("Importar IPCA", type="primary", key="ipca_importar"):
+                with st.spinner("Importando série histórica do IPCA..."):
+                    try:
+                        import csv, io
+                        conteudo = arquivo_ipca.read().decode("utf-8")
+                        reader = csv.DictReader(io.StringIO(conteudo), delimiter=";")
+                        conn_ipca = get_conn()
+                        cur_ipca = conn_ipca.cursor()
+                        inseridos = 0
+                        ignorados = 0
+                        for row in reader:
+                            data = row.get("data", "").strip()
+                            valor = row.get("valor", "").strip().replace(",", ".")
+                            if not data or not valor:
+                                continue
+                            partes = data.split("/")
+                            if len(partes) < 3:
+                                continue
+                            mes, ano = int(partes[1]), int(partes[2])
+                            try:
+                                variacao = float(valor)
+                            except ValueError:
+                                continue
+                            cur_ipca.execute("""
+                                INSERT INTO ipca_mensal (ano, mes, variacao)
+                                VALUES (%s, %s, %s)
+                                ON CONFLICT (ano, mes) DO UPDATE SET variacao = EXCLUDED.variacao
+                            """, (ano, mes, variacao))
+                            if cur_ipca.rowcount > 0:
+                                inseridos += 1
+                            else:
+                                ignorados += 1
+                        conn_ipca.commit()
+                        conn_ipca.close()
+                        st.cache_data.clear()
+                        st.success(f"IPCA atualizado com sucesso! {inseridos} meses inseridos/atualizados.")
+                    except Exception as e:
+                        logger.error("Erro ao importar IPCA: %s", e)
+                        st.error("Erro ao importar o IPCA. Verifique o formato do arquivo.")
         st.markdown('</div>', unsafe_allow_html=True)
 
     #  Inclusão de edital individual
@@ -2767,6 +2849,182 @@ def corrigir_ipca(valor: float, data_base: str, data_ref: str, ipca: dict) -> fl
     return round(valor * fator, 2)
 
 
+def exportar_projetos_excel(df_tabela: "pd.DataFrame", df_comp: "pd.DataFrame",
+                             figs: list, subtema_comp: str,
+                             t_min: float, t_max: float, esforco_label: str) -> bytes:
+    """Gera Excel com aba de dados e gráficos dos projetos concluídos."""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from openpyxl.drawing.image import Image as XLImage
+    from io import BytesIO
+    import tempfile, os
+
+    NAVY = "FF0B1F3A"; BLUE = "FF1A3F6F"; WHITE = "FFFFFFFF"
+    LGRAY = "FFF0F4F9"; MGRAY = "FFE8EEF6"; DGRAY = "FF3D5575"
+
+    def hdr(ws, row, col, text, bg=NAVY, fg=WHITE, bold=True, align="center"):
+        c = ws.cell(row=row, column=col, value=text)
+        c.font = Font(name="Arial", bold=bold, size=10, color=fg)
+        c.fill = PatternFill("solid", fgColor=bg)
+        c.alignment = Alignment(horizontal=align, vertical="center", wrap_text=True)
+        return c
+
+    def val(ws, row, col, value, bold=False, bg=None, align="left", color="FF0D1B2E"):
+        c = ws.cell(row=row, column=col, value=value)
+        c.font = Font(name="Arial", bold=bold, size=9, color=color)
+        if bg: c.fill = PatternFill("solid", fgColor=bg)
+        c.alignment = Alignment(horizontal=align, vertical="center", wrap_text=True)
+        return c
+
+    def borders(ws, r1, r2, c1, c2):
+        s = Side(style="thin", color="FFD8E5F2")
+        b = Border(left=s, right=s, top=s, bottom=s)
+        for r in range(r1, r2+1):
+            for c in range(c1, c2+1):
+                ws.cell(r, c).border = b
+
+    wb = openpyxl.Workbook()
+
+    # ── ABA 1: Dados ──────────────────────────────────────
+    ws1 = wb.active
+    ws1.title = "Projetos Concluídos"
+    ws1.sheet_view.showGridLines = False
+
+    # Título
+    ws1.merge_cells("A1:L1")
+    c = ws1.cell(1, 1, "PROJETOS CONCLUÍDOS")
+    c.font = Font(name="Arial", bold=True, size=13, color=WHITE)
+    c.fill = PatternFill("solid", fgColor=NAVY)
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    ws1.row_dimensions[1].height = 30
+
+    from datetime import datetime as _dt
+    ws1.merge_cells("A2:L2")
+    c2 = ws1.cell(2, 1, f"Gerado em: {_dt.now().strftime('%d/%m/%Y %H:%M')}")
+    c2.font = Font(name="Arial", size=9, color=DGRAY)
+    c2.fill = PatternFill("solid", fgColor=MGRAY)
+    c2.alignment = Alignment(horizontal="center", vertical="center")
+
+    # Headers da tabela
+    cols_map = [
+        ("nome_projeto", "Projeto", 40),
+        ("tema", "Tema", 20),
+        ("subtema", "Subtema", 20),
+        ("estado", "Estado", 12),
+        ("municipio", "Município", 18),
+        ("data_inicio", "Início", 12),
+        ("data_conclusao", "Conclusão", 12),
+        ("esforco", "Esforço", 10),
+        ("unidade", "Unidade", 10),
+        ("Prazo", "Prazo", 14),
+        ("Estimativa Kerzner", "Estimativa Kerzner", 18),
+        ("Custo contratado (R$)", "Custo contratado (R$)", 20),
+        ("Custo final (R$)", "Custo final (R$)", 20),
+    ]
+    # Only include columns that exist in df_tabela
+    cols_disp = [(src, lbl, w) for src, lbl, w in cols_map if src in df_tabela.columns]
+
+    r = 4
+    for i, (_, lbl, w) in enumerate(cols_disp, start=1):
+        hdr(ws1, r, i, lbl, align="center")
+        ws1.column_dimensions[get_column_letter(i)].width = w
+    ws1.row_dimensions[r].height = 20
+    r += 1
+
+    for idx_row, (_, row) in enumerate(df_tabela.iterrows()):
+        bg = LGRAY if idx_row % 2 == 0 else WHITE
+        for i, (src, _, _) in enumerate(cols_disp, start=1):
+            v = row.get(src, "")
+            val(ws1, r, i, v if v is not None and str(v) != "nan" else "", bg=bg,
+                align="left" if i == 1 else "center")
+        ws1.row_dimensions[r].height = 18
+        r += 1
+    borders(ws1, 4, r-1, 1, len(cols_disp))
+
+    # ── ABA 2: Gráficos ───────────────────────────────────
+    if figs:
+        ws2 = wb.create_sheet("Gráficos")
+        ws2.sheet_view.showGridLines = False
+        ws2.column_dimensions["A"].width = 2
+
+        ws2.merge_cells("B1:K1")
+        c = ws2.cell(1, 2, f"GRÁFICOS — {subtema_comp}")
+        c.font = Font(name="Arial", bold=True, size=12, color=WHITE)
+        c.fill = PatternFill("solid", fgColor=NAVY)
+        c.alignment = Alignment(horizontal="center", vertical="center")
+        ws2.row_dimensions[1].height = 28
+
+        ws2.cell(2, 2, f"Estimativa Kerzner: {t_min:.1f}–{t_max:.1f} meses  |  Esforço: {esforco_label}")
+        ws2.cell(2, 2).font = Font(name="Arial", size=9, color=DGRAY, italic=True)
+        ws2.row_dimensions[2].height = 14
+
+        current_row = 4
+        titulos = ["Prazo real por projeto", "Evolução do prazo ao longo do tempo", "Custo contratado vs. realizado"]
+        for i, fig in enumerate(figs):
+            if fig is None:
+                continue
+            try:
+                img_bytes = fig.to_image(format="png", width=900, height=380, scale=1.5)
+                img_stream = BytesIO(img_bytes)
+                img = XLImage(img_stream)
+                img.width = 700
+                img.height = 300
+                # Title row
+                ws2.merge_cells(start_row=current_row, start_column=2, end_row=current_row, end_column=10)
+                tc = ws2.cell(current_row, 2, titulos[i] if i < len(titulos) else f"Gráfico {i+1}")
+                tc.font = Font(name="Arial", bold=True, size=10, color=BLUE)
+                ws2.row_dimensions[current_row].height = 16
+                current_row += 1
+                ws2.add_image(img, f"B{current_row}")
+                # Advance rows for image height (~300px / 20px per row ≈ 15 rows)
+                for rr in range(current_row, current_row + 16):
+                    ws2.row_dimensions[rr].height = 20
+                current_row += 17
+            except Exception:
+                # kaleido not available — skip image
+                ws2.cell(current_row, 2, f"[Gráfico {i+1} não disponível — instale kaleido: pip install kaleido]")
+                current_row += 2
+
+    # ── ABA 3: Estimativa Kerzner ─────────────────────────
+    ws3 = wb.create_sheet("Estimativa Kerzner")
+    ws3.sheet_view.showGridLines = False
+    ws3.column_dimensions["A"].width = 28
+    ws3.column_dimensions["B"].width = 22
+
+    ws3.merge_cells("A1:B1")
+    c = ws3.cell(1, 1, "ESTIMATIVA KERZNER")
+    c.font = Font(name="Arial", bold=True, size=12, color=WHITE)
+    c.fill = PatternFill("solid", fgColor=NAVY)
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    ws3.row_dimensions[1].height = 28
+
+    r = 3
+    dados_kz = [
+        ("Subtema", subtema_comp),
+        ("Esforço utilizado", esforco_label),
+        ("Prazo total mínimo (Kerzner)", f"{t_min:.2f} meses"),
+        ("Prazo total máximo (Kerzner)", f"{t_max:.2f} meses"),
+        ("Planejamento mínimo (50%)", f"{t_min*0.5:.2f} meses"),
+        ("Planejamento máximo (50%)", f"{t_max*0.5:.2f} meses"),
+        ("Execução mínima (40%)", f"{t_min*0.4:.2f} meses"),
+        ("Execução máxima (40%)", f"{t_max*0.4:.2f} meses"),
+        ("Encerramento mínimo (10%)", f"{t_min*0.1:.2f} meses"),
+        ("Encerramento máximo (10%)", f"{t_max*0.1:.2f} meses"),
+    ]
+    for i, (label, value) in enumerate(dados_kz):
+        bg = LGRAY if i % 2 == 0 else WHITE
+        val(ws3, r, 1, label, bold=True, bg=bg, color=DGRAY)
+        val(ws3, r, 2, value, bg=bg, align="center")
+        r += 1
+    borders(ws3, 3, r-1, 1, 2)
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.read()
+
+
 def pagina_projetos_concluidos():
     try:
         import plotly.graph_objects as go
@@ -3136,6 +3394,7 @@ def pagina_projetos_concluidos():
         )
         st.plotly_chart(fig1, use_container_width=True)
         st.caption("Verde = dentro do intervalo Kerzner   Vermelho = fora do intervalo Kerzner")
+        _figs_export = [fig1]
 
         # Gráfico 2: Evolução do prazo ao longo do tempo
         df_comp_ord = df_comp.sort_values("data_conclusao")
@@ -3161,6 +3420,9 @@ def pagina_projetos_concluidos():
                 height=350, template="plotly_white"
             )
             st.plotly_chart(fig2, use_container_width=True)
+            _figs_export.append(fig2)
+        else:
+            _figs_export.append(None)
 
         # Gráfico 3: Custo contratado vs realizado
         df_custo = df_comp.dropna(subset=["custo_contratado", "custo_final"])
@@ -3184,13 +3446,36 @@ def pagina_projetos_concluidos():
                 barmode="group", height=380, template="plotly_white"
             )
             st.plotly_chart(fig3, use_container_width=True)
+            _figs_export.append(fig3)
+        else:
+            _figs_export.append(None)
     else:
         st.info("Instale plotly para ver os gráficos: pip install plotly")
+        _figs_export = []
 
-    # Exportar
+    # Exportar Excel
     st.markdown("---")
-    csv_proj = df_exib.drop(columns=["id"], errors="ignore").to_csv(index=False).encode("utf-8")
-    st.download_button("Exportar CSV", csv_proj, file_name="projetos_concluidos.csv", mime="text/csv")
+    from datetime import datetime as _dt_exp
+    try:
+        xlsx_bytes = exportar_projetos_excel(
+            df_tabela=df_show,
+            df_comp=df_comp,
+            figs=_figs_export,
+            subtema_comp=subtema_comp,
+            t_min=t_min, t_max=t_max,
+            esforco_label=esforco_label
+        )
+        st.download_button(
+            "Exportar Excel",
+            data=xlsx_bytes,
+            file_name=f"projetos_concluidos_{_dt_exp.now().strftime('%Y-%m-%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    except Exception as _ex:
+        logger.error("Erro ao exportar Excel projetos: %s", _ex)
+        csv_proj = df_exib.drop(columns=["id"], errors="ignore").to_csv(index=False).encode("utf-8")
+        st.download_button("Exportar CSV", csv_proj, file_name="projetos_concluidos.csv", mime="text/csv")
+
 
 
 # =========================================================
