@@ -955,6 +955,7 @@ def processar_upload_planilha(arquivo):
     import pandas as pd
 
     COLUMN_MAP = {
+        # Colunas originais da base interna
         "Tema": "tema", "Subtema": "subtema", "Serviços": "servicos",
         "País": "pais", "Estado": "estado", "Município": "municipio",
         "Nome Edital": "nome_edital", "Descrição": "descricao", "Esforço": "esforco",
@@ -965,6 +966,20 @@ def processar_upload_planilha(arquivo):
         "Min": "valor_min", "Máx": "valor_max",
         "Metodo de Calculo": "metodo_calculo",
         "Método de Cálculo": "metodo_calculo",
+        # Colunas da Planilha Modelo das áreas
+        "Objetivo do Projeto": "descricao",
+        "Nome Edital/Projeto": "nome_edital",
+        "1º Parâmetro para verificação do prazo": "esforco",
+        "Unidade de medida do 1º Parâmetro ": "unidade",
+        "Unidade de medida do 1º Parâmetro": "unidade",
+        "2º Parâmetro para verificação do prazo": "esforco2",
+        "Unidade de medida do 2º Parâmetro ": "unidade2",
+        "Unidade de medida do 2º Parâmetro": "unidade2",
+        "Prazo de execução\n(meses)": "prazo_meses",
+        "Prazo de execução (meses)": "prazo_meses",
+        "Data edital/projeto (mês/ano)": "data_edital",
+        "Data de Início do Projeto (Caso concluído)": "data_inicio",
+        "Data de Término do Projeto (Caso concluído)": "data_conclusao",
     }
 
     # Aceita aba "Base" ou usa a primeira aba disponível
@@ -1122,21 +1137,30 @@ def processar_upload_planilha(arquivo):
             except Exception:
                 return None
 
+        # 2º parâmetro
+        unidade2_id = None
+        v_u2 = limpar(row.get("unidade2"))
+        if v_u2:
+            unidade2_id = unidade_map.get(v_u2) or upsert("unidade", v_u2)
+            unidade_map[v_u2] = unidade2_id
+
         cur.execute("""
             INSERT INTO edital (
                 tema_id, subtema_id, pais_id, estado_id, municipio_id, nome_edital,
-                descricao, esforco, unidade_id, prazo_meses, tipo_edital_id,
-                codigo_planilha, fonte_dado_id, observacao, custo_execucao,
-                data_edital, metodo_calculo, valor_min, valor_max
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                descricao, esforco, unidade_id, esforco2, unidade2_id, prazo_meses,
+                tipo_edital_id, codigo_planilha, fonte_dado_id, observacao,
+                custo_execucao, data_edital, metodo_calculo, valor_min, valor_max
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             RETURNING id
         """, (
             tema_id, subtema_id, pais_id, estado_id, municipio_id,
-            limpar(row.get("nome_edital")), limpar(row.get("descricao")), limpar(row.get("esforco")),
-            unidade_id, safe_float(row.get("prazo_meses")), tipo_id,
-            limpar(row.get("codigo_planilha")), fonte_id, limpar(row.get("observacao")),
-            safe_float(row.get("custo_execucao")), limpar(row.get("data_edital")),
-            limpar(row.get("metodo_calculo")),
+            limpar(row.get("nome_edital")), limpar(row.get("descricao")),
+            limpar(row.get("esforco")), unidade_id,
+            limpar(row.get("esforco2")), unidade2_id,
+            safe_float(row.get("prazo_meses")), tipo_id,
+            limpar(row.get("codigo_planilha")), fonte_id,
+            limpar(row.get("observacao")), safe_float(row.get("custo_execucao")),
+            limpar(row.get("data_edital")), limpar(row.get("metodo_calculo")),
             safe_float(row.get("valor_min")), safe_float(row.get("valor_max")),
         ))
         edital_id = cur.fetchone()[0]
@@ -1148,6 +1172,7 @@ def processar_upload_planilha(arquivo):
 
     conn.commit()
     conn.close()
+
 
 
 def enviar_email(destinatarios, assunto: str, corpo_html: str):
@@ -2397,6 +2422,122 @@ def listar_projetos_concluidos():
     return df
 
 
+def processar_upload_projetos_concluidos(arquivo):
+    """Lê planilha modelo e insere registros em projetos_concluidos."""
+    COLUMN_MAP_PC = {
+        "Tema": "tema", "Subtema": "subtema",
+        "Objetivo do Projeto": "objetivo", "Descrição": "descricao",
+        "País": "pais", "Estado": "estado", "Município": "municipio",
+        "Nome Edital/Projeto": "nome_projeto",
+        "1º Parâmetro para verificação do prazo": "esforco",
+        "Unidade de medida do 1º Parâmetro ": "unidade",
+        "Unidade de medida do 1º Parâmetro": "unidade",
+        "2º Parâmetro para verificação do prazo": "esforco2",
+        "Unidade de medida do 2º Parâmetro ": "unidade2",
+        "Unidade de medida do 2º Parâmetro": "unidade2",
+        "Prazo de execução\n(meses)": "prazo_meses",
+        "Prazo de execução (meses)": "prazo_meses",
+        "Custo de Execução": "custo_contratado",
+        "Data edital/projeto (mês/ano)": "data_edital",
+        "Data de Início do Projeto (Caso concluído)": "data_inicio",
+        "Data de Término do Projeto (Caso concluído)": "data_conclusao",
+        "Serviços": "servicos",
+    }
+
+    xl = pd.ExcelFile(arquivo)
+    sheet = "Planilha Modelo" if "Planilha Modelo" in xl.sheet_names else (
+            "Base" if "Base" in xl.sheet_names else xl.sheet_names[0])
+    df = pd.read_excel(arquivo, sheet_name=sheet)
+    df = df.rename(columns=COLUMN_MAP_PC)
+
+    for col in df.columns:
+        if df[col].dtype == object:
+            df[col] = df[col].astype(str).str.strip().replace({"nan": None, "None": None, "": None})
+
+    def limpar_pc(val):
+        if val is None:
+            return None
+        import math
+        try:
+            if isinstance(val, float) and math.isnan(val):
+                return None
+        except Exception:
+            pass
+        s = str(val).strip()
+        return None if s in ("", "-", "nan", "None", "NaN", "<NA>") else s
+
+    def safe_float_pc(v):
+        if v is None:
+            return None
+        try:
+            import math
+            if isinstance(v, float) and math.isnan(v):
+                return None
+        except Exception:
+            pass
+        s = str(v).strip().replace(" ", "")
+        if s in ("", "-", "nan", "None", "NaN"):
+            return None
+        if "," in s and "." in s:
+            s = s.replace(".", "").replace(",", ".")
+        elif "," in s:
+            s = s.replace(",", ".")
+        try:
+            return float(s)
+        except Exception:
+            return None
+
+    conn = get_conn()
+    cur = conn.cursor()
+    inseridos = 0
+
+    for _, row in df.iterrows():
+        nome = limpar_pc(row.get("nome_projeto"))
+        if not nome:
+            continue
+
+        data_inicio = limpar_pc(row.get("data_inicio"))
+        data_conclusao = limpar_pc(row.get("data_conclusao"))
+
+        prazo_real = None
+        if data_inicio and data_conclusao:
+            try:
+                di = pd.to_datetime(data_inicio, dayfirst=True)
+                dc = pd.to_datetime(data_conclusao, dayfirst=True)
+                prazo_real = round((dc - di).days / 30.44, 2)
+            except Exception:
+                prazo_real = safe_float_pc(row.get("prazo_meses"))
+
+        cur.execute("""
+            INSERT INTO projetos_concluidos (
+                nome_projeto, tema, subtema, pais, estado, municipio,
+                descricao, objetivo, servicos, esforco, unidade,
+                esforco2, unidade2, data_inicio, data_conclusao,
+                prazo_real_meses, custo_contratado, data_edital,
+                criado_por, criado_em, atualizado_em
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        """, (
+            nome,
+            limpar_pc(row.get("tema")), limpar_pc(row.get("subtema")),
+            limpar_pc(row.get("pais")), limpar_pc(row.get("estado")),
+            limpar_pc(row.get("municipio")),
+            limpar_pc(row.get("descricao") or row.get("objetivo")),
+            limpar_pc(row.get("objetivo")),
+            limpar_pc(row.get("servicos")),
+            limpar_pc(row.get("esforco")), limpar_pc(row.get("unidade")),
+            limpar_pc(row.get("esforco2")), limpar_pc(row.get("unidade2")),
+            data_inicio, data_conclusao, prazo_real,
+            safe_float_pc(row.get("custo_contratado")),
+            limpar_pc(row.get("data_edital")),
+            "upload", agora_str(), agora_str()
+        ))
+        inseridos += 1
+
+    conn.commit()
+    conn.close()
+    return inseridos
+
+
 def inserir_projeto_concluido(nome, tema, subtema, estado, municipio,
                                data_inicio, data_conclusao, custo_contratado,
                                custo_final, observacoes, criado_por):
@@ -2482,7 +2623,25 @@ def pagina_projetos_concluidos():
     st.markdown("## Projetos Concluídos")
     st.markdown("Registre projetos finalizados e compare o prazo real com as estimativas da análise estatística.")
 
-    # ── Formulário de cadastro ──
+    # ── Upload de planilha (PMO e ADMIN) ──
+    if st.session_state.perfil in ("ADMIN", "PMO"):
+        with st.expander("📥 Importar projetos via planilha", expanded=False):
+            st.info("Envie a Planilha Modelo preenchida pelas áreas. Todos os registros serão adicionados à base de projetos concluídos.")
+            arquivo_pc = st.file_uploader("Selecione a planilha", type=["xlsx", "xls"], key="pc_upload")
+            if arquivo_pc is not None:
+                st.success(f"Arquivo carregado: {arquivo_pc.name}")
+                if st.button("Importar projetos", type="primary", key="pc_importar"):
+                    with st.spinner("Importando projetos..."):
+                        try:
+                            n = processar_upload_projetos_concluidos(arquivo_pc)
+                            st.success(f"{n} projeto(s) importado(s) com sucesso!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        except Exception as e:
+                            logger.error("Erro ao importar projetos: %s", e)
+                            st.error("Erro ao importar a planilha. Verifique o formato e tente novamente.")
+
+    # ── Formulário de cadastro manual ──
     if st.session_state.perfil in ("ADMIN", "PMO"):
         with st.expander("Registrar novo projeto concluído", expanded=False):
             conn_view = get_conn()
