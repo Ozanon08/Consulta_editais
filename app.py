@@ -78,28 +78,8 @@ def aplicar_estilo_dark():
     * { font-family: var(--font) !important; }
     p, li { color: var(--ink-primary) !important; }
 
-    /* Esconde botão de colapso da sidebar — todas as variações */
-    button[data-testid="collapsedControl"],
-    div[data-testid="collapsedControl"],
-    [data-testid="stSidebarCollapsedControl"],
-    button[data-testid="baseButton-headerNoPadding"],
-    div[class*="collapsedControl"],
-    span[class*="collapsedControl"],
-    [class*="keyboard_double_arrow"],
-    .st-emotion-cache-dvne4q,
-    .st-emotion-cache-1lna01g { display: none !important; }
-
-    /* Botão que fica flutuando no topo esquerdo da página */
-    div[data-testid="stSidebar"] ~ div > button:first-child,
-    div[data-testid="stDecoration"] { display: none !important; }
-
-    /* Esconde qualquer botão posicionado absolutamente no canto superior esquerdo */
-    section[data-testid="stSidebar"] + div > button { display: none !important; }
-    .main > div > button { display: none !important; }
-
-    /* Esconde via atributo de posição — o botão tem position fixed no topo */
-    button[style*="top: 0"] { display: none !important; }
-    button[style*="top:0"] { display: none !important; }
+    /* Esconde apenas o texto "keyboard_double_arrow" dentro do botão de colapso */
+    [class*="keyboard_double_arrow"] { display: none !important; }
 
     /*  SIDEBAR  */
     section[data-testid="stSidebar"] {
@@ -467,28 +447,8 @@ def aplicar_estilo_light():
     * { font-family: var(--font) !important; }
     p, li { color: var(--ink-primary) !important; }
 
-    /* Esconde botão de colapso da sidebar — todas as variações */
-    button[data-testid="collapsedControl"],
-    div[data-testid="collapsedControl"],
-    [data-testid="stSidebarCollapsedControl"],
-    button[data-testid="baseButton-headerNoPadding"],
-    div[class*="collapsedControl"],
-    span[class*="collapsedControl"],
-    [class*="keyboard_double_arrow"],
-    .st-emotion-cache-dvne4q,
-    .st-emotion-cache-1lna01g { display: none !important; }
-
-    /* Botão que fica flutuando no topo esquerdo da página */
-    div[data-testid="stSidebar"] ~ div > button:first-child,
-    div[data-testid="stDecoration"] { display: none !important; }
-
-    /* Esconde qualquer botão posicionado absolutamente no canto superior esquerdo */
-    section[data-testid="stSidebar"] + div > button { display: none !important; }
-    .main > div > button { display: none !important; }
-
-    /* Esconde via atributo de posição — o botão tem position fixed no topo */
-    button[style*="top: 0"] { display: none !important; }
-    button[style*="top:0"] { display: none !important; }
+    /* Esconde apenas o texto "keyboard_double_arrow" dentro do botão de colapso */
+    [class*="keyboard_double_arrow"] { display: none !important; }
 
     /*  SIDEBAR  */
     section[data-testid="stSidebar"] {
@@ -1438,26 +1398,7 @@ def esconder_elementos_streamlit():
     <script>
     (function() {
         function removeUnwanted() {
-            // Remove pelo conteúdo de texto
-            var allElements = document.querySelectorAll('button, span, div');
-            allElements.forEach(function(el) {
-                var txt = el.textContent || '';
-                if (txt.includes('keyboard_double_arrow')) {
-                    el.style.setProperty('display', 'none', 'important');
-                    if (el.parentElement) {
-                        el.parentElement.style.setProperty('display', 'none', 'important');
-                    }
-                }
-            });
-            // Remove botões no canto superior da página (fora da sidebar)
-            var buttons = document.querySelectorAll('button');
-            buttons.forEach(function(btn) {
-                var rect = btn.getBoundingClientRect();
-                // Botão no canto superior esquerdo absoluto (colapso da sidebar)
-                if (rect.top < 60 && rect.left < 60 && rect.width < 60) {
-                    btn.style.setProperty('display', 'none', 'important');
-                }
-            });
+            // Sem remoção de botões — botão de colapso da sidebar é mantido
         }
         removeUnwanted();
         setTimeout(removeUnwanted, 500);
