@@ -1655,7 +1655,7 @@ def menu_sidebar():
         </div>
         """.format(get_base64_logo()), unsafe_allow_html=True)
 
-        st.markdown("## Portal de Editais")
+        st.markdown("## Portal de Editais/Projetos")
         st.markdown(f"**Usuário:** {st.session_state.usuario}")
 
         perfil = st.session_state.perfil
@@ -2010,8 +2010,8 @@ def pagina_consulta():
                         marker=dict(size=6),
                     ))
                 fig.update_layout(
-                    title="Evolução de editais por tema ao longo do tempo",
-                    xaxis_title="Ano", yaxis_title="Nº de editais",
+                    title="Evolução de editais/projetos por tema ao longo do tempo",
+                    xaxis_title="Ano", yaxis_title="Nº de editais/projetos",
                     height=380, template="plotly_white",
                     legend=dict(orientation="h", yanchor="bottom", y=-0.4),
                     margin=dict(t=50, b=100, l=40, r=20),
@@ -2055,7 +2055,7 @@ def pagina_consulta():
                 df_br = df_br.dropna(subset=["uf"])
 
                 if not df_br.empty:
-                    st.markdown("### Distribuição geográfica dos projetos")
+                    st.markdown("### Distribuição geográfica dos editais/projetos")
                     tab_mapa, tab_tabela = st.tabs(["Mapa", "Tabela por estado"])
 
                     with tab_mapa:
@@ -2073,21 +2073,21 @@ def pagina_consulta():
                                 [0.6, "#3b82f6"],
                                 [1.0, "#1e3a8a"],
                             ],
-                            labels={"qtd": "Projetos"},
-                            title="Projetos por estado (Brasil)",
+                            labels={"qtd": "Editais/Projetos"},
+                            title="Editais/Projetos por estado (Brasil)",
                         )
                         fig_mapa.update_geos(fitbounds="locations", visible=False)
                         fig_mapa.update_layout(
                             height=500,
                             margin=dict(l=0, r=0, t=40, b=0),
-                            coloraxis_colorbar=dict(title="Qtd. projetos"),
+                            coloraxis_colorbar=dict(title="Qtd. editais/projetos"),
                         )
                         st.plotly_chart(fig_mapa, use_container_width=True)
 
                     with tab_tabela:
                         df_tab = (
                             df_mapa.sort_values("qtd", ascending=False)
-                            .rename(columns={"pais": "País", "estado": "Estado", "qtd": "Projetos"})
+                            .rename(columns={"pais": "País", "estado": "Estado", "qtd": "Editais/Projetos"})
                         )
                         st.dataframe(df_tab, use_container_width=True, hide_index=True)
 
@@ -2095,10 +2095,10 @@ def pagina_consulta():
                         fig_bar = px.bar(
                             df_top, x="qtd", y="estado",
                             orientation="h",
-                            labels={"qtd": "Projetos", "estado": "Estado"},
+                            labels={"qtd": "Editais/Projetos", "estado": "Estado"},
                             color="qtd",
                             color_continuous_scale=["#93c5fd", "#1e3a8a"],
-                            title="Top 20 estados por número de projetos",
+                            title="Top 20 estados por número de editais/projetos",
                         )
                         fig_bar.update_layout(
                             height=420, template="plotly_white",
@@ -2113,12 +2113,12 @@ def pagina_consulta():
                     .size()
                     .reset_index(name="qtd")
                 )
-                st.markdown("### Distribuição geográfica dos projetos")
+                st.markdown("### Distribuição geográfica dos editais/projetos")
                 fig_pais = px.bar(
                     df_pais.sort_values("qtd", ascending=False),
                     x="pais", y="qtd",
-                    labels={"pais": "País", "qtd": "Projetos"},
-                    title="Projetos por país",
+                    labels={"pais": "País", "qtd": "Editais/Projetos"},
+                    title="Editais/Projetos por país",
                     color="qtd",
                     color_continuous_scale=["#93c5fd", "#1e3a8a"],
                 )
@@ -2138,7 +2138,7 @@ def pagina_solicitacoes():
 
     if pode_solicitar(st.session_state.perfil):
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.subheader("Solicitar busca de novos editais")
+        st.subheader("Solicitar busca de novos editais/projetos")
 
         with st.form("form_solicitacao_tema", clear_on_submit=True):
             tema = st.text_input("Tema da pesquisa")
@@ -2356,7 +2356,7 @@ def pagina_base():
     if pode_substituir_base(st.session_state.perfil):
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
         st.subheader("Substituir base de dados")
-        st.info("Área reservada para ADMIN e PMO. O upload substitui todos os editais da base pelos da nova planilha. Usuários e solicitações não são afetados.")
+        st.info("Área reservada para ADMIN e PMO. O upload substitui todos os editais/projetos da base pelos da nova planilha. Usuários e solicitações não são afetados.")
         arquivo = st.file_uploader("Selecione uma planilha", type=["xlsx", "xls", "csv"])
         if arquivo is not None:
             st.success(f"Arquivo carregado: {arquivo.name}")
@@ -3202,7 +3202,7 @@ def pagina_projetos_concluidos():
     #  Upload de planilha (PMO e ADMIN)
     if st.session_state.perfil in ("ADMIN", "PMO"):
         with st.expander(" Importar projetos via planilha", expanded=True):
-            st.info("Envie a Planilha Modelo preenchida pelas áreas. Todos os registros serão adicionados à base de projetos concluídos.")
+            st.info("Envie a Planilha Modelo preenchida pelas áreas. Todos os registros serão adicionados à base de editais/projetos concluídos.")
             arquivo_pc = st.file_uploader("Selecione a planilha", type=["xlsx", "xls"], key="pc_upload")
             if arquivo_pc is not None:
                 st.success(f"Arquivo carregado: {arquivo_pc.name}")
