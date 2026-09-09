@@ -2579,6 +2579,82 @@ def excluir_projeto_concluido(proj_id: int):
     conn.close()
 
 
+def kerzner_total_para_projeto(subtema: str, esforco) -> dict | None:
+    """
+    Calcula o prazo TOTAL Kerzner (min e max) para um projeto,
+    usando o esforço do projeto e a regressão do subtema.
+    Se não houver esforço ou correlação fraca, usa min/max histórico * 2.5 (total = exec/0.4).
+    Retorna {"total_min": x, "total_max": y} ou None.
+    """
+    import math
+
+    conn = get_conn()
+    try:
+        df = pd.read_sql_query("""
+            SELECT prazo_meses, esforco FROM vw_consulta_editais
+            WHERE subtema = %s
+              AND prazo_meses IS NOT NULL AND prazo_meses > 0
+              AND esforco IS NOT NULL
+        """, conn, params=(subtema,))
+    except Exception:
+        return None
+    finally:
+        conn.close()
+
+    if len(df) < 3:
+        return None
+
+    xs = pd.to_numeric(df["esforco"], errors="coerce").dropna().tolist()
+    ys = pd.to_numeric(df["prazo_meses"], errors="coerce").dropna().tolist()
+    if len(xs) < 3:
+        return None
+
+    pearson = calcular_pearson(xs, ys)
+    spearman = calcular_spearman(xs, ys)
+    max_corr = max(abs(pearson), abs(spearman))
+    corr_forte = max_corr >= 0.6
+
+    # Tenta converter esforco do projeto
+    esforco_val = None
+    if esforco is not None:
+        try:
+            esforco_val = float(str(esforco).replace(",", ".").strip())
+        except Exception:
+            esforco_val = None
+
+    # Estatísticas históricas de prazo de execução
+    s_prazos = sorted(ys)
+    n = len(s_prazos)
+    hist_min = s_prazos[0]
+    hist_max = s_prazos[-1]
+    mean_p = sum(s_prazos) / n
+    std_p = math.sqrt(sum((v - mean_p) ** 2 for v in s_prazos) / max(n - 1, 1))
+
+    if corr_forte and esforco_val and esforco_val > 0:
+        # Usa regressão para estimar prazo de execução
+        if abs(pearson) >= abs(spearman):
+            reg = regressao_linear(xs, ys)
+        else:
+            reg = regressao_logaritmica(xs, ys)
+
+        if reg:
+            y_pred = reg["predict"](esforco_val)
+            comp = max(0.1, 1 - reg["r2"])
+            exec_min = max(0.5, y_pred * (1 - comp))
+            exec_max = y_pred * (1 + comp)
+        else:
+            exec_min, exec_max = hist_min, hist_max
+    else:
+        exec_min, exec_max = hist_min, hist_max
+
+    # Kerzner: execução = 40% do total
+    total_min = round(exec_min / 0.4, 2)
+    total_max = round(exec_max / 0.4, 2)
+    return {"total_min": total_min, "total_max": total_max,
+            "exec_min": exec_min, "exec_max": exec_max,
+            "corr_forte": corr_forte, "max_corr": max_corr}
+
+
 def calcular_estatisticas_subtema(subtema: str):
     """Recalcula min/max/media de prazo_meses da view para o subtema."""
     conn = get_conn()
@@ -2608,6 +2684,55 @@ def calcular_estatisticas_subtema(subtema: str):
         "lower": q1 - 1.5*iqr, "upper": q3 + 1.5*iqr,
         "n": n
     }
+
+
+# =========================================================
+# IPCA — CORREÇÃO MONETÁRIA
+# =========================================================
+@st.cache_data(ttl=3600, show_spinner=False)
+def carregar_ipca() -> dict:
+    """Retorna dict {(ano, mes): variacao_pct} com toda a série histórica."""
+    conn = get_conn()
+    try:
+        df = pd.read_sql_query("SELECT ano, mes, variacao FROM ipca_mensal ORDER BY ano, mes", conn)
+    except Exception:
+        return {}
+    finally:
+        conn.close()
+    return {(int(r.ano), int(r.mes)): float(r.variacao) for _, r in df.iterrows()}
+
+
+def corrigir_ipca(valor: float, data_base: str, data_ref: str, ipca: dict) -> float | None:
+    """
+    Corrige `valor` da data_base até data_ref pelo IPCA.
+    data_base e data_ref no formato 'YYYY-MM' ou 'YYYY-MM-DD'.
+    Retorna o valor corrigido ou None se não houver dados suficientes.
+    """
+    if not valor or not data_base or not data_ref or not ipca:
+        return None
+    try:
+        def parse_ym(s):
+            partes = str(s).strip().split("-")
+            return int(partes[0]), int(partes[1])
+        ano_b, mes_b = parse_ym(data_base)
+        ano_r, mes_r = parse_ym(data_ref)
+    except Exception:
+        return None
+
+    # Acumula índice do mês seguinte à data_base até data_ref inclusive
+    fator = 1.0
+    ano, mes = ano_b, mes_b
+    while (ano, mes) <= (ano_r, mes_r):
+        if (ano, mes) != (ano_b, mes_b):  # exclui o mês base, inclui o de referência
+            v = ipca.get((ano, mes))
+            if v is not None:
+                fator *= (1 + v / 100)
+        mes += 1
+        if mes > 12:
+            mes = 1
+            ano += 1
+
+    return round(valor * fator, 2)
 
 
 def pagina_projetos_concluidos():
@@ -2661,26 +2786,37 @@ def pagina_projetos_concluidos():
                 subtema_proj = st.selectbox("Subtema", [""] + subtemas_disp, key="pc_form_subtema")
 
             with st.form("form_proj_concluido", clear_on_submit=True):
-                c1, c2 = st.columns(2)
+                st.markdown("**Identificação**")
+                c1, c2, c3 = st.columns(3)
                 with c1:
                     nome_proj = st.text_input("Nome do projeto *")
+                    pais_proj = st.text_input("País", value="Brasil")
                 with c2:
                     estado_proj = st.text_input("Estado")
-
-                c3, c4 = st.columns(2)
-                with c3:
                     municipio_proj = st.text_input("Município")
+                with c3:
                     data_inicio_proj = st.date_input("Data de início", value=None)
-                with c4:
                     data_conclusao_proj = st.date_input("Data de conclusão", value=None)
+
+                st.markdown("**Parâmetros**")
+                p1, p2, p3, p4 = st.columns(4)
+                with p1:
+                    esforco_proj = st.text_input("1º Parâmetro")
+                with p2:
+                    unidade_proj = st.text_input("Unidade", placeholder="km, m², unid...")
+                with p3:
+                    esforco2_proj = st.text_input("2º Parâmetro")
+                with p4:
+                    unidade2_proj = st.text_input("Unidade 2", placeholder="km, m², unid...")
+
+                st.markdown("**Custos**")
+                cc1, cc2 = st.columns(2)
+                with cc1:
                     custo_contratado_proj = st.number_input("Custo contratado (R$)", min_value=0.0, step=1000.0, format="%.2f")
-
-                c5, c6 = st.columns(2)
-                with c5:
+                with cc2:
                     custo_final_proj = st.number_input("Custo final realizado (R$)", min_value=0.0, step=1000.0, format="%.2f")
-                with c6:
-                    obs_proj = st.text_area("Observações", height=80)
 
+                obs_proj = st.text_area("Observações", height=70)
                 salvar = st.form_submit_button("Salvar projeto", type="primary")
 
             if salvar:
@@ -2689,7 +2825,9 @@ def pagina_projetos_concluidos():
                 else:
                     proj_id, prazo_real = inserir_projeto_concluido(
                         nome=nome_proj.strip(), tema=tema_proj or None,
-                        subtema=subtema_proj or None, estado=estado_proj or None,
+                        subtema=subtema_proj or None,
+                        pais=pais_proj.strip() or None,
+                        estado=estado_proj or None,
                         municipio=municipio_proj or None,
                         data_inicio=data_inicio_proj, data_conclusao=data_conclusao_proj,
                         custo_contratado=custo_contratado_proj or None,
@@ -2734,39 +2872,158 @@ def pagina_projetos_concluidos():
         df_exib = df_exib[df_exib["estado"] == estado_f]
 
     # ── Métricas resumo ──
-    m1, m2, m3, m4 = st.columns(4)
     prazo_vals = df_exib["prazo_real_meses"].dropna()
     custo_dif = (df_exib["custo_final"] - df_exib["custo_contratado"]).dropna()
+    var_pct = (custo_dif / df_exib["custo_contratado"].replace(0, None)).dropna() * 100
+
+    m1, m2, m3, m4 = st.columns(4)
     m1.metric("Projetos", len(df_exib))
     m2.metric("Prazo médio real", f"{prazo_vals.mean():.1f} m" if not prazo_vals.empty else "—")
-    m3.metric("Prazo mínimo real", f"{prazo_vals.min():.1f} m" if not prazo_vals.empty else "—")
-    m4.metric("Prazo máximo real", f"{prazo_vals.max():.1f} m" if not prazo_vals.empty else "—")
+    m3.metric("Prazo mínimo / máximo",
+              f"{prazo_vals.min():.1f} – {prazo_vals.max():.1f} m" if not prazo_vals.empty else "—")
+    if not var_pct.empty:
+        media_var = var_pct.mean()
+        sinal = "+" if media_var >= 0 else ""
+        m4.metric("Variação de custo média", f"{sinal}{media_var:.1f}%",
+                  delta=f"{'acima' if media_var > 0 else 'abaixo'} do contratado")
+    else:
+        m4.metric("Variação de custo média", "—")
 
-    # ── Tabela ──
+    # ── IPCA: carrega série e calcula data de referência ──
+    ipca = carregar_ipca()
+    from datetime import datetime as _dt
+    data_ref_ipca = f"{_dt.now().year}-{_dt.now().month:02d}"
+    tem_ipca = bool(ipca)
+
+    # ── Tabela com badge de prazo e custo corrigido ──
     st.markdown("### Projetos registrados")
-    colunas_exib = {
-        "nome_projeto": "Projeto", "tema": "Tema", "subtema": "Subtema",
-        "estado": "Estado", "municipio": "Município",
-        "data_inicio": "Início", "data_conclusao": "Conclusão",
-        "prazo_real_meses": "Prazo real (m)",
-        "custo_contratado": "Custo contratado (R$)", "custo_final": "Custo final (R$)",
-        "observacoes": "Obs.", "criado_por": "Registrado por"
-    }
-    df_tabela = df_exib[[c for c in colunas_exib if c in df_exib.columns]].rename(columns=colunas_exib)
-    st.dataframe(df_tabela, use_container_width=True, hide_index=True)
 
-    # Excluir projeto
-    if st.session_state.perfil in ("ADMIN", "PMO"):
-        with st.expander("Excluir projeto"):
-            proj_id_del = st.selectbox(
-                "Selecione o projeto",
-                df_exib["id"].tolist(),
-                format_func=lambda x: f"{x} — {df_exib.loc[df_exib['id']==x, 'nome_projeto'].values[0]}"
+    df_tabela = df_exib.copy()
+
+    # Badge de prazo por subtema
+    def badge_prazo(row):
+        sub = row.get("subtema")
+        prazo = row.get("prazo_real_meses")
+        esforco = row.get("esforco")
+        if not sub or pd.isna(prazo):
+            return "—"
+        kz = kerzner_total_para_projeto(sub, esforco)
+        if not kz:
+            return f"{prazo:.1f} m"
+        t_min, t_max = kz["total_min"], kz["total_max"]
+        if t_min <= prazo <= t_max:
+            return f"🟢 {prazo:.1f} m"
+        elif prazo < t_min:
+            return f"🔵 {prazo:.1f} m"
+        else:
+            return f"🔴 {prazo:.1f} m"
+
+    df_tabela["Prazo"] = df_tabela.apply(badge_prazo, axis=1)
+    df_tabela["Estimativa Kerzner"] = df_tabela.apply(
+        lambda row: (lambda kz: f"{kz['total_min']:.1f}–{kz['total_max']:.1f} m"
+                     if kz else "—")(kerzner_total_para_projeto(row.get("subtema"), row.get("esforco"))),
+        axis=1
+    )
+
+    # Custo corrigido pelo IPCA
+    def custo_corrigido(row):
+        if not tem_ipca:
+            return None
+        custo = row.get("custo_contratado")
+        data_b = row.get("data_edital") or row.get("data_inicio")
+        if pd.isna(custo) or not data_b:
+            return None
+        v = corrigir_ipca(float(custo), str(data_b)[:7], data_ref_ipca, ipca)
+        return f"R$ {v:,.2f}".replace(",","X").replace(".",",").replace("X",".") if v else None
+
+    if tem_ipca:
+        df_tabela["Custo corr. IPCA"] = df_tabela.apply(custo_corrigido, axis=1)
+
+    # Formata custos
+    for col_custo, col_label in [("custo_contratado","Custo contratado (R$)"), ("custo_final","Custo final (R$)")]:
+        if col_custo in df_tabela.columns:
+            df_tabela[col_label] = df_tabela[col_custo].apply(
+                lambda x: f"R$ {x:,.2f}".replace(",","X").replace(".",",").replace("X",".") if pd.notnull(x) and x > 0 else "—"
             )
-            if st.button("Excluir projeto selecionado", type="primary"):
-                excluir_projeto_concluido(proj_id_del)
-                st.success("Projeto excluído.")
-                st.rerun()
+
+    colunas_exib = ["nome_projeto","tema","subtema","estado","municipio",
+                    "data_inicio","data_conclusao","Prazo","Estimativa Kerzner",
+                    "Custo contratado (R$)","Custo final (R$)"]
+    if tem_ipca:
+        colunas_exib.append("Custo corr. IPCA")
+    colunas_exib += ["observacoes","criado_por"]
+
+    rename_map = {"nome_projeto":"Projeto","tema":"Tema","subtema":"Subtema",
+                  "estado":"Estado","municipio":"Município",
+                  "data_inicio":"Início","data_conclusao":"Conclusão",
+                  "observacoes":"Obs.","criado_por":"Registrado por"}
+
+    df_show = df_tabela[[c for c in colunas_exib if c in df_tabela.columns]].rename(columns=rename_map)
+    st.dataframe(df_show, use_container_width=True, hide_index=True)
+
+    if tem_ipca:
+        st.caption(f"🔵 Prazo abaixo do mínimo Kerzner   🟢 Prazo dentro do intervalo Kerzner   🔴 Prazo acima do máximo Kerzner   |   Estimativa Kerzner = prazo total (Planejamento + Execução + Encerramento) calculado pelo esforço do projeto   |   Custo corr. IPCA atualizado até {data_ref_ipca}")
+    else:
+        st.caption("🔵 Prazo abaixo do mínimo Kerzner   🟢 Prazo dentro do intervalo Kerzner   🔴 Prazo acima do máximo Kerzner   |   Estimativa Kerzner = prazo total calculado pelo esforço do projeto")
+
+    # ── Exportar Excel ──
+    if not df_exib.empty:
+        try:
+            buf = __import__("io").BytesIO()
+            df_show.to_excel(buf, index=False, engine="openpyxl")
+            buf.seek(0)
+            from datetime import datetime as _dt2
+            st.download_button(
+                "📊 Exportar Excel",
+                data=buf.read(),
+                file_name=f"projetos_concluidos_{_dt2.now().strftime('%Y-%m-%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        except Exception:
+            pass
+
+    # ── Gráfico custo contratado vs realizado ──
+    df_custo_g = df_exib.dropna(subset=["custo_contratado","custo_final"])
+    df_custo_g = df_custo_g[(df_custo_g["custo_contratado"] > 0) | (df_custo_g["custo_final"] > 0)]
+    if not df_custo_g.empty and HAS_PLOTLY:
+        st.markdown("### Custo contratado vs. realizado")
+        fig_c = go.Figure()
+        nomes = df_custo_g["nome_projeto"].tolist()
+        fig_c.add_trace(go.Bar(name="Contratado", x=nomes,
+                               y=df_custo_g["custo_contratado"].tolist(),
+                               marker_color="#3b82f6"))
+        fig_c.add_trace(go.Bar(name="Realizado", x=nomes,
+                               y=df_custo_g["custo_final"].tolist(),
+                               marker_color="#ef4444"))
+        if tem_ipca:
+            corrigidos = df_custo_g.apply(
+                lambda r: corrigir_ipca(r["custo_contratado"],
+                                        str(r.get("data_edital") or r.get("data_inicio") or "")[:7],
+                                        data_ref_ipca, ipca) or 0, axis=1).tolist()
+            fig_c.add_trace(go.Bar(name=f"Contratado corr. IPCA ({data_ref_ipca})", x=nomes,
+                                   y=corrigidos, marker_color="#8b5cf6", opacity=0.7))
+        fig_c.update_layout(barmode="group", height=380, template="plotly_white",
+                            xaxis_title="Projeto", yaxis_title="R$",
+                            legend=dict(orientation="h", yanchor="bottom", y=1.02))
+        st.plotly_chart(fig_c, use_container_width=True)
+
+    # ── Excluir projeto com confirmação ──
+    if st.session_state.perfil in ("ADMIN", "PMO"):
+        with st.expander("🗑️ Excluir projeto"):
+            if not df_exib.empty:
+                proj_id_del = st.selectbox(
+                    "Selecione o projeto",
+                    df_exib["id"].tolist(),
+                    format_func=lambda x: f"{x} — {df_exib.loc[df_exib['id']==x, 'nome_projeto'].values[0]}"
+                )
+                nome_del = df_exib.loc[df_exib["id"] == proj_id_del, "nome_projeto"].values[0]
+                st.warning(f"Você está prestes a excluir: **{nome_del}**. Esta ação não pode ser desfeita.")
+                confirmar = st.checkbox("Confirmo que desejo excluir este projeto")
+                if st.button("Excluir projeto", type="primary", disabled=not confirmar):
+                    excluir_projeto_concluido(proj_id_del)
+                    st.cache_data.clear()
+                    st.success("Projeto excluído.")
+                    st.rerun()
 
     # ── Comparação com Análise de Prazos ──
     st.markdown("---")
@@ -2794,13 +3051,18 @@ def pagina_projetos_concluidos():
         est_medio = est["mean"]
 
         ce1, ce2, ce3, ce4 = st.columns(4)
-        ce1.metric("Estimativa mínima (histórico)", f"{est['min']:.1f} m")
-        ce2.metric("Estimativa máxima (histórico)", f"{est['max']:.1f} m")
+        # Para a comparação geral, usa intervalo Kerzner médio do subtema (sem esforço específico)
+        kz_geral = kerzner_total_para_projeto(subtema_comp, None)
+        t_min_geral = kz_geral["total_min"] if kz_geral else est["min"] * 2.5
+        t_max_geral = kz_geral["total_max"] if kz_geral else est["max"] * 2.5
+
+        ce1.metric("Estimativa Kerzner mínima (total)", f"{t_min_geral:.1f} m")
+        ce2.metric("Estimativa Kerzner máxima (total)", f"{t_max_geral:.1f} m")
         ce3.metric("Prazo real médio", f"{prazo_real_medio:.1f} m",
-                   delta=f"{prazo_real_medio - est_medio:.1f} m vs. média estimada")
-        dentro = df_comp[(df_comp["prazo_real_meses"] >= est["min"]) &
-                         (df_comp["prazo_real_meses"] <= est["max"])]
-        ce4.metric("Dentro do intervalo histórico", f"{len(dentro)}/{len(df_comp)}")
+                   delta=f"{prazo_real_medio - (t_min_geral+t_max_geral)/2:.1f} m vs. média Kerzner")
+        dentro = df_comp[(df_comp["prazo_real_meses"] >= t_min_geral) &
+                         (df_comp["prazo_real_meses"] <= t_max_geral)]
+        ce4.metric("Dentro do intervalo Kerzner", f"{len(dentro)}/{len(df_comp)}")
 
         if HAS_PLOTLY:
             # Gráfico 1: Barras comparando prazo real de cada projeto com intervalo estimado
@@ -2813,19 +3075,19 @@ def pagina_projetos_concluidos():
             fig1.add_trace(go.Bar(
                 x=projetos_nomes, y=prazos_reais,
                 name="Prazo real",
-                marker_color=["#10b981" if est["min"] <= p <= est["max"] else "#ef4444" for p in prazos_reais],
+                marker_color=["#10b981" if t_min_geral <= p <= t_max_geral else "#ef4444" for p in prazos_reais],
                 hovertemplate="<b>%{x}</b><br>Prazo real: %{y:.1f} meses<extra></extra>"
             ))
 
             # Linhas de referência
-            fig1.add_hline(y=est["min"], line_dash="dash", line_color="#3b82f6",
-                           annotation_text=f"Mín. histórico: {est['min']:.1f}m",
+            fig1.add_hline(y=t_min_geral, line_dash="dash", line_color="#3b82f6",
+                           annotation_text=f"Kerzner mín.: {t_min_geral:.1f}m",
                            annotation_position="top right")
-            fig1.add_hline(y=est["max"], line_dash="dash", line_color="#f59e0b",
-                           annotation_text=f"Máx. histórico: {est['max']:.1f}m",
+            fig1.add_hline(y=t_max_geral, line_dash="dash", line_color="#f59e0b",
+                           annotation_text=f"Kerzner máx.: {t_max_geral:.1f}m",
                            annotation_position="top right")
-            fig1.add_hline(y=est["mean"], line_dash="dot", line_color="#8b5cf6",
-                           annotation_text=f"Média histórica: {est['mean']:.1f}m",
+            fig1.add_hline(y=(t_min_geral+t_max_geral)/2, line_dash="dot", line_color="#8b5cf6",
+                           annotation_text=f"Kerzner médio: {(t_min_geral+t_max_geral)/2:.1f}m",
                            annotation_position="top right")
 
             fig1.update_layout(
@@ -2851,7 +3113,7 @@ def pagina_projetos_concluidos():
                     hovertemplate="<b>%{text}</b><br>Conclusão: %{x}<br>Prazo real: %{y:.1f} meses<extra></extra>",
                     name="Prazo real"
                 ))
-                fig2.add_hrect(y0=est["min"], y1=est["max"],
+                fig2.add_hrect(y0=t_min_geral, y1=t_max_geral,
                                fillcolor="#3b82f6", opacity=0.08,
                                annotation_text="Intervalo histórico", annotation_position="top right")
                 fig2.update_layout(
