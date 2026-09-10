@@ -2311,7 +2311,9 @@ def pagina_consulta():
             "codigo":"Código","nome":"Nome","descricao":"Objetivo do Projeto",
             "tema":"Tema","subtema":"Subtema","pais":"País","estado":"Estado",
             "municipio":"Município","nome_edital":"Edital",
-            "esforco":"Parâmetro","unidade":"Unidade","servicos":"Serviços",
+            "esforco":"Parâmetro","unidade":"Unidade",
+            "esforco2":"esforco2","unidade2":"unidade2",
+            "servicos":"Serviços",
             "custo_execucao":"Custo Inicial (R$)","custo":"Custo Inicial (R$)",
             "prazo_meses":"Prazo (meses)","data_edital":"Data do edital",
             "fonte_dado":"URL"
@@ -2363,15 +2365,31 @@ def pagina_consulta():
         inicio = (pg_atual - 1) * PAGE_SIZE
         fim = min(inicio + PAGE_SIZE, total)
 
-        _col_cfg_consulta = {}
+        _col_cfg_consulta = {
+            "Parâmetro": st.column_config.TextColumn(
+                "1° Parâmetro",
+                help="Parâmetro utilizado para calculo de execução do projeto."
+            ),
+            "Unidade": st.column_config.TextColumn(
+                "Unidade",
+                help="Unidade de medida referente ao parâmetro."
+            ),
+            "esforco2": st.column_config.TextColumn(
+                "2° Parâmetro",
+                help="Parâmetro utilizado para calculo de execução do projeto."
+            ),
+            "unidade2": st.column_config.TextColumn(
+                "Unidade 2",
+                help="Unidade de medida referente ao 2° parâmetro."
+            ),
+        }
         if "Custo Recalculado com base no IPCA (R$)" in df_exibicao.columns:
-            import streamlit as _st
-            _col_cfg_consulta["Custo Recalculado com base no IPCA (R$)"] = _st.column_config.TextColumn(
+            _col_cfg_consulta["Custo Recalculado com base no IPCA (R$)"] = st.column_config.TextColumn(
                 "Custo Recalculado com base no IPCA (R$)",
                 help="Corrige o custo inicial pelo IPCA acumulado desde a data do edital ate o mes atual. Formula: Valor x PI(1 + IPCA_mes/100) para cada mes entre a data base e hoje. Fonte: Banco Central do Brasil, serie SGS 433."
             )
         st.dataframe(df_exibicao.iloc[inicio:fim], use_container_width=True,
-                     hide_index=True, column_config=_col_cfg_consulta if _col_cfg_consulta else None)
+                     hide_index=True, column_config=_col_cfg_consulta)
 
         # Paginação
         pg1, pg2, pg3, pg4, pg5 = st.columns([1, 1, 3, 1, 1])
@@ -4074,14 +4092,31 @@ def pagina_projetos_concluidos():
             df_show = df_tabela[
                 [c for c in colunas_exib if c in df_tabela.columns]
             ].rename(columns=rename_map)
-            _col_cfg_proj = {}
+            _col_cfg_proj = {
+                "Esforço": st.column_config.TextColumn(
+                    "1° Parâmetro",
+                    help="Parâmetro utilizado para calculo de execução do projeto."
+                ),
+                "Unidade": st.column_config.TextColumn(
+                    "Unidade",
+                    help="Unidade de medida referente ao parâmetro."
+                ),
+                "esforco2": st.column_config.TextColumn(
+                    "2° Parâmetro",
+                    help="Parâmetro utilizado para calculo de execução do projeto."
+                ),
+                "unidade2": st.column_config.TextColumn(
+                    "Unidade 2",
+                    help="Unidade de medida referente ao 2° parâmetro."
+                ),
+            }
             if "Custo corr. IPCA" in df_show.columns:
                 _col_cfg_proj["Custo corr. IPCA"] = st.column_config.TextColumn(
                     "Custo corr. IPCA",
                     help="Corrige o custo inicial pelo IPCA acumulado desde a data do edital ate o mes atual. Formula: Valor x PI(1 + IPCA_mes/100) para cada mes entre a data base e hoje. Fonte: Banco Central do Brasil, serie SGS 433."
                 )
             st.dataframe(df_show, use_container_width=True, hide_index=True,
-                         column_config=_col_cfg_proj if _col_cfg_proj else None)
+                         column_config=_col_cfg_proj)
 
             # Legenda visual
             st.markdown("""
