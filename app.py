@@ -163,6 +163,19 @@ def aplicar_estilo_dark():
         text-transform: uppercase; color: rgba(255,255,255,.3);
         padding: 0 2px 4px; margin-top: 6px;
     }
+    /* Caixa visual para containers de grupo na sidebar */
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlockBorderWrapper"] {
+        background: rgba(0,0,0,.18) !important;
+        border: 1px solid rgba(255,255,255,.08) !important;
+        border-radius: 10px !important;
+        padding: 4px !important;
+        margin-bottom: 4px !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] > div {
+        border-radius: 8px !important;
+        overflow: hidden !important;
+    }
+
     /* Botões de nav menores e alinhados à esquerda */
     section[data-testid="stSidebar"] .stButton > button {
         background: transparent !important;
@@ -2034,16 +2047,17 @@ def menu_sidebar():
             if not grupo_itens:
                 continue
             st.markdown(f'<div class="sb-group-label">{grupo_label}</div>', unsafe_allow_html=True)
-            for opcao in grupo_itens:
-                ativo = menu_atual == opcao or menu_atual.startswith(opcao.split(" (")[0])
-                if ativo:
-                    st.markdown('<div class="sb-btn-active">', unsafe_allow_html=True)
-                if st.button(opcao, key=f"nav_{opcao}", use_container_width=True):
-                    if st.session_state.menu != opcao:
-                        st.session_state.menu = opcao
-                        st.rerun()
-                if ativo:
-                    st.markdown('</div>', unsafe_allow_html=True)
+            with st.container():
+                for opcao in grupo_itens:
+                    ativo = menu_atual == opcao or menu_atual.startswith(opcao.split(" (")[0])
+                    if ativo:
+                        st.markdown('<div class="sb-btn-active">', unsafe_allow_html=True)
+                    if st.button(opcao, key=f"nav_{opcao}", use_container_width=True):
+                        if st.session_state.menu != opcao:
+                            st.session_state.menu = opcao
+                            st.rerun()
+                    if ativo:
+                        st.markdown('</div>', unsafe_allow_html=True)
 
         # Rodapé
         st.markdown('<div class="sb-footer-sep"></div>', unsafe_allow_html=True)
