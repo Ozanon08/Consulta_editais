@@ -3123,38 +3123,142 @@ def pagina_base():
 # MINHA CONTA
 # =========================================================
 def pagina_minha_conta():
+    import html as _html_conta
     header_principal()
 
-    st.markdown('<div class="section-card">', unsafe_allow_html=True)
-    st.subheader("Minha conta")
-    st.write(f"**Usuário:** {st.session_state.usuario}")
-    st.write(f"**Perfil:** {st.session_state.perfil}")
-    st.write(f"**E-mail:** {st.session_state.email or '-'}")
-    st.markdown('</div>', unsafe_allow_html=True)
+    usuario  = st.session_state.usuario
+    perfil   = st.session_state.perfil
+    email    = st.session_state.email or "—"
+    inicial  = usuario[0].upper() if usuario else "U"
 
-    st.markdown('<div class="section-card">', unsafe_allow_html=True)
-    st.subheader("Alterar senha")
-    with st.form("form_alterar_senha", clear_on_submit=True):
-        senha_atual = st.text_input("Senha atual", type="password")
-        nova_senha = st.text_input("Nova senha", type="password")
-        confirmar_senha = st.text_input("Confirmar nova senha", type="password")
-        salvar = st.form_submit_button("Salvar nova senha")
+    cores_perfil = {
+        "ADMIN":       ("#fee2e2", "#991b1b", "#ef4444"),
+        "PMO":         ("#dbeafe", "#1e40af", "#3b82f6"),
+        "COORDENADOR": ("#fef3c7", "#92400e", "#f59e0b"),
+        "GERAL":       ("#f0fdf4", "#166534", "#10b981"),
+    }
+    bg_p, fg_p, cor_av = cores_perfil.get(perfil, ("#f1f5f9","#475569","#94a3b8"))
 
-    if salvar:
-        if not senha_atual or not nova_senha or not confirmar_senha:
-            st.warning("Preencha todos os campos.")
-        elif nova_senha != confirmar_senha:
-            st.error("A confirmação da nova senha não confere.")
-        elif len(nova_senha) < 6:
-            st.error("A nova senha deve ter pelo menos 6 caracteres.")
-        else:
-            ok, msg = alterar_senha_usuario(st.session_state.usuario, senha_atual, nova_senha)
-            if ok:
-                st.success(msg)
+    col_perfil, col_senha = st.columns([1, 1], gap="large")
+
+    # ── Card de perfil ──
+    with col_perfil:
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style="display:flex;flex-direction:column;align-items:center;
+                    padding:24px 0 16px;text-align:center;">
+            <div style="width:72px;height:72px;border-radius:50%;
+                        background:linear-gradient(135deg,{cor_av},{cor_av}99);
+                        display:flex;align-items:center;justify-content:center;
+                        font-size:1.8rem;font-weight:700;color:#fff;
+                        box-shadow:0 4px 16px {cor_av}40;margin-bottom:14px;">
+                {_html_conta.escape(inicial)}
+            </div>
+            <div style="font-size:1.15rem;font-weight:700;color:var(--ink-primary);
+                        margin-bottom:6px;">
+                {_html_conta.escape(usuario)}
+            </div>
+            <div style="margin-bottom:10px;">
+                <span style="background:{bg_p};color:{fg_p};padding:3px 14px;
+                             border-radius:999px;font-size:0.75rem;font-weight:700;
+                             letter-spacing:0.05em;">
+                    {_html_conta.escape(perfil)}
+                </span>
+            </div>
+            <div style="color:var(--ink-secondary);font-size:0.83rem;">
+                {_html_conta.escape(email)}
+            </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border-subtle);padding-top:14px;margin-top:4px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <div style="background:var(--surface-2);border-radius:8px;
+                            padding:10px 14px;text-align:center;">
+                    <div style="font-size:0.65rem;font-weight:600;letter-spacing:0.06em;
+                                text-transform:uppercase;color:var(--ink-secondary);
+                                margin-bottom:3px;">Acesso</div>
+                    <div style="font-size:0.88rem;font-weight:600;color:var(--ink-primary);">
+                        {_html_conta.escape(perfil)}
+                    </div>
+                </div>
+                <div style="background:var(--surface-2);border-radius:8px;
+                            padding:10px 14px;text-align:center;">
+                    <div style="font-size:0.65rem;font-weight:600;letter-spacing:0.06em;
+                                text-transform:uppercase;color:var(--ink-secondary);
+                                margin-bottom:3px;">Usuário</div>
+                    <div style="font-size:0.88rem;font-weight:600;color:var(--ink-primary);
+                                word-break:break-all;">
+                        {_html_conta.escape(usuario)}
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Card de alterar senha ──
+    with col_senha:
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+        st.subheader("Alterar senha")
+        st.caption("A nova senha deve ter ao menos 8 caracteres, uma maiúscula, uma minúscula e um número.")
+
+        with st.form("form_alterar_senha", clear_on_submit=True):
+            senha_atual     = st.text_input("Senha atual", type="password")
+            nova_senha      = st.text_input("Nova senha", type="password")
+            confirmar_senha = st.text_input("Confirmar nova senha", type="password")
+
+            # Indicador de força visual
+            if nova_senha:
+                forca = 0
+                checks = [
+                    (len(nova_senha) >= 8,  "8+ caracteres"),
+                    (any(c.isupper() for c in nova_senha), "Maiúscula"),
+                    (any(c.islower() for c in nova_senha), "Minúscula"),
+                    (any(c.isdigit() for c in nova_senha), "Número"),
+                ]
+                forca = sum(1 for ok, _ in checks if ok)
+                cores_f = ["#ef4444","#f59e0b","#3b82f6","#10b981"]
+                labels_f = ["Fraca","Razoável","Boa","Forte"]
+                cor_f = cores_f[min(forca-1, 3)] if forca > 0 else "#e2e8f0"
+                label_f = labels_f[min(forca-1, 3)] if forca > 0 else ""
+                checks_html = "".join([
+                    f'<span style="color:{"#10b981" if ok else "#cbd5e1"};'
+                    f'font-size:0.75rem;margin-right:8px;">'
+                    f'{"✓" if ok else "·"} {txt}</span>'
+                    for ok, txt in checks
+                ])
+                st.markdown(f"""
+                <div style="margin:6px 0 10px;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                        <div style="flex:1;height:4px;border-radius:2px;
+                                    background:linear-gradient(to right,{cor_f} {forca*25}%,#e2e8f0 {forca*25}%);">
+                        </div>
+                        <span style="font-size:0.72rem;font-weight:600;color:{cor_f};">{label_f}</span>
+                    </div>
+                    <div>{checks_html}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            salvar = st.form_submit_button("Salvar nova senha", type="primary",
+                                           use_container_width=True)
+
+        if salvar:
+            if not senha_atual or not nova_senha or not confirmar_senha:
+                st.warning("Preencha todos os campos.")
+            elif nova_senha != confirmar_senha:
+                st.error("A confirmação da nova senha não confere.")
             else:
-                st.error(msg)
+                ok_v, msg_v = validar_senha(nova_senha)
+                if not ok_v:
+                    st.error(msg_v)
+                else:
+                    ok, msg = alterar_senha_usuario(usuario, senha_atual, nova_senha)
+                    if ok:
+                        st.success(msg)
+                    else:
+                        st.error(msg)
 
-    st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 # =========================================================
