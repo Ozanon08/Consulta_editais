@@ -201,12 +201,12 @@ def aplicar_estilo_dark():
     }
     /* Remove espaços extras entre botões */
     section[data-testid="stSidebar"] .stButton {
-        margin: 0 !important;
+        margin: 2px 0 !important;
         padding: 0 !important;
     }
-    /* Zero gap em todos os filhos da sidebar */
+    /* Espaçamento uniforme entre botões da sidebar */
     section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
-        gap: 0 !important;
+        gap: 2px !important;
     }
     /* O div vazio do sb-btn-active não deve ocupar espaço */
     section[data-testid="stSidebar"] .sb-btn-active {
@@ -297,12 +297,12 @@ def aplicar_estilo_dark():
     }
     /* Remove espaços extras entre botões */
     section[data-testid="stSidebar"] .stButton {
-        margin: 0 !important;
+        margin: 2px 0 !important;
         padding: 0 !important;
     }
-    /* Zero gap em todos os filhos da sidebar */
+    /* Espaçamento uniforme entre botões da sidebar */
     section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
-        gap: 0 !important;
+        gap: 2px !important;
     }
     /* O div vazio do sb-btn-active não deve ocupar espaço */
     section[data-testid="stSidebar"] .sb-btn-active {
@@ -2074,6 +2074,7 @@ def menu_sidebar():
                 _white.save(_buf, format="PNG")
                 _buf.seek(0)
                 st.image(_buf, width=180)
+                st.markdown('<div style="height:4px;"></div>', unsafe_allow_html=True)
             else:
                 st.markdown("**FGV PMO**")
         except Exception:
