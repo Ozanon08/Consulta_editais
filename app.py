@@ -182,33 +182,7 @@ def aplicar_estilo_dark():
     }
 
     /* Botões de nav menores e alinhados à esquerda */
-    section[data-testid="stSidebar"] .stButton > button {
-        background: transparent !important;
-        color: rgba(255,255,255,.65) !important;
-        -webkit-text-fill-color: rgba(255,255,255,.65) !important;
-        border: none !important;
-        border-radius: 7px !important;
-        font-size: 0.82rem !important;
-        font-weight: 400 !important;
-        padding: 7px 10px !important;
-        height: auto !important;
-        min-height: 0 !important;
-        box-shadow: none !important;
-        transform: none !important;
-        text-align: left !important;
-        justify-content: flex-start !important;
-        margin: 1px 0 !important;
-        display: flex !important;
-        width: 100% !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-    }
-    section[data-testid="stSidebar"] .stButton > button:hover {
-        background: rgba(255,255,255,.08) !important;
-        color: #fff !important;
-        -webkit-text-fill-color: #fff !important;
-        transform: none !important;
-    }
+
     /* Botão ativo */
     .sb-btn-active .stButton > button {
         background: rgba(255,255,255,.12) !important;
@@ -271,39 +245,40 @@ def aplicar_estilo_dark():
         height: 1px; background: rgba(255,255,255,.1);
         margin: 4px 0 10px;
     }
+    section[data-testid="stSidebar"] .stButton > button {
+        background: rgba(255,255,255,0.06) !important;
+        color: rgba(255,255,255,0.85) !important;
+        -webkit-text-fill-color: rgba(255,255,255,0.85) !important;
+        border: 1px solid rgba(255,255,255,0.08) !important;
+        border-radius: var(--radius-md) !important;
+        text-align: center !important;
+        justify-content: center !important;
+        padding: 9px 14px !important;
+        font-size: 0.88rem !important;
+        font-weight: 400 !important;
+        box-shadow: none !important;
+        transform: none !important;
+        transition: background .12s, color .12s, border-color .12s !important;
+        letter-spacing: 0.01em !important;
+        width: 100% !important;
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
+    section[data-testid="stSidebar"] .stButton > button:hover {
+        background: rgba(255,255,255,0.14) !important;
+        color: #fff !important;
+        -webkit-text-fill-color: #fff !important;
+        border-color: rgba(255,255,255,0.2) !important;
+        transform: none !important;
+    }
     .sb-group-label {
         font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em;
         text-transform: uppercase; color: rgba(255,255,255,.3);
         padding: 0 2px 4px; margin-top: 6px;
     }
     /* Botões de nav menores e alinhados à esquerda */
-    section[data-testid="stSidebar"] .stButton > button {
-        background: transparent !important;
-        color: rgba(255,255,255,.65) !important;
-        -webkit-text-fill-color: rgba(255,255,255,.65) !important;
-        border: none !important;
-        border-radius: 7px !important;
-        font-size: 0.82rem !important;
-        font-weight: 400 !important;
-        padding: 7px 10px !important;
-        height: auto !important;
-        min-height: 0 !important;
-        box-shadow: none !important;
-        transform: none !important;
-        text-align: left !important;
-        justify-content: flex-start !important;
-        margin: 1px 0 !important;
-        display: flex !important;
-        width: 100% !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-    }
-    section[data-testid="stSidebar"] .stButton > button:hover {
-        background: rgba(255,255,255,.08) !important;
-        color: #fff !important;
-        -webkit-text-fill-color: #fff !important;
-        transform: none !important;
-    }
+
     /* Botão ativo */
     .sb-btn-active .stButton > button {
         background: rgba(255,255,255,.12) !important;
@@ -374,32 +349,7 @@ def aplicar_estilo_dark():
 
 
     /*  NAV MENU (dark)  */
-    section[data-testid="stSidebar"] .stButton > button {
-        background: transparent !important;
-        color: rgba(255,255,255,0.75) !important;
-        -webkit-text-fill-color: rgba(255,255,255,0.75) !important;
-        border: none !important;
-        border-radius: var(--radius-md) !important;
-        text-align: center !important;
-        justify-content: center !important;
-        padding: 9px 14px !important;
-        font-size: 0.88rem !important;
-        font-weight: 400 !important;
-        box-shadow: none !important;
-        transform: none !important;
-        transition: background .12s, color .12s !important;
-        letter-spacing: 0.01em !important;
-        width: 100% !important;
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-    }
-    section[data-testid="stSidebar"] .stButton > button:hover {
-        background: rgba(255,255,255,0.1) !important;
-        color: #fff !important;
-        -webkit-text-fill-color: #fff !important;
-        transform: none !important;
-    }
+
 
     /*  NAV ITEM ATIVO  */
     .nav-ativo {
