@@ -2854,172 +2854,269 @@ def pagina_base():
     header_principal()
     df = carregar_view()
 
+    # ── Métricas de resumo ──
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
-    st.subheader("Visualização da base")
-    if df.empty:
-        st.warning("A view 'vw_consulta_editais' não foi encontrada ou não possui dados.")
+
+    if not df.empty:
+        m1, m2, m3, m4 = st.columns(4)
+        total = len(df)
+        n_temas = df["tema"].nunique() if "tema" in df.columns else 0
+        n_estados = df["estado"].nunique() if "estado" in df.columns else 0
+        anos = pd.to_datetime(df["data_edital"], errors="coerce").dt.year.dropna()
+        periodo = f"{int(anos.min())}–{int(anos.max())}" if not anos.empty else "—"
+        m1.metric("Total de registros", f"{total:,}".replace(",","."))
+        m2.metric("Temas", n_temas)
+        m3.metric("Estados cobertos", n_estados)
+        m4.metric("Período", periodo)
+
+    # ── Tabs ──
+    if pode_substituir_base(st.session_state.perfil):
+        tab_viz, tab_import, tab_ipca, tab_edital = st.tabs([
+            "Visualizar base", "Importar planilha", "Atualizar IPCA", "Incluir edital"
+        ])
     else:
-        st.dataframe(df.head(500), use_container_width=True, hide_index=True)
-        st.caption("Exibindo até 500 linhas para visualização.")
+        tab_viz, = st.tabs(["Visualizar base"])
+        tab_import = tab_ipca = tab_edital = None
+
+    # ── TAB: Visualizar ──
+    with tab_viz:
+        if df.empty:
+            st.warning("A view 'vw_consulta_editais' não foi encontrada ou não possui dados.")
+        else:
+            col_busca, col_tema = st.columns([2, 1])
+            with col_busca:
+                busca = st.text_input("Buscar na base", placeholder="Nome, tema, município...",
+                                      label_visibility="collapsed")
+            with col_tema:
+                temas_disp = ["Todos"] + sorted(df["tema"].dropna().unique().tolist()) \
+                    if "tema" in df.columns else ["Todos"]
+                tema_filtro = st.selectbox("Tema", temas_disp, label_visibility="collapsed")
+
+            df_show = df.copy()
+            if busca:
+                mask = df_show.apply(lambda r: r.astype(str).str.contains(busca, case=False, na=False).any(), axis=1)
+                df_show = df_show[mask]
+            if tema_filtro != "Todos" and "tema" in df_show.columns:
+                df_show = df_show[df_show["tema"] == tema_filtro]
+
+            st.caption(f"Exibindo {min(500, len(df_show))} de {len(df_show)} registros")
+            st.dataframe(df_show.head(500), use_container_width=True, hide_index=True)
+
+    # ── TAB: Importar planilha ──
+    if tab_import:
+        with tab_import:
+            st.markdown("""
+            <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:10px;
+                        padding:14px 16px;margin-bottom:16px;font-size:0.85rem;color:#1e40af;">
+                <strong>Atenção:</strong> O upload <strong>substitui toda a base</strong> de editais/projetos 
+                pelos dados da nova planilha. Usuários e solicitações não são afetados.
+            </div>
+            """, unsafe_allow_html=True)
+
+            arquivo = st.file_uploader("Selecione a planilha (Excel ou CSV)",
+                                       type=["xlsx", "xls", "csv"], key="base_upload")
+            if arquivo is not None:
+                # Preview antes de processar
+                try:
+                    import pandas as _pd_prev
+                    xl = _pd_prev.ExcelFile(arquivo)
+                    sheet = "Base" if "Base" in xl.sheet_names else xl.sheet_names[0]
+                    df_prev = _pd_prev.read_excel(arquivo, sheet_name=sheet, nrows=5)
+                    arquivo.seek(0)
+                    n_cols = len(df_prev.columns)
+                    st.markdown(f"""
+                    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;
+                                padding:12px 16px;margin-bottom:12px;font-size:0.84rem;color:#166534;">
+                        <strong>{arquivo.name}</strong> detectado — 
+                        aba <em>{sheet}</em>, {n_cols} colunas identificadas.
+                    </div>
+                    """, unsafe_allow_html=True)
+                    with st.expander("Ver primeiras linhas"):
+                        st.dataframe(df_prev, use_container_width=True, hide_index=True)
+                except Exception:
+                    arquivo.seek(0)
+
+                if st.button("Processar e atualizar base", type="primary", use_container_width=True):
+                    with st.spinner("Processando planilha e atualizando o banco..."):
+                        try:
+                            processar_upload_planilha(arquivo)
+                            st.success("Base atualizada com sucesso!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        except Exception as e:
+                            logger.error("Erro ao processar planilha: %s", e)
+                            st.error("Erro ao processar a planilha. Verifique o formato e tente novamente.")
+
+    # ── TAB: IPCA ──
+    if tab_ipca:
+        with tab_ipca:
+            st.markdown("""
+            <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:10px;
+                        padding:14px 16px;margin-bottom:16px;font-size:0.85rem;color:#1e40af;">
+                Faça upload do CSV do IPCA do Banco Central (série SGS 433) para atualizar os custos 
+                corrigidos na Base de Prazos e em Projetos Concluídos.<br><br>
+                <strong>Download:</strong> 
+                <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=csv" 
+                   target="_blank" style="color:#1d4ed8;">
+                   api.bcb.gov.br → série 433
+                </a>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Mostra último mês disponível no banco
+            try:
+                ipca_atual = carregar_ipca()
+                if ipca_atual:
+                    ultimo = max(ipca_atual.keys())
+                    st.markdown(f"""
+                    <div style="display:inline-flex;align-items:center;gap:6px;
+                                background:#f0fdf4;border:1px solid #bbf7d0;
+                                border-radius:8px;padding:6px 14px;
+                                font-size:0.82rem;color:#166534;
+                                font-weight:600;margin-bottom:12px;">
+                        Última atualização no banco: {ultimo[1]:02d}/{ultimo[0]}
+                    </div>
+                    """, unsafe_allow_html=True)
+            except Exception:
+                pass
+
+            arquivo_ipca = st.file_uploader("Selecione o arquivo CSV do IPCA",
+                                             type=["csv"], key="ipca_upload")
+            if arquivo_ipca is not None:
+                if st.button("Importar IPCA", type="primary",
+                             use_container_width=True, key="ipca_importar"):
+                    with st.spinner("Importando série histórica do IPCA..."):
+                        try:
+                            import csv, io
+                            conteudo = arquivo_ipca.read().decode("utf-8")
+                            reader = csv.DictReader(io.StringIO(conteudo), delimiter=";")
+                            conn_ipca = get_conn()
+                            cur_ipca = conn_ipca.cursor()
+                            inseridos = 0
+                            for row in reader:
+                                data = row.get("data", "").strip()
+                                valor = row.get("valor", "").strip().replace(",", ".")
+                                if not data or not valor:
+                                    continue
+                                partes = data.split("/")
+                                if len(partes) < 3:
+                                    continue
+                                mes, ano = int(partes[1]), int(partes[2])
+                                try:
+                                    variacao = float(valor)
+                                except ValueError:
+                                    continue
+                                cur_ipca.execute("""
+                                    INSERT INTO ipca_mensal (ano, mes, variacao)
+                                    VALUES (%s, %s, %s)
+                                    ON CONFLICT (ano, mes) DO UPDATE SET variacao = EXCLUDED.variacao
+                                """, (ano, mes, variacao))
+                                inseridos += 1
+                            conn_ipca.commit()
+                            conn_ipca.close()
+                            st.cache_data.clear()
+                            st.success(f"IPCA atualizado! {inseridos} meses inseridos/atualizados.")
+                        except Exception as e:
+                            logger.error("Erro ao importar IPCA: %s", e)
+                            st.error("Erro ao importar o IPCA. Verifique o formato do arquivo.")
+
+    # ── TAB: Incluir edital ──
+    if tab_edital:
+        with tab_edital:
+            conn_ref = get_conn()
+            try:
+                temas_ref   = pd.read_sql_query("SELECT DISTINCT nome FROM tema ORDER BY nome", conn_ref)["nome"].tolist()
+                estados_ref = pd.read_sql_query("SELECT DISTINCT nome FROM estado ORDER BY nome", conn_ref)["nome"].tolist()
+            except Exception:
+                temas_ref, estados_ref = [], []
+            finally:
+                conn_ref.close()
+
+            with st.form("form_novo_edital", clear_on_submit=True):
+                # Identificação
+                st.markdown("""
+                <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;
+                            text-transform:uppercase;color:#64748b;
+                            border-bottom:1px solid #e2e8f0;padding-bottom:6px;
+                            margin-bottom:12px;">Identificação</div>
+                """, unsafe_allow_html=True)
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    ne_tema = st.selectbox("Tema *", [""] + temas_ref)
+                    ne_subtema = st.text_input("Subtema *")
+                with c2:
+                    ne_nome_edital = st.text_input("Nome do edital *")
+                    ne_pais = st.text_input("País", value="Brasil")
+                with c3:
+                    ne_estado = st.selectbox("Estado", [""] + estados_ref)
+                    ne_municipio = st.text_input("Município")
+
+                # Descrição
+                st.markdown("""
+                <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;
+                            text-transform:uppercase;color:#64748b;
+                            border-bottom:1px solid #e2e8f0;padding-bottom:6px;
+                            margin-bottom:12px;margin-top:8px;">Descrição</div>
+                """, unsafe_allow_html=True)
+                ne_descricao = st.text_area("Objetivo do edital", height=90)
+                ne_servicos  = st.text_input("Serviços (separados por vírgula)")
+
+                # Dados técnicos
+                st.markdown("""
+                <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;
+                            text-transform:uppercase;color:#64748b;
+                            border-bottom:1px solid #e2e8f0;padding-bottom:6px;
+                            margin-bottom:12px;margin-top:8px;">Dados técnicos</div>
+                """, unsafe_allow_html=True)
+                d1, d2, d3, d4 = st.columns(4)
+                with d1:
+                    ne_esforco = st.number_input("Esforço", min_value=0.0, step=0.1, format="%.2f")
+                    ne_unidade = st.text_input("Unidade", placeholder="km, m², unid...")
+                with d2:
+                    ne_prazo = st.number_input("Prazo (meses)", min_value=0.0, step=0.5, format="%.1f")
+                    ne_custo = st.number_input("Custo de execução (R$)", min_value=0.0, step=1000.0, format="%.2f")
+                with d3:
+                    ne_valor_min = st.number_input("Valor mínimo (R$)", min_value=0.0, step=1000.0, format="%.2f")
+                    ne_valor_max = st.number_input("Valor máximo (R$)", min_value=0.0, step=1000.0, format="%.2f")
+                with d4:
+                    ne_data   = st.text_input("Data do edital (AAAA-MM)", placeholder="2024-03")
+                    ne_codigo = st.text_input("Código planilha")
+                ne_obs = st.text_area("Observações", height=70)
+
+                salvar_edital = st.form_submit_button("Salvar edital", type="primary",
+                                                       use_container_width=True)
+
+            if salvar_edital:
+                if not ne_tema or not ne_subtema.strip() or not ne_nome_edital.strip():
+                    st.warning("Preencha ao menos Tema, Subtema e Nome do edital.")
+                else:
+                    try:
+                        _inserir_edital_individual(
+                            tema=ne_tema, subtema=ne_subtema.strip(),
+                            pais=ne_pais.strip() or "Brasil",
+                            estado=ne_estado or None,
+                            municipio=ne_municipio.strip() or None,
+                            nome_edital=ne_nome_edital.strip(),
+                            descricao=ne_descricao.strip() or None,
+                            servicos=ne_servicos.strip() or None,
+                            esforco=str(ne_esforco) if ne_esforco > 0 else None,
+                            unidade=ne_unidade or None,
+                            prazo_meses=ne_prazo if ne_prazo > 0 else None,
+                            custo_execucao=ne_custo if ne_custo > 0 else None,
+                            valor_min=ne_valor_min if ne_valor_min > 0 else None,
+                            valor_max=ne_valor_max if ne_valor_max > 0 else None,
+                            data_edital=ne_data.strip() or None,
+                            codigo_planilha=ne_codigo.strip() or None,
+                            observacao=ne_obs.strip() or None,
+                        )
+                        st.success(f"Edital '{ne_nome_edital}' incluído com sucesso!")
+                        st.cache_data.clear()
+                    except Exception as e:
+                        logger.error("Erro ao incluir edital: %s", e)
+                        st.error("Erro ao salvar o edital. Tente novamente.")
+
     st.markdown('</div>', unsafe_allow_html=True)
 
-    if pode_substituir_base(st.session_state.perfil):
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.subheader("Substituir base de dados")
-        st.info("Área reservada para ADMIN e PMO. O upload substitui todos os editais/projetos da base pelos da nova planilha. Usuários e solicitações não são afetados.")
-        arquivo = st.file_uploader("Selecione uma planilha", type=["xlsx", "xls", "csv"])
-        if arquivo is not None:
-            st.success(f"Arquivo carregado: {arquivo.name}")
-            if st.button("Processar e atualizar base", type="primary"):
-                with st.spinner("Processando planilha e atualizando o banco..."):
-                    try:
-                        processar_upload_planilha(arquivo)
-                        st.success("Base atualizada com sucesso! Recarregue a página para ver os novos dados.")
-                        st.cache_data.clear()
-                    except Exception as e:
-                        logger.error("Erro ao processar planilha: %s", e)
-                        st.error("Erro ao processar a planilha. Verifique o formato do arquivo e tente novamente.")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    #  Atualização do IPCA
-    if pode_substituir_base(st.session_state.perfil):
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.subheader("Atualizar índice IPCA")
-        st.info(
-            "Faça upload do CSV do IPCA (Banco Central, série SGS 433) para atualizar "
-            "os custos corrigidos. Baixe em: "
-            "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=csv"
-        )
-
-        arquivo_ipca = st.file_uploader(
-            "Selecione o arquivo CSV do IPCA (bcdata_sgs_433.csv)",
-            type=["csv"], key="ipca_upload"
-        )
-        if arquivo_ipca is not None:
-            st.success(f"Arquivo carregado: {arquivo_ipca.name}")
-            if st.button("Importar IPCA", type="primary", key="ipca_importar"):
-                with st.spinner("Importando série histórica do IPCA..."):
-                    try:
-                        import csv, io
-                        conteudo = arquivo_ipca.read().decode("utf-8")
-                        reader = csv.DictReader(io.StringIO(conteudo), delimiter=";")
-                        conn_ipca = get_conn()
-                        cur_ipca = conn_ipca.cursor()
-                        inseridos = 0
-                        ignorados = 0
-                        for row in reader:
-                            data = row.get("data", "").strip()
-                            valor = row.get("valor", "").strip().replace(",", ".")
-                            if not data or not valor:
-                                continue
-                            partes = data.split("/")
-                            if len(partes) < 3:
-                                continue
-                            mes, ano = int(partes[1]), int(partes[2])
-                            try:
-                                variacao = float(valor)
-                            except ValueError:
-                                continue
-                            cur_ipca.execute("""
-                                INSERT INTO ipca_mensal (ano, mes, variacao)
-                                VALUES (%s, %s, %s)
-                                ON CONFLICT (ano, mes) DO UPDATE SET variacao = EXCLUDED.variacao
-                            """, (ano, mes, variacao))
-                            if cur_ipca.rowcount > 0:
-                                inseridos += 1
-                            else:
-                                ignorados += 1
-                        conn_ipca.commit()
-                        conn_ipca.close()
-                        st.cache_data.clear()
-                        st.success(f"IPCA atualizado com sucesso! {inseridos} meses inseridos/atualizados.")
-                    except Exception as e:
-                        logger.error("Erro ao importar IPCA: %s", e)
-                        st.error("Erro ao importar o IPCA. Verifique o formato do arquivo.")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    #  Inclusão de edital individual
-    if pode_substituir_base(st.session_state.perfil):
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.subheader("Incluir novo edital individualmente")
-        st.info("Adicione um edital diretamente na base sem precisar substituir a planilha inteira.")
-
-        conn_ref = get_conn()
-        try:
-            temas_ref = pd.read_sql_query("SELECT DISTINCT nome FROM tema ORDER BY nome", conn_ref)["nome"].tolist()
-            estados_ref = pd.read_sql_query("SELECT DISTINCT nome FROM estado ORDER BY nome", conn_ref)["nome"].tolist()
-        except Exception:
-            temas_ref, estados_ref = [], []
-        finally:
-            conn_ref.close()
-
-        with st.form("form_novo_edital", clear_on_submit=True):
-            st.markdown("**Identificação**")
-            c1, c2 = st.columns(2)
-            with c1:
-                ne_tema = st.selectbox("Tema *", [""] + temas_ref)
-                ne_subtema = st.text_input("Subtema *")
-                ne_nome_edital = st.text_input("Nome do edital *")
-            with c2:
-                ne_pais = st.text_input("País", value="Brasil")
-                ne_estado = st.selectbox("Estado", [""] + estados_ref)
-                ne_municipio = st.text_input("Município")
-
-            st.markdown("**Descrição**")
-            ne_descricao = st.text_area("Descrição / Objetivo do edital", height=100)
-            ne_servicos = st.text_input("Serviços (separados por vírgula)")
-
-            st.markdown("**Dados técnicos**")
-            c3, c4, c5 = st.columns(3)
-            with c3:
-                ne_esforco = st.number_input("Esforço", min_value=0.0, step=0.1, format="%.2f")
-                ne_unidade = st.text_input("Unidade de medida", placeholder="Ex: km, m², unid...")
-            with c4:
-                ne_prazo = st.number_input("Prazo (meses)", min_value=0.0, step=0.5, format="%.1f")
-                ne_custo = st.number_input("Custo de execução (R$)", min_value=0.0, step=1000.0, format="%.2f")
-            with c5:
-                ne_valor_min = st.number_input("Valor mínimo (R$)", min_value=0.0, step=1000.0, format="%.2f")
-                ne_valor_max = st.number_input("Valor máximo (R$)", min_value=0.0, step=1000.0, format="%.2f")
-
-            st.markdown("**Outros**")
-            c6, c7 = st.columns(2)
-            with c6:
-                ne_data = st.text_input("Data do edital (AAAA-MM)", placeholder="Ex: 2024-03")
-                ne_codigo = st.text_input("Código planilha")
-            with c7:
-                ne_obs = st.text_area("Observações", height=80)
-
-            salvar_edital = st.form_submit_button("Salvar edital", type="primary")
-
-        if salvar_edital:
-            if not ne_tema or not ne_subtema.strip() or not ne_nome_edital.strip():
-                st.warning("Preencha ao menos Tema, Subtema e Nome do edital.")
-            else:
-                try:
-                    _inserir_edital_individual(
-                        tema=ne_tema, subtema=ne_subtema.strip(),
-                        pais=ne_pais.strip() or "Brasil", estado=ne_estado or None,
-                        municipio=ne_municipio.strip() or None,
-                        nome_edital=ne_nome_edital.strip(),
-                        descricao=ne_descricao.strip() or None,
-                        servicos=ne_servicos.strip() or None,
-                        esforco=str(ne_esforco) if ne_esforco > 0 else None,
-                        unidade=ne_unidade or None,
-                        prazo_meses=ne_prazo if ne_prazo > 0 else None,
-                        custo_execucao=ne_custo if ne_custo > 0 else None,
-                        valor_min=ne_valor_min if ne_valor_min > 0 else None,
-                        valor_max=ne_valor_max if ne_valor_max > 0 else None,
-                        data_edital=ne_data.strip() or None,
-                        codigo_planilha=ne_codigo.strip() or None,
-                        observacao=ne_obs.strip() or None,
-                    )
-                    st.success(f"Edital '{ne_nome_edital}' incluído com sucesso!")
-                    st.cache_data.clear()
-                except Exception as e:
-                    logger.error("Erro ao incluir edital: %s", e)
-                    st.error("Erro ao salvar o edital. Tente novamente ou contate o administrador.")
-
-        st.markdown('</div>', unsafe_allow_html=True)
 
 
 # =========================================================
