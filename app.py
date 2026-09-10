@@ -5137,7 +5137,6 @@ def pagina_analise_prazos():
     import math
 
     header_principal()
-    st.markdown("## Análise de Prazos por Tema")
 
     df_edit = carregar_view()
     if df_edit.empty:
@@ -5148,7 +5147,8 @@ def pagina_analise_prazos():
         if col in df_edit.columns:
             df_edit[col] = pd.to_numeric(df_edit[col], errors="coerce")
 
-    #  Filtros
+    # Filtros
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
     cf1, cf2, cf3, cf4 = st.columns(4)
     with cf1:
         temas = sorted(df_edit["tema"].dropna().unique().tolist())
@@ -5156,9 +5156,11 @@ def pagina_analise_prazos():
     df_filt = df_edit if tema_sel == "Todos" else df_edit[df_edit["tema"] == tema_sel]
     with cf2:
         subtemas = sorted(df_filt["subtema"].dropna().unique().tolist())
-        subtema_sel = st.selectbox("Subtema (opcional)", ["Todos"] + subtemas, key="ap_subtema")
+        subtema_sel = st.selectbox("Subtema (opcional — analisa tema inteiro se omitido)",
+                                   ["Todos"] + subtemas, key="ap_subtema")
     if tema_sel == "Todos" and subtema_sel == "Todos":
         st.info("Selecione ao menos um Tema ou Subtema para iniciar a análise.")
+        st.markdown('</div>', unsafe_allow_html=True)
         return
     if subtema_sel != "Todos":
         df_tema = df_filt[df_filt["subtema"] == subtema_sel].copy()
@@ -5174,6 +5176,7 @@ def pagina_analise_prazos():
         estado_sel = st.selectbox("Estado", ["Todos"] + estados, key="ap_estado")
     if estado_sel != "Todos":
         df_tema = df_tema[df_tema["estado"] == estado_sel]
+    st.markdown('</div>', unsafe_allow_html=True)
 
     #  Exclusões
     label_analise = subtema_sel if subtema_sel != "Todos" else tema_sel
@@ -5230,7 +5233,7 @@ def pagina_analise_prazos():
     #  Seletor de Tipo de Regressão
     reg_type_sel = "auto"
     if corr_forte and reg_linear and reg_log:
-        st.markdown("### Tipo de Regressão")
+        st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;margin-bottom:8px;">Tipo de Regressão</div>', unsafe_allow_html=True)
         auto_label = f"Automático ({'Linear' if abs(pearson) >= abs(spearman) else 'Logarítmica'})"
         opcoes_reg = {
             "auto": auto_label,
@@ -5260,13 +5263,14 @@ def pagina_analise_prazos():
         else:
             reg = reg_log; reg_type_label = "Logarítmica"
 
-    #  Status correlação
+    # Status correlação
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
     if corr_forte:
-        st.success(f" Correlação forte detectada! Máxima: {max_corr:.2f} (≥ 0,6) — Regressão **{reg_type_label}** será usada.")
+        st.success(f"Correlação forte detectada — máxima: {max_corr:.2f} (≥ 0,6). Regressão **{reg_type_label}** será usada.")
     else:
-        st.warning(f" Correlação fraca ({max_corr:.2f} < 0,6). Serão usados os valores históricos mínimos e máximos.")
+        st.warning(f"Correlação fraca ({max_corr:.2f} < 0,6). Serão usados os valores históricos mínimos e máximos.")
 
-    #  Gráfico dispersão
+    # Gráfico dispersão
     if len(df_valido) >= 2:
         try:
             import plotly.graph_objects as go
@@ -5300,8 +5304,7 @@ def pagina_analise_prazos():
         except ImportError:
             st.info("Instale plotly: pip install plotly")
 
-    #  Análise de Correlação
-    st.markdown("### Análise de Correlação")
+    st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin:16px 0 12px;">Correlação</div>', unsafe_allow_html=True)
     cc1, cc2 = st.columns(2)
     def corr_badge(val):
         a = abs(val)
@@ -5349,9 +5352,10 @@ def pagina_analise_prazos():
             <div style="font-family:monospace;color:#1d4ed8;font-size:13px;">R² = {reg['r2']:.4f} &nbsp;&nbsp; 1 - R² = {1-reg['r2']:.4f}</div>
         </div>
         """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    #  Estatísticas
-    st.markdown("### Estatísticas")
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:12px;">Estatísticas</div>', unsafe_allow_html=True)
     sc1, sc2 = st.columns(2)
     def stat_table(data):
         return pd.DataFrame(list(data.items()), columns=["Métrica", "Valor"])
@@ -5374,10 +5378,13 @@ def pagina_analise_prazos():
                 "Mínimo histórico": f"{st_esforcos['min']:.2f}", "Máximo histórico": f"{st_esforcos['max']:.2f}",
             }), hide_index=True, use_container_width=True)
 
-    #  Calculadora Kerzner
-    st.markdown("### Calculadora de Prazos (Metodologia Kerzner)")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Calculadora Kerzner
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:12px;">Calculadora de Prazos — Metodologia Kerzner</div>', unsafe_allow_html=True)
     if is_san:
-        st.info(" Tema SAN — Encerramento = 10% da execução.")
+        st.info("Tema SAN — Encerramento = 10% da execução.")
 
     esforco_input = 0.0
     if corr_forte and reg:
@@ -5502,9 +5509,11 @@ def pagina_analise_prazos():
             </div>
         </div>
         """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    #  Classificação dos projetos
-    st.markdown("### Classificação dos Projetos")
+    # Classificação dos projetos
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:12px;">Projetos incluídos na análise</div>', unsafe_allow_html=True)
 
     def classificar(prazo, excluido):
         if excluido: return "Excluído"
@@ -5526,7 +5535,7 @@ def pagina_analise_prazos():
     rc3.metric("Outlier Baixo", n_low)
     rc4.metric("Outlier Alto", n_high)
 
-    st.markdown("**Marque projetos para excluir da análise:**")
+    st.caption("Marque os projetos que deseja excluir da análise estatística.")
     hc = st.columns([0.5, 3, 1.5, 1.5, 1, 1, 1.5])
     for col, label in zip(hc, ["", "Nome", "País", "Estado", "Esforço", "Prazo (m)", "Classificação"]):
         col.markdown(f"**{label}**")
@@ -5548,7 +5557,10 @@ def pagina_analise_prazos():
         cols[5].write(f"{abs(row.get('prazo_meses') or 0):.1f}")
         cols[6].write(row["Classificação"])
 
-    st.markdown("---")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Exportação
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
     with st.container():
         kr_res = st.session_state.get("kerzner_result", {})
         export_data = {
@@ -5578,6 +5590,7 @@ def pagina_analise_prazos():
                                use_container_width=True)
         except Exception as ex:
             st.error(f"Erro ao gerar Excel: {ex}")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # =========================================================
