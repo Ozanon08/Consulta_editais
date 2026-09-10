@@ -1944,98 +1944,99 @@ def tela_login():
     logo_b64 = get_base64_logo()
     st.markdown(f"""
     <style>
-    /* Login page — full viewport centered */
-    .stApp {{ background: linear-gradient(135deg, #0b1f3a 0%, #112a50 50%, #1a3f6f 100%) !important; }}
+    /* Login — fundo azul claro institucional */
+    .stApp {{ background: #e8eef6 !important; }}
     section.main .block-container {{ padding: 0 !important; max-width: 100% !important; }}
-    div[data-testid="stVerticalBlock"] {{ gap: 0 !important; }}
 
-    .lp-wrap {{
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 24px 16px;
+    /* Área superior com gradiente navy */
+    .lp-top {{
+        background: linear-gradient(135deg, #0b1f3a 0%, #112a50 55%, #1a3f6f 100%);
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        padding: 48px 24px 56px;
     }}
-    .lp-logo {{
-        margin-bottom: 32px;
-        text-align: center;
-    }}
-    .lp-logo img {{
-        height: 52px; width: auto; object-fit: contain;
-        filter: brightness(1.1);
-    }}
-    .lp-card {{
-        width: 100%; max-width: 380px;
-        background: rgba(255,255,255,0.05);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 16px;
-        padding: 36px 32px 28px;
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        box-shadow: 0 20px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
-    }}
+    .lp-logo {{ text-align: center; margin-bottom: 28px; }}
+    .lp-logo img {{ height: 48px; width: auto; object-fit: contain; }}
     .lp-title {{
-        color: #ffffff;
-        font-size: 1.35rem;
-        font-weight: 700;
-        letter-spacing: -0.02em;
-        text-align: center;
-        margin-bottom: 4px;
+        color: #ffffff; font-size: 1.4rem; font-weight: 700;
+        letter-spacing: -0.02em; text-align: center; margin-bottom: 4px;
         font-family: 'Inter', sans-serif;
     }}
     .lp-sub {{
-        color: rgba(255,255,255,0.45);
-        font-size: 0.78rem;
-        text-align: center;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        font-weight: 500;
-        margin-bottom: 28px;
+        color: rgba(255,255,255,0.5); font-size: 0.72rem; text-align: center;
+        letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500;
         font-family: 'Inter', sans-serif;
     }}
-    .lp-footer {{
-        color: rgba(255,255,255,0.28);
-        font-size: 0.75rem;
-        text-align: center;
-        margin-top: 20px;
-        font-family: 'Inter', sans-serif;
-        letter-spacing: 0.02em;
+
+    /* Card branco que sobe sobre o fundo navy */
+    .lp-card-wrap {{
+        background: #e8eef6;
+        display: flex; justify-content: center;
+        padding: 0 24px 40px;
+        margin-top: -1px;
     }}
-    /* Override Streamlit inputs inside login */
+    .lp-card {{
+        width: 100%; max-width: 400px;
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 32px 28px 24px;
+        margin-top: -28px;
+        box-shadow: 0 8px 32px rgba(11,31,58,0.12);
+        position: relative; z-index: 1;
+    }}
+
+    /* Labels em azul claro */
+    .lp-card label,
+    .lp-card .stTextInput label,
+    .lp-card [data-testid="stWidgetLabel"] p {{
+        color: #4d9fff !important;
+        -webkit-text-fill-color: #4d9fff !important;
+        font-size: 0.82rem !important;
+        font-weight: 600 !important;
+    }}
     .lp-card .stTextInput input {{
-        background: rgba(255,255,255,0.07) !important;
-        border: 1px solid rgba(255,255,255,0.15) !important;
+        background: #f5f8fd !important;
+        border: 1.5px solid #d0dff0 !important;
         border-radius: 8px !important;
-        color: #fff !important;
-        -webkit-text-fill-color: #fff !important;
+        color: #0d1b2e !important;
+        -webkit-text-fill-color: #0d1b2e !important;
     }}
     .lp-card .stTextInput input:focus {{
-        border-color: rgba(77,159,255,0.7) !important;
-        box-shadow: 0 0 0 3px rgba(41,121,212,0.25) !important;
+        border-color: #2979d4 !important;
+        box-shadow: 0 0 0 3px rgba(41,121,212,0.15) !important;
     }}
-    .lp-card .stTextInput input::placeholder {{
-        color: rgba(255,255,255,0.3) !important;
-    }}
-    .lp-card label {{ color: rgba(255,255,255,0.7) !important; font-size: 0.83rem !important; }}
+    .lp-card .stTextInput input::placeholder {{ color: #94a8c2 !important; }}
     .lp-card .stFormSubmitButton > button {{
         background: linear-gradient(135deg, #1d6fc4, #2979d4) !important;
         color: #fff !important; font-weight: 600 !important;
         border: none !important; border-radius: 8px !important;
         height: 44px !important; font-size: 0.9rem !important;
-        box-shadow: 0 4px 16px rgba(41,121,212,0.4) !important;
-        transition: opacity 0.15s ease !important;
-        margin-top: 8px !important;
+        box-shadow: 0 4px 16px rgba(41,121,212,0.3) !important;
+        margin-top: 6px !important; transform: none !important;
     }}
-    .lp-card .stFormSubmitButton > button:hover {{ opacity: 0.88 !important; transform: none !important; }}
+    .lp-card .stFormSubmitButton > button:hover {{
+        opacity: 0.9 !important; transform: none !important;
+    }}
+
+    /* Rodapé em azul escuro (fundo claro) */
+    .lp-footer {{
+        color: #1a3f6f;
+        font-size: 0.75rem; text-align: center;
+        padding: 0 0 24px;
+        font-family: 'Inter', sans-serif;
+        letter-spacing: 0.02em;
+    }}
     </style>
-    <div class="lp-wrap">
+
+    <div class="lp-top">
         <div class="lp-logo">
             <img src="data:image/png;base64,{logo_b64}" />
         </div>
+        <div class="lp-title">Portal de Editais/Projetos</div>
+        <div class="lp-sub">FGV &middot; Project Management Office</div>
+    </div>
+    <div class="lp-card-wrap">
         <div class="lp-card">
-            <div class="lp-title">Portal de Editais/Projetos</div>
-            <div class="lp-sub">FGV &middot; Project Management Office</div>
     """, unsafe_allow_html=True)
 
     with st.form("form_login", clear_on_submit=False):
@@ -2044,9 +2045,9 @@ def tela_login():
         entrar = st.form_submit_button("Entrar", use_container_width=True)
 
     st.markdown("""
-        <div class="lp-footer">Acesso restrito a usuários autorizados</div>
         </div>
     </div>
+    <div class="lp-footer">Acesso restrito a usuários autorizados</div>
     """, unsafe_allow_html=True)
 
     if entrar:
