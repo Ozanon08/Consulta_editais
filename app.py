@@ -114,6 +114,14 @@ def aplicar_estilo_dark():
         transform: none !important;
     }
     .sidebar-logo-wrap { display: flex; justify-content: center; padding: 2px 0 10px; }
+    .sidebar-logo-wrap img,
+    .sidebar-logo-wrap .sidebar-logo-img {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 0.92 !important;
+        max-height: none !important;
+        max-width: 100% !important;
+    }
     .sidebar-logo-img {
         width: 220px; max-width: 100%; object-fit: contain;
         filter: brightness(0) invert(1) !important;
@@ -2111,12 +2119,19 @@ def menu_sidebar():
         menu_atual = st.session_state.menu
 
         # Logo
-        st.markdown("""
-        <div class="sidebar-logo-wrap">
-            <img src="data:image/png;base64,{logo}" class="sidebar-logo-img"/>
-        </div>
-        <div class="sb-divider"></div>
-        """.format(logo=get_base64_logo()), unsafe_allow_html=True)
+        _logo_b64 = get_base64_logo_completo() or get_base64_logo()
+        if _logo_b64:
+            st.markdown(f"""
+            <div class="sidebar-logo-wrap">
+                <img src="data:image/png;base64,{_logo_b64}" class="sidebar-logo-img"
+                     style="display:block!important;visibility:visible!important;
+                            width:200px;max-width:100%;object-fit:contain;
+                            filter:brightness(0) invert(1);opacity:0.92;"/>
+            </div>
+            <div class="sb-divider"></div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="sb-divider"></div>', unsafe_allow_html=True)
 
         # Monta grupos
         grupo_consulta = ["Base de Prazos"]
