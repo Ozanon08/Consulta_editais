@@ -3921,459 +3921,528 @@ def pagina_projetos_concluidos():
         HAS_PLOTLY = False
 
     header_principal()
-    st.markdown("## Projetos Concluídos")
-    st.markdown("Registre projetos finalizados e compare o prazo real com as estimativas da análise estatística.")
 
-    #  Upload de planilha (PMO e ADMIN)
-    if st.session_state.perfil in ("ADMIN", "PMO"):
-        with st.expander(" Importar projetos via planilha", expanded=True):
-            st.info("Envie a Planilha Modelo preenchida pelas áreas. Todos os registros serão adicionados à base de editais/projetos concluídos.")
-            arquivo_pc = st.file_uploader("Selecione a planilha", type=["xlsx", "xls"], key="pc_upload")
-            if arquivo_pc is not None:
-                st.success(f"Arquivo carregado: {arquivo_pc.name}")
-                if st.button("Importar projetos", type="primary", key="pc_importar"):
-                    with st.spinner("Importando projetos..."):
-                        try:
-                            n = processar_upload_projetos_concluidos(arquivo_pc)
-                            st.success(f"{n} projeto(s) importado(s) com sucesso!")
-                            st.cache_data.clear()
-                            st.rerun()
-                        except Exception as e:
-                            logger.error("Erro ao importar projetos: %s", e)
-                            st.error("Erro ao importar a planilha. Verifique o formato e tente novamente.")
-
-    #  Formulário de cadastro manual
-    if st.session_state.perfil in ("ADMIN", "PMO"):
-        with st.expander(" Registrar projeto manualmente", expanded=False):
-            conn_view = get_conn()
-            try:
-                df_temas = pd.read_sql_query("SELECT DISTINCT tema, subtema FROM vw_consulta_editais WHERE tema IS NOT NULL ORDER BY tema, subtema", conn_view)
-            except Exception:
-                df_temas = pd.DataFrame(columns=["tema", "subtema"])
-            finally:
-                conn_view.close()
-
-            # Seletores de tema/subtema FORA do form para permitir cascata dinâmica
-            temas_disp = sorted(df_temas["tema"].dropna().unique().tolist())
-            pc1, pc2 = st.columns(2)
-            with pc1:
-                tema_proj = st.selectbox("Tema", [""] + temas_disp, key="pc_form_tema")
-            with pc2:
-                subtemas_disp = sorted(df_temas[df_temas["tema"] == tema_proj]["subtema"].dropna().unique().tolist()) if tema_proj else []
-                subtema_proj = st.selectbox("Subtema", [""] + subtemas_disp, key="pc_form_subtema")
-
-            with st.form("form_proj_concluido", clear_on_submit=True):
-                st.markdown("**Identificação**")
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    nome_proj = st.text_input("Nome do projeto *")
-                    pais_proj = st.text_input("País", value="Brasil")
-                with c2:
-                    estado_proj = st.text_input("Estado")
-                    municipio_proj = st.text_input("Município")
-                with c3:
-                    data_inicio_proj = st.date_input("Data de início", value=None, format="DD/MM/YYYY")
-                    data_conclusao_proj = st.date_input("Data de conclusão", value=None, format="DD/MM/YYYY")
-
-                st.markdown("**Parâmetros**")
-                p1, p2, p3, p4 = st.columns(4)
-                with p1:
-                    esforco_proj = st.text_input("1º Parâmetro")
-                with p2:
-                    unidade_proj = st.text_input("Unidade", placeholder="km, m², unid...")
-                with p3:
-                    esforco2_proj = st.text_input("2º Parâmetro")
-                with p4:
-                    unidade2_proj = st.text_input("Unidade 2", placeholder="km, m², unid...")
-
-                st.markdown("**Custos**")
-                cc1, cc2 = st.columns(2)
-                with cc1:
-                    custo_contratado_proj = st.number_input("Custo contratado (R$)", min_value=0.0, step=1000.0, format="%.2f")
-                with cc2:
-                    custo_final_proj = st.number_input("Custo final realizado (R$)", min_value=0.0, step=1000.0, format="%.2f")
-
-                obs_proj = st.text_area("Observações", height=70)
-                salvar = st.form_submit_button("Salvar projeto", type="primary")
-
-            if salvar:
-                if not nome_proj.strip():
-                    st.warning("Informe o nome do projeto.")
-                else:
-                    proj_id, prazo_real = inserir_projeto_concluido(
-                        nome=nome_proj.strip(), tema=tema_proj or None,
-                        subtema=subtema_proj or None,
-                        pais=pais_proj.strip() or None,
-                        estado=estado_proj or None,
-                        municipio=municipio_proj or None,
-                        data_inicio=data_inicio_proj, data_conclusao=data_conclusao_proj,
-                        custo_contratado=custo_contratado_proj or None,
-                        custo_final=custo_final_proj or None,
-                        observacoes=obs_proj or None,
-                        criado_por=st.session_state.usuario,
-                        esforco=esforco_proj.strip() or None,
-                        unidade=unidade_proj.strip() or None,
-                        esforco2=esforco2_proj.strip() or None,
-                        unidade2=unidade2_proj.strip() or None,
-                    )
-                    prazo_msg = f" Prazo real calculado: **{prazo_real:.1f} meses**." if prazo_real else ""
-                    st.success(f"Projeto registrado com sucesso!{prazo_msg}")
-                    st.rerun()
-
-    #  Lista de projetos
     df_proj = listar_projetos_concluidos()
+    is_admin = st.session_state.perfil in ("ADMIN", "PMO")
 
-    if df_proj.empty:
-        st.info("Nenhum projeto concluído registrado ainda.")
-        return
-
-    #  Busca textual + Filtros
-    busca_proj = st.text_input(" Busca por nome do projeto", placeholder="Digite parte do nome...", key="pc_busca")
-
-    cf1, cf2, cf3 = st.columns(3)
-    with cf1:
-        temas_f = ["Todos"] + sorted(df_proj["tema"].dropna().unique().tolist())
-        tema_f = st.selectbox("Filtrar por tema", temas_f, key="pc_tema_f")
-    with cf2:
-        df_proj_f = df_proj[df_proj["tema"] == tema_f] if tema_f != "Todos" else df_proj
-        subtemas_f = ["Todos"] + sorted(df_proj_f["subtema"].dropna().unique().tolist())
-        subtema_f = st.selectbox("Filtrar por subtema", subtemas_f, key="pc_subtema_f")
-    with cf3:
-        estados_f = ["Todos"] + sorted(df_proj["estado"].dropna().unique().tolist())
-        estado_f = st.selectbox("Filtrar por estado", estados_f, key="pc_estado_f")
-
-    df_exib = df_proj.copy()
-    if busca_proj.strip():
-        df_exib = df_exib[df_exib["nome_projeto"].str.contains(busca_proj.strip(), case=False, na=False)]
-    if tema_f != "Todos":
-        df_exib = df_exib[df_exib["tema"] == tema_f]
-    if subtema_f != "Todos":
-        df_exib = df_exib[df_exib["subtema"] == subtema_f]
-    if estado_f != "Todos":
-        df_exib = df_exib[df_exib["estado"] == estado_f]
-
-    #  Métricas resumo
-    prazo_vals = df_exib["prazo_real_meses"].dropna()
-    custo_dif = (df_exib["custo_final"] - df_exib["custo_contratado"]).dropna()
-    var_pct = (custo_dif / df_exib["custo_contratado"].replace(0, None)).dropna() * 100
-
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Projetos", len(df_exib))
-    m2.metric("Prazo médio real", f"{prazo_vals.mean():.1f} m" if not prazo_vals.empty else "—")
-    m3.metric("Prazo mínimo / máximo",
-              f"{prazo_vals.min():.1f} – {prazo_vals.max():.1f} m" if not prazo_vals.empty else "—")
-    if not var_pct.empty:
-        media_var = var_pct.mean()
-        sinal = "+" if media_var >= 0 else ""
-        m4.metric("Variação de custo média", f"{sinal}{media_var:.1f}%",
-                  delta=f"{'acima' if media_var > 0 else 'abaixo'} do contratado")
+    # ── Abas principais ──
+    if is_admin:
+        tab_proj, tab_analise, tab_gerenciar = st.tabs([
+            "Projetos", "Análise Kerzner", "Gerenciar"
+        ])
     else:
-        m4.metric("Variação de custo média", "—")
+        tab_proj, tab_analise = st.tabs(["Projetos", "Análise Kerzner"])
+        tab_gerenciar = None
 
-    #  IPCA: carrega série e calcula data de referência
-    ipca = carregar_ipca()
-    from datetime import datetime as _dt
-    data_ref_ipca = f"{_dt.now().year}-{_dt.now().month:02d}"
-    tem_ipca = bool(ipca)
-
-    #  Tabela com badge de prazo e custo corrigido
-    st.markdown("### Projetos registrados")
-
-    df_tabela = df_exib.copy()
-
-    # Badge de prazo por subtema
-    def badge_prazo(row):
-        sub = row.get("subtema")
-        prazo = row.get("prazo_real_meses")
-        esforco = row.get("esforco")
-        if not sub or pd.isna(prazo):
-            return "—"
-        kz = kerzner_total_para_projeto(sub, esforco)
-        if not kz:
-            return f"{prazo:.1f} m"
-        t_min, t_max = kz["total_min"], kz["total_max"]
-        if t_min <= prazo <= t_max:
-            return f"🟢 {prazo:.1f} m"
-        elif prazo < t_min:
-            return f" {prazo:.1f} m"
+    # =========================================================
+    # ABA: PROJETOS
+    # =========================================================
+    with tab_proj:
+        if df_proj.empty:
+            st.info("Nenhum projeto concluído registrado ainda.")
         else:
-            return f" {prazo:.1f} m"
+            # ── Filtros compactos ──
+            f1, f2, f3, f4 = st.columns([2, 1, 1, 1])
+            with f1:
+                busca_proj = st.text_input("Buscar", placeholder="Nome do projeto...",
+                                           label_visibility="collapsed")
+            with f2:
+                temas_f = ["Todos"] + sorted(df_proj["tema"].dropna().unique().tolist())
+                tema_f = st.selectbox("Tema", temas_f, key="pc_tema_f",
+                                      label_visibility="collapsed")
+            with f3:
+                df_pf = df_proj[df_proj["tema"] == tema_f] if tema_f != "Todos" else df_proj
+                subtemas_f = ["Todos"] + sorted(df_pf["subtema"].dropna().unique().tolist())
+                subtema_f = st.selectbox("Subtema", subtemas_f, key="pc_subtema_f",
+                                         label_visibility="collapsed")
+            with f4:
+                estados_f = ["Todos"] + sorted(df_proj["estado"].dropna().unique().tolist())
+                estado_f = st.selectbox("Estado", estados_f, key="pc_estado_f",
+                                        label_visibility="collapsed")
 
-    df_tabela["Prazo"] = df_tabela.apply(badge_prazo, axis=1)
-    df_tabela["Estimativa Kerzner"] = df_tabela.apply(
-        lambda row: (lambda kz: f"{kz['total_min']:.1f}–{kz['total_max']:.1f} m"
-                     if kz else "—")(kerzner_total_para_projeto(row.get("subtema"), row.get("esforco"))),
-        axis=1
-    )
+            df_exib = df_proj.copy()
+            if busca_proj.strip():
+                df_exib = df_exib[df_exib["nome_projeto"].str.contains(
+                    busca_proj.strip(), case=False, na=False)]
+            if tema_f != "Todos":
+                df_exib = df_exib[df_exib["tema"] == tema_f]
+            if subtema_f != "Todos":
+                df_exib = df_exib[df_exib["subtema"] == subtema_f]
+            if estado_f != "Todos":
+                df_exib = df_exib[df_exib["estado"] == estado_f]
 
-    # Custo corrigido pelo IPCA
-    def custo_corrigido(row):
-        if not tem_ipca:
-            return None
-        custo = row.get("custo_contratado")
-        data_b = row.get("data_edital") or row.get("data_inicio")
-        if pd.isna(custo) or not data_b:
-            return None
-        v = corrigir_ipca(float(custo), str(data_b)[:7], data_ref_ipca, ipca)
-        return f"R$ {v:,.2f}".replace(",","X").replace(".",",").replace("X",".") if v else None
+            # ── Métricas ──
+            prazo_vals = df_exib["prazo_real_meses"].dropna()
+            custo_dif  = (df_exib["custo_final"] - df_exib["custo_contratado"]).dropna()
+            var_pct    = (custo_dif / df_exib["custo_contratado"].replace(0, None)).dropna() * 100
 
-    if tem_ipca:
-        df_tabela["Custo corr. IPCA"] = df_tabela.apply(custo_corrigido, axis=1)
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Projetos", len(df_exib))
+            m2.metric("Prazo médio real",
+                      f"{prazo_vals.mean():.1f} m" if not prazo_vals.empty else "—")
+            m3.metric("Prazo mín. / máx.",
+                      f"{prazo_vals.min():.1f} – {prazo_vals.max():.1f} m"
+                      if not prazo_vals.empty else "—")
+            if not var_pct.empty:
+                mv = var_pct.mean()
+                m4.metric("Variação de custo média", f"{mv:+.1f}%",
+                          delta=f"{'acima' if mv > 0 else 'abaixo'} do contratado")
+            else:
+                m4.metric("Variação de custo média", "—")
 
-    # Formata custos
-    for col_custo, col_label in [("custo_contratado","Custo contratado (R$)"), ("custo_final","Custo final (R$)")]:
-        if col_custo in df_tabela.columns:
-            df_tabela[col_label] = df_tabela[col_custo].apply(
-                lambda x: f"R$ {x:,.2f}".replace(",","X").replace(".",",").replace("X",".") if pd.notnull(x) and x > 0 else "—"
-            )
+            # ── IPCA ──
+            ipca = carregar_ipca()
+            from datetime import datetime as _dt
+            data_ref_ipca = f"{_dt.now().year}-{_dt.now().month:02d}"
+            tem_ipca = bool(ipca)
 
-    # Formata datas para DD/MM/AAAA
-    for col_dt in ["data_inicio", "data_conclusao"]:
-        if col_dt in df_tabela.columns:
-            df_tabela[col_dt] = pd.to_datetime(df_tabela[col_dt], errors="coerce").dt.strftime("%d/%m/%Y").fillna("—")
+            # ── Tabela ──
+            df_tabela = df_exib.copy()
 
-    colunas_exib = ["nome_projeto","tema","subtema","estado","municipio",
-                    "data_inicio","data_conclusao","esforco","unidade","Prazo","Estimativa Kerzner",
-                    "Custo contratado (R$)","Custo final (R$)"]
-    if tem_ipca:
-        colunas_exib.append("Custo corr. IPCA")
-    colunas_exib += ["observacoes","criado_por"]
+            def badge_prazo(row):
+                sub    = row.get("subtema")
+                prazo  = row.get("prazo_real_meses")
+                esforco= row.get("esforco")
+                if not sub or pd.isna(prazo):
+                    return "—"
+                kz = kerzner_total_para_projeto(sub, esforco)
+                if not kz:
+                    return f"{prazo:.1f} m"
+                t_min, t_max = kz["total_min"], kz["total_max"]
+                if t_min <= prazo <= t_max:
+                    return f"OK {prazo:.1f} m"
+                elif prazo < t_min:
+                    return f"< {prazo:.1f} m"
+                else:
+                    return f"> {prazo:.1f} m"
 
-    rename_map = {"nome_projeto":"Projeto","tema":"Tema","subtema":"Subtema",
-                  "estado":"Estado","municipio":"Município",
-                  "data_inicio":"Início","data_conclusao":"Conclusão",
-                  "esforco":"Esforço","unidade":"Unidade",
-                  "observacoes":"Obs.","criado_por":"Registrado por"}
+            df_tabela["Prazo"] = df_tabela.apply(badge_prazo, axis=1)
+            df_tabela["Estimativa Kerzner"] = df_tabela.apply(
+                lambda r: (lambda kz: f"{kz['total_min']:.1f}–{kz['total_max']:.1f} m"
+                           if kz else "—")(kerzner_total_para_projeto(
+                               r.get("subtema"), r.get("esforco"))), axis=1)
 
-    df_show = df_tabela[[c for c in colunas_exib if c in df_tabela.columns]].rename(columns=rename_map)
-    st.dataframe(df_show, use_container_width=True, hide_index=True)
+            def custo_corrigido(row):
+                if not tem_ipca: return None
+                custo  = row.get("custo_contratado")
+                data_b = row.get("data_edital") or row.get("data_inicio")
+                if pd.isna(custo) or not data_b: return None
+                v = corrigir_ipca(float(custo), str(data_b)[:7], data_ref_ipca, ipca)
+                return (f"R$ {v:,.2f}".replace(",","X").replace(".",",").replace("X",".")
+                        if v else None)
 
-    if tem_ipca:
-        st.caption(f" Prazo abaixo do mínimo Kerzner   🟢 Prazo dentro do intervalo Kerzner    Prazo acima do máximo Kerzner   |   Estimativa Kerzner = prazo total (Planejamento + Execução + Encerramento) calculado pelo esforço do projeto   |   Custo corr. IPCA atualizado até {data_ref_ipca}")
-    else:
-        st.caption(" Prazo abaixo do mínimo Kerzner   🟢 Prazo dentro do intervalo Kerzner    Prazo acima do máximo Kerzner   |   Estimativa Kerzner = prazo total calculado pelo esforço do projeto")
+            if tem_ipca:
+                df_tabela["Custo corr. IPCA"] = df_tabela.apply(custo_corrigido, axis=1)
 
-    #  Exportar Excel
-    if not df_exib.empty:
-        try:
-            buf = __import__("io").BytesIO()
-            df_show.to_excel(buf, index=False, engine="openpyxl")
-            buf.seek(0)
-            from datetime import datetime as _dt2
-            st.download_button(
-                " Exportar Excel",
-                data=buf.read(),
-                file_name=f"projetos_concluidos_{_dt2.now().strftime('%Y-%m-%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-        except Exception:
-            pass
+            def fmt_brl(x):
+                if pd.isnull(x) or x == 0: return "—"
+                return f"R$ {x:,.2f}".replace(",","X").replace(".",",").replace("X",".")
 
+            for col_c, col_l in [("custo_contratado","Custo contratado (R$)"),
+                                   ("custo_final","Custo final (R$)")]:
+                if col_c in df_tabela.columns:
+                    df_tabela[col_l] = df_tabela[col_c].apply(fmt_brl)
 
+            for col_dt in ["data_inicio","data_conclusao"]:
+                if col_dt in df_tabela.columns:
+                    df_tabela[col_dt] = pd.to_datetime(
+                        df_tabela[col_dt], errors="coerce").dt.strftime("%d/%m/%Y").fillna("—")
 
-    #  Excluir projeto com confirmação
-    if st.session_state.perfil in ("ADMIN", "PMO"):
-        with st.expander(" Excluir projeto"):
-            if not df_exib.empty:
-                proj_id_del = st.selectbox(
-                    "Selecione o projeto",
-                    df_exib["id"].tolist(),
-                    format_func=lambda x: f"{x} — {df_exib.loc[df_exib['id']==x, 'nome_projeto'].values[0]}"
-                )
-                nome_del = df_exib.loc[df_exib["id"] == proj_id_del, "nome_projeto"].values[0]
-                st.warning(f"Você está prestes a excluir: **{nome_del}**. Esta ação não pode ser desfeita.")
-                confirmar = st.checkbox("Confirmo que desejo excluir este projeto")
-                if st.button("Excluir projeto", type="primary", disabled=not confirmar):
-                    excluir_projeto_concluido(proj_id_del)
-                    st.cache_data.clear()
-                    st.success("Projeto excluído.")
-                    st.rerun()
+            colunas_exib = ["nome_projeto","tema","subtema","estado","municipio",
+                            "data_inicio","data_conclusao","esforco","unidade",
+                            "Prazo","Estimativa Kerzner",
+                            "Custo contratado (R$)","Custo final (R$)"]
+            if tem_ipca:
+                colunas_exib.append("Custo corr. IPCA")
+            colunas_exib += ["observacoes","criado_por"]
 
-    #  Comparação com Análise de Prazos
-    st.markdown("---")
-    st.markdown("### Comparação: Prazo Real vs. Estimativa Kerzner")
+            rename_map = {
+                "nome_projeto":"Projeto","tema":"Tema","subtema":"Subtema",
+                "estado":"Estado","municipio":"Município",
+                "data_inicio":"Início","data_conclusao":"Conclusão",
+                "esforco":"Esforço","unidade":"Unidade",
+                "observacoes":"Obs.","criado_por":"Registrado por",
+            }
+            df_show = df_tabela[
+                [c for c in colunas_exib if c in df_tabela.columns]
+            ].rename(columns=rename_map)
+            st.dataframe(df_show, use_container_width=True, hide_index=True)
 
-    subtemas_comp = sorted(df_proj["subtema"].dropna().unique().tolist())
-    if not subtemas_comp:
-        st.info("Nenhum projeto com subtema definido para comparação.")
-        return
+            # Legenda visual
+            st.markdown("""
+            <div style="display:flex;gap:12px;flex-wrap:wrap;margin:4px 0 8px;">
+                <span style="font-size:0.76rem;color:var(--ink-secondary);">
+                    <span style="background:#dcfce7;color:#166534;padding:1px 8px;
+                                 border-radius:4px;font-weight:600;">OK</span>
+                    Dentro do intervalo Kerzner
+                </span>
+                <span style="font-size:0.76rem;color:var(--ink-secondary);">
+                    <span style="background:#dbeafe;color:#1e40af;padding:1px 8px;
+                                 border-radius:4px;font-weight:600;">&lt;</span>
+                    Abaixo do mínimo
+                </span>
+                <span style="font-size:0.76rem;color:var(--ink-secondary);">
+                    <span style="background:#fee2e2;color:#991b1b;padding:1px 8px;
+                                 border-radius:4px;font-weight:600;">&gt;</span>
+                    Acima do máximo
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
 
-    # ── Filtros de comparação ──
-    fc1, fc2 = st.columns([1, 2])
-    with fc1:
-        subtema_comp = st.selectbox("Subtema", subtemas_comp, key="pc_subtema_comp")
+            # Exportação
+            dl1, dl2, _ = st.columns([1, 1, 3])
+            with dl1:
+                try:
+                    buf = __import__("io").BytesIO()
+                    df_show.to_excel(buf, index=False, engine="openpyxl")
+                    buf.seek(0)
+                    from datetime import datetime as _dt2
+                    st.download_button("Exportar Excel", data=buf.read(),
+                                       file_name=f"projetos_{_dt2.now().strftime('%Y-%m-%d')}.xlsx",
+                                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                       use_container_width=True)
+                except Exception:
+                    pass
+            with dl2:
+                csv_bytes = df_exib.drop(columns=["id"], errors="ignore").to_csv(
+                    index=False).encode("utf-8")
+                from datetime import datetime as _dt3
+                st.download_button("Exportar CSV", data=csv_bytes,
+                                   file_name=f"projetos_{_dt3.now().strftime('%Y-%m-%d')}.csv",
+                                   mime="text/csv", use_container_width=True)
 
-    # Projetos disponíveis no subtema com prazo real
-    df_sub = df_proj[df_proj["subtema"] == subtema_comp].dropna(subset=["prazo_real_meses"])
-
-    with fc2:
-        opcoes_proj = df_sub["nome_projeto"].tolist()
-        proj_sel = st.multiselect(
-            "Selecione os projetos para os gráficos",
-            opcoes_proj,
-            default=opcoes_proj,
-            key="pc_proj_sel"
-        )
-
-    if not proj_sel:
-        st.info("Selecione ao menos um projeto para visualizar os gráficos.")
-        return
-
-    df_comp = df_sub[df_sub["nome_projeto"].isin(proj_sel)].copy()
-
-    # ── Calcular estimativa Kerzner pela média dos esforços selecionados ──
-    esforcos_sel = pd.to_numeric(df_comp["esforco"], errors="coerce").dropna()
-    if not esforcos_sel.empty:
-        media_esforco = esforcos_sel.mean()
-        kz = kerzner_total_para_projeto(subtema_comp, media_esforco)
-        esforco_label = f"média {media_esforco:.1f} ({df_comp['unidade'].dropna().iloc[0] if not df_comp['unidade'].dropna().empty else ''})"
-    else:
-        kz = kerzner_total_para_projeto(subtema_comp, None)
-        esforco_label = "sem esforço — usando histórico"
-
-    if not kz:
-        st.info("Não há dados suficientes na base para calcular a estimativa Kerzner deste subtema.")
-        return
-
-    t_min = kz["total_min"]
-    t_max = kz["total_max"]
-    t_medio = (t_min + t_max) / 2
-    prazo_real_medio = df_comp["prazo_real_meses"].mean()
-
-    # ── Métricas ──
-    ce1, ce2, ce3, ce4 = st.columns(4)
-    ce1.metric("Kerzner mínimo (total)", f"{t_min:.1f} m")
-    ce2.metric("Kerzner máximo (total)", f"{t_max:.1f} m")
-    ce3.metric("Prazo real médio", f"{prazo_real_medio:.1f} m",
-               delta=f"{prazo_real_medio - t_medio:+.1f} m vs. Kerzner")
-    dentro = df_comp[(df_comp["prazo_real_meses"] >= t_min) & (df_comp["prazo_real_meses"] <= t_max)]
-    ce4.metric("Dentro do intervalo Kerzner", f"{len(dentro)}/{len(df_comp)}")
-
-    st.caption(f"Estimativa calculada pelo esforço: {esforco_label} | "
-               f"Kerzner: exec/0.4 = total | "
-               f"{'Correlação forte — regressão usada' if kz.get('corr_forte') else 'Correlação fraca — min/max histórico'}")
-
-    if HAS_PLOTLY:
-        projetos_nomes = df_comp["nome_projeto"].tolist()
-        prazos_reais = df_comp["prazo_real_meses"].tolist()
-
-        # Gráfico 1: Barras prazo real por projeto com linha Kerzner
-        fig1 = go.Figure()
-        fig1.add_trace(go.Bar(
-            x=projetos_nomes, y=prazos_reais,
-            name="Prazo real",
-            marker_color=["#10b981" if t_min <= p <= t_max else "#ef4444" for p in prazos_reais],
-            hovertemplate="<b>%{x}</b><br>Prazo real: %{y:.1f} meses<extra></extra>"
-        ))
-        fig1.add_hline(y=t_min, line_dash="dash", line_color="#3b82f6",
-                       annotation_text=f"Kerzner mín.: {t_min:.1f}m",
-                       annotation_position="top right")
-        fig1.add_hline(y=t_max, line_dash="dash", line_color="#f59e0b",
-                       annotation_text=f"Kerzner máx.: {t_max:.1f}m",
-                       annotation_position="top right")
-        fig1.add_hline(y=t_medio, line_dash="dot", line_color="#8b5cf6",
-                       annotation_text=f"Kerzner médio: {t_medio:.1f}m",
-                       annotation_position="top right")
-        fig1.update_layout(
-            title=f"Prazo real por projeto — {subtema_comp}",
-            xaxis_title="Projeto", yaxis_title="Meses",
-            height=400, template="plotly_white", showlegend=True
-        )
-        st.plotly_chart(fig1, use_container_width=True)
-        st.caption("Verde = dentro do intervalo Kerzner   Vermelho = fora do intervalo Kerzner")
-        _figs_export = [fig1]
-
-        # Gráfico 2: Evolução do prazo ao longo do tempo
-        df_comp_ord = df_comp.sort_values("data_conclusao")
-        if not df_comp_ord["data_conclusao"].isna().all():
-            fig2 = go.Figure()
-            fig2.add_trace(go.Scatter(
-                x=df_comp_ord["data_conclusao"].astype(str).tolist(),
-                y=df_comp_ord["prazo_real_meses"].tolist(),
-                mode="markers+lines",
-                marker=dict(size=10, color="#2563eb"),
-                line=dict(color="#93c5fd", width=1, dash="dot"),
-                text=df_comp_ord["nome_projeto"].tolist(),
-                hovertemplate="<b>%{text}</b><br>Conclusão: %{x}<br>Prazo real: %{y:.1f} meses<extra></extra>",
-                name="Prazo real"
-            ))
-            fig2.add_hrect(y0=t_min, y1=t_max,
-                           fillcolor="#3b82f6", opacity=0.08,
-                           annotation_text=f"Intervalo Kerzner ({t_min:.1f}–{t_max:.1f}m)",
-                           annotation_position="top right")
-            fig2.update_layout(
-                title="Evolução do prazo real ao longo do tempo",
-                xaxis_title="Data de conclusão", yaxis_title="Meses",
-                height=350, template="plotly_white"
-            )
-            st.plotly_chart(fig2, use_container_width=True)
-            _figs_export.append(fig2)
+    # =========================================================
+    # ABA: ANÁLISE KERZNER
+    # =========================================================
+    with tab_analise:
+        if df_proj.empty:
+            st.info("Nenhum projeto registrado para análise.")
         else:
-            _figs_export.append(None)
+            subtemas_comp = sorted(df_proj["subtema"].dropna().unique().tolist())
+            if not subtemas_comp:
+                st.info("Nenhum projeto com subtema definido.")
+            else:
+                fa, fb = st.columns([1, 2])
+                with fa:
+                    subtema_comp = st.selectbox("Subtema", subtemas_comp,
+                                                key="pc_subtema_comp")
+                df_sub = df_proj[df_proj["subtema"] == subtema_comp].dropna(
+                    subset=["prazo_real_meses"])
+                with fb:
+                    opcoes_proj = df_sub["nome_projeto"].tolist()
+                    proj_sel = st.multiselect("Projetos para análise", opcoes_proj,
+                                              default=opcoes_proj, key="pc_proj_sel")
 
-        # Gráfico 3: Custo contratado vs realizado
-        df_custo = df_comp.dropna(subset=["custo_contratado", "custo_final"])
-        if not df_custo.empty:
-            fig3 = go.Figure()
-            fig3.add_trace(go.Bar(
-                name="Custo contratado",
-                x=df_custo["nome_projeto"].tolist(),
-                y=df_custo["custo_contratado"].tolist(),
-                marker_color="#3b82f6"
-            ))
-            fig3.add_trace(go.Bar(
-                name="Custo final realizado",
-                x=df_custo["nome_projeto"].tolist(),
-                y=df_custo["custo_final"].tolist(),
-                marker_color="#ef4444"
-            ))
-            fig3.update_layout(
-                title="Custo contratado vs. realizado",
-                xaxis_title="Projeto", yaxis_title="R$",
-                barmode="group", height=380, template="plotly_white"
-            )
-            st.plotly_chart(fig3, use_container_width=True)
-            _figs_export.append(fig3)
-        else:
-            _figs_export.append(None)
-    else:
-        st.info("Instale plotly para ver os gráficos: pip install plotly")
-        _figs_export = []
+                if not proj_sel:
+                    st.info("Selecione ao menos um projeto.")
+                else:
+                    df_comp = df_sub[df_sub["nome_projeto"].isin(proj_sel)].copy()
 
-    # Exportar Excel
-    st.markdown("---")
-    from datetime import datetime as _dt_exp
-    try:
-        zip_bytes, xlsx_only = exportar_projetos_excel(
-            df_tabela=df_show,
-            df_comp=df_comp,
-            figs=_figs_export,
-            subtema_comp=subtema_comp,
-            t_min=t_min, t_max=t_max,
-            esforco_label=esforco_label
-        )
-        ec1, ec2 = st.columns(2)
-        with ec1:
-            st.download_button(
-                "Exportar Excel + Gráficos (ZIP)",
-                data=zip_bytes,
-                file_name=f"projetos_concluidos_{_dt_exp.now().strftime('%Y-%m-%d')}.zip",
-                mime="application/zip",
-                use_container_width=True
-            )
-        with ec2:
-            st.download_button(
-                "Exportar Excel (somente dados)",
-                data=xlsx_only,
-                file_name=f"projetos_concluidos_{_dt_exp.now().strftime('%Y-%m-%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
-        st.caption("O ZIP contém o Excel com os dados e um arquivo HTML com os gráficos interativos.")
-    except Exception as _ex:
-        logger.error("Erro ao exportar Excel projetos: %s", _ex)
-        csv_proj = df_exib.drop(columns=["id"], errors="ignore").to_csv(index=False).encode("utf-8")
-        st.download_button("Exportar CSV", csv_proj, file_name="projetos_concluidos.csv", mime="text/csv")
+                    esforcos_sel = pd.to_numeric(df_comp["esforco"], errors="coerce").dropna()
+                    if not esforcos_sel.empty:
+                        media_esforco = esforcos_sel.mean()
+                        kz = kerzner_total_para_projeto(subtema_comp, media_esforco)
+                        unid = (df_comp["unidade"].dropna().iloc[0]
+                                if not df_comp["unidade"].dropna().empty else "")
+                        esforco_label = f"média {media_esforco:.1f} {unid}".strip()
+                    else:
+                        kz = kerzner_total_para_projeto(subtema_comp, None)
+                        esforco_label = "sem esforço — usando histórico"
+
+                    if not kz:
+                        st.info("Dados insuficientes para calcular Kerzner neste subtema.")
+                    else:
+                        t_min  = kz["total_min"]
+                        t_max  = kz["total_max"]
+                        t_medio= (t_min + t_max) / 2
+                        prazo_real_medio = df_comp["prazo_real_meses"].mean()
+                        dentro = df_comp[(df_comp["prazo_real_meses"] >= t_min) &
+                                         (df_comp["prazo_real_meses"] <= t_max)]
+
+                        # Métricas Kerzner
+                        ce1, ce2, ce3, ce4 = st.columns(4)
+                        ce1.metric("Kerzner mínimo", f"{t_min:.1f} m")
+                        ce2.metric("Kerzner máximo", f"{t_max:.1f} m")
+                        ce3.metric("Prazo real médio", f"{prazo_real_medio:.1f} m",
+                                   delta=f"{prazo_real_medio - t_medio:+.1f} m vs. Kerzner")
+                        ce4.metric("Dentro do intervalo", f"{len(dentro)}/{len(df_comp)}")
+
+                        # Info card
+                        metodo = "Regressão estatística" if kz.get("corr_forte") else "Mín/máx histórico"
+                        st.markdown(f"""
+                        <div style="background:var(--surface-2);border:1px solid var(--border-subtle);
+                                    border-radius:10px;padding:12px 16px;font-size:0.82rem;
+                                    color:var(--ink-secondary);margin-bottom:12px;">
+                            <strong>Subtema:</strong> {subtema_comp} &nbsp;·&nbsp;
+                            <strong>Esforço:</strong> {esforco_label} &nbsp;·&nbsp;
+                            <strong>Método:</strong> {metodo}
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        if HAS_PLOTLY:
+                            projetos_nomes = df_comp["nome_projeto"].tolist()
+                            prazos_reais   = df_comp["prazo_real_meses"].tolist()
+
+                            # Gráfico 1: Barras
+                            fig1 = go.Figure()
+                            fig1.add_trace(go.Bar(
+                                x=projetos_nomes, y=prazos_reais, name="Prazo real",
+                                marker_color=["#10b981" if t_min<=p<=t_max else "#ef4444"
+                                              for p in prazos_reais],
+                                hovertemplate="<b>%{x}</b><br>Prazo real: %{y:.1f} m<extra></extra>"
+                            ))
+                            for y_val, dash, cor, label in [
+                                (t_min,   "dash", "#3b82f6", f"Kerzner mín.: {t_min:.1f}m"),
+                                (t_max,   "dash", "#f59e0b", f"Kerzner máx.: {t_max:.1f}m"),
+                                (t_medio, "dot",  "#8b5cf6", f"Kerzner médio: {t_medio:.1f}m"),
+                            ]:
+                                fig1.add_hline(y=y_val, line_dash=dash, line_color=cor,
+                                               annotation_text=label,
+                                               annotation_position="top right")
+                            fig1.update_layout(
+                                title=f"Prazo real por projeto — {subtema_comp}",
+                                xaxis_title="Projeto", yaxis_title="Meses",
+                                height=380, template="plotly_white", showlegend=False)
+                            st.plotly_chart(fig1, use_container_width=True)
+                            _figs_export = [fig1]
+
+                            # Gráfico 2: Temporal
+                            df_comp_ord = df_comp.sort_values("data_conclusao")
+                            if not df_comp_ord["data_conclusao"].isna().all():
+                                fig2 = go.Figure()
+                                fig2.add_trace(go.Scatter(
+                                    x=df_comp_ord["data_conclusao"].astype(str).tolist(),
+                                    y=df_comp_ord["prazo_real_meses"].tolist(),
+                                    mode="markers+lines",
+                                    marker=dict(size=10, color="#2563eb"),
+                                    line=dict(color="#93c5fd", width=1, dash="dot"),
+                                    text=df_comp_ord["nome_projeto"].tolist(),
+                                    hovertemplate="<b>%{text}</b><br>Conclusão: %{x}<br>Prazo: %{y:.1f} m<extra></extra>",
+                                    name="Prazo real"
+                                ))
+                                fig2.add_hrect(y0=t_min, y1=t_max, fillcolor="#3b82f6",
+                                               opacity=0.08,
+                                               annotation_text=f"Intervalo Kerzner ({t_min:.1f}–{t_max:.1f}m)",
+                                               annotation_position="top right")
+                                fig2.update_layout(
+                                    title="Evolução do prazo ao longo do tempo",
+                                    xaxis_title="Data de conclusão", yaxis_title="Meses",
+                                    height=320, template="plotly_white")
+                                st.plotly_chart(fig2, use_container_width=True)
+                                _figs_export.append(fig2)
+                            else:
+                                _figs_export.append(None)
+
+                            # Gráfico 3: Custo
+                            df_custo = df_comp.dropna(subset=["custo_contratado","custo_final"])
+                            if not df_custo.empty:
+                                fig3 = go.Figure()
+                                fig3.add_trace(go.Bar(name="Contratado",
+                                    x=df_custo["nome_projeto"].tolist(),
+                                    y=df_custo["custo_contratado"].tolist(),
+                                    marker_color="#3b82f6"))
+                                fig3.add_trace(go.Bar(name="Realizado",
+                                    x=df_custo["nome_projeto"].tolist(),
+                                    y=df_custo["custo_final"].tolist(),
+                                    marker_color="#ef4444"))
+                                fig3.update_layout(
+                                    title="Custo contratado vs. realizado",
+                                    xaxis_title="Projeto", yaxis_title="R$",
+                                    barmode="group", height=340, template="plotly_white")
+                                st.plotly_chart(fig3, use_container_width=True)
+                                _figs_export.append(fig3)
+                            else:
+                                _figs_export.append(None)
+
+                            # Exportação ZIP
+                            st.markdown("---")
+                            from datetime import datetime as _dt_exp
+                            try:
+                                zip_bytes, xlsx_only = exportar_projetos_excel(
+                                    df_tabela=df_show if 'df_show' in dir() else df_comp,
+                                    df_comp=df_comp, figs=_figs_export,
+                                    subtema_comp=subtema_comp,
+                                    t_min=t_min, t_max=t_max,
+                                    esforco_label=esforco_label)
+                                ex1, ex2 = st.columns(2)
+                                with ex1:
+                                    st.download_button(
+                                        "Exportar Excel + Gráficos (ZIP)", data=zip_bytes,
+                                        file_name=f"analise_kerzner_{_dt_exp.now().strftime('%Y-%m-%d')}.zip",
+                                        mime="application/zip", use_container_width=True)
+                                with ex2:
+                                    st.download_button(
+                                        "Exportar Excel (somente dados)", data=xlsx_only,
+                                        file_name=f"analise_kerzner_{_dt_exp.now().strftime('%Y-%m-%d')}.xlsx",
+                                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                        use_container_width=True)
+                            except Exception as _ex:
+                                logger.error("Erro ao exportar: %s", _ex)
+
+    # =========================================================
+    # ABA: GERENCIAR (ADMIN / PMO)
+    # =========================================================
+    if tab_gerenciar:
+        with tab_gerenciar:
+            sub_import, sub_manual, sub_excluir = st.tabs([
+                "Importar planilha", "Cadastrar manualmente", "Excluir projeto"
+            ])
+
+            # ── Sub-aba: Importar ──
+            with sub_import:
+                st.caption("Envie a Planilha Modelo preenchida pelas áreas para importar em lote.")
+                arquivo_pc = st.file_uploader("Selecione a planilha",
+                                              type=["xlsx","xls"], key="pc_upload")
+                if arquivo_pc is not None:
+                    st.success(f"Arquivo carregado: {arquivo_pc.name}")
+                    if st.button("Importar projetos", type="primary",
+                                 key="pc_importar", use_container_width=True):
+                        with st.spinner("Importando projetos..."):
+                            try:
+                                n = processar_upload_projetos_concluidos(arquivo_pc)
+                                st.success(f"{n} projeto(s) importado(s) com sucesso!")
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as e:
+                                logger.error("Erro ao importar projetos: %s", e)
+                                st.error("Erro ao importar. Verifique o formato e tente novamente.")
+
+            # ── Sub-aba: Cadastrar manualmente ──
+            with sub_manual:
+                conn_view = get_conn()
+                try:
+                    df_temas = pd.read_sql_query(
+                        "SELECT DISTINCT tema, subtema FROM vw_consulta_editais "
+                        "WHERE tema IS NOT NULL ORDER BY tema, subtema", conn_view)
+                except Exception:
+                    df_temas = pd.DataFrame(columns=["tema","subtema"])
+                finally:
+                    conn_view.close()
+
+                temas_disp = sorted(df_temas["tema"].dropna().unique().tolist())
+                pc1, pc2 = st.columns(2)
+                with pc1:
+                    tema_proj = st.selectbox("Tema", [""]+temas_disp, key="pc_form_tema")
+                with pc2:
+                    subtemas_disp = (sorted(df_temas[df_temas["tema"]==tema_proj]
+                                     ["subtema"].dropna().unique().tolist())
+                                     if tema_proj else [])
+                    subtema_proj = st.selectbox("Subtema", [""]+subtemas_disp,
+                                                key="pc_form_subtema")
+
+                with st.form("form_proj_concluido", clear_on_submit=True):
+                    st.markdown("""
+                    <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;
+                                text-transform:uppercase;color:#64748b;
+                                border-bottom:1px solid #e2e8f0;padding-bottom:6px;
+                                margin-bottom:12px;">Identificação</div>
+                    """, unsafe_allow_html=True)
+                    c1, c2, c3 = st.columns(3)
+                    with c1:
+                        nome_proj = st.text_input("Nome do projeto *")
+                        pais_proj = st.text_input("País", value="Brasil")
+                    with c2:
+                        estado_proj    = st.text_input("Estado")
+                        municipio_proj = st.text_input("Município")
+                    with c3:
+                        data_inicio_proj    = st.date_input("Data de início",
+                                                             value=None, format="DD/MM/YYYY")
+                        data_conclusao_proj = st.date_input("Data de conclusão",
+                                                             value=None, format="DD/MM/YYYY")
+
+                    st.markdown("""
+                    <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;
+                                text-transform:uppercase;color:#64748b;
+                                border-bottom:1px solid #e2e8f0;padding-bottom:6px;
+                                margin-bottom:12px;margin-top:8px;">Parâmetros</div>
+                    """, unsafe_allow_html=True)
+                    p1, p2, p3, p4 = st.columns(4)
+                    with p1:
+                        esforco_proj  = st.text_input("1º Parâmetro")
+                    with p2:
+                        unidade_proj  = st.text_input("Unidade", placeholder="km, m², unid...")
+                    with p3:
+                        esforco2_proj = st.text_input("2º Parâmetro")
+                    with p4:
+                        unidade2_proj = st.text_input("Unidade 2", placeholder="km, m², unid...")
+
+                    st.markdown("""
+                    <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;
+                                text-transform:uppercase;color:#64748b;
+                                border-bottom:1px solid #e2e8f0;padding-bottom:6px;
+                                margin-bottom:12px;margin-top:8px;">Custos</div>
+                    """, unsafe_allow_html=True)
+                    cc1, cc2 = st.columns(2)
+                    with cc1:
+                        custo_contratado_proj = st.number_input(
+                            "Custo contratado (R$)", min_value=0.0, step=1000.0, format="%.2f")
+                    with cc2:
+                        custo_final_proj = st.number_input(
+                            "Custo final realizado (R$)", min_value=0.0, step=1000.0, format="%.2f")
+                    obs_proj = st.text_area("Observações", height=70)
+                    salvar   = st.form_submit_button("Salvar projeto", type="primary",
+                                                     use_container_width=True)
+
+                if salvar:
+                    if not nome_proj.strip():
+                        st.warning("Informe o nome do projeto.")
+                    else:
+                        proj_id, prazo_real = inserir_projeto_concluido(
+                            nome=nome_proj.strip(), tema=tema_proj or None,
+                            subtema=subtema_proj or None,
+                            pais=pais_proj.strip() or None,
+                            estado=estado_proj or None,
+                            municipio=municipio_proj or None,
+                            data_inicio=data_inicio_proj,
+                            data_conclusao=data_conclusao_proj,
+                            custo_contratado=custo_contratado_proj or None,
+                            custo_final=custo_final_proj or None,
+                            observacoes=obs_proj or None,
+                            criado_por=st.session_state.usuario,
+                            esforco=esforco_proj.strip() or None,
+                            unidade=unidade_proj.strip() or None,
+                            esforco2=esforco2_proj.strip() or None,
+                            unidade2=unidade2_proj.strip() or None,
+                        )
+                        prazo_msg = (f" Prazo real: **{prazo_real:.1f} meses**."
+                                     if prazo_real else "")
+                        st.success(f"Projeto registrado!{prazo_msg}")
+                        st.cache_data.clear()
+                        st.rerun()
+
+            # ── Sub-aba: Excluir ──
+            with sub_excluir:
+                if df_proj.empty:
+                    st.info("Nenhum projeto cadastrado.")
+                else:
+                    proj_id_del = st.selectbox(
+                        "Selecione o projeto a excluir",
+                        df_proj["id"].tolist(),
+                        format_func=lambda x: (
+                            f"{x} — "
+                            f"{df_proj.loc[df_proj['id']==x,'nome_projeto'].values[0]}"
+                        )
+                    )
+                    nome_del = df_proj.loc[
+                        df_proj["id"]==proj_id_del, "nome_projeto"].values[0]
+                    st.markdown(f"""
+                    <div style="background:#fff5f5;border:1px solid #fecaca;
+                                border-radius:10px;padding:14px 16px;margin:12px 0;">
+                        <div style="font-weight:600;color:#991b1b;margin-bottom:4px;">
+                            Atenção — ação irreversível
+                        </div>
+                        <div style="color:#7f1d1d;font-size:0.85rem;">
+                            O projeto <strong>{nome_del}</strong> será excluído permanentemente.
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    confirmar = st.checkbox("Confirmo que desejo excluir este projeto")
+                    if st.button("Excluir projeto", type="primary",
+                                 disabled=not confirmar, use_container_width=False):
+                        excluir_projeto_concluido(proj_id_del)
+                        st.cache_data.clear()
+                        st.success("Projeto excluído.")
+                        st.rerun()
 
 
 
