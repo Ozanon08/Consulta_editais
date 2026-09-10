@@ -1176,7 +1176,7 @@ def autenticar(username: str, senha: str):
     row = cur.fetchone()
 
     if not row:
-        # Usuário não existe — dummy bcrypt para nivelar tempo (evita username enumeration)
+        # Usuário não existe - dummy bcrypt para nivelar tempo (evita username enumeration)
         _dummy_bcrypt(senha)
         conn.close()
         return None
@@ -1673,7 +1673,7 @@ def enviar_email_nova_solicitacao_para_admins(tema: str, descricao: str, solicit
     if not emails_admin:
         return False, "Nenhum ADMIN com e-mail cadastrado."
 
-    assunto = f"[FGV PMO] Nova solicitação de busca de edital — #{solicitacao_id}"
+    assunto = f"[FGV PMO] Nova solicitação de busca de edital - #{solicitacao_id}"
     conteudo = f"""
         <h2 style="margin:0 0 8px;color:#1e3a8a;font-size:20px;">Nova solicitação recebida</h2>
         <p style="margin:0 0 24px;color:#64748b;font-size:14px;">
@@ -1686,7 +1686,7 @@ def enviar_email_nova_solicitacao_para_admins(tema: str, descricao: str, solicit
           {_linha_info("Solicitante", _html.escape(solicitante))}
           {_linha_info("Perfil", perfil)}
           {_linha_info("Tema solicitado", _html.escape(tema))}
-          {_linha_info("Descrição", _html.escape(descricao) if descricao else "—")}
+          {_linha_info("Descrição", _html.escape(descricao) if descricao else "-")}
           {_linha_info("Status atual", _badge_status("PENDENTE"))}
         </table>
         <p style="margin:0;font-size:14px;color:#475569;">
@@ -1702,7 +1702,7 @@ def enviar_email_atualizacao_status_para_admins(solicitacao_id: int, tema: str, 
     if not emails_admin:
         return False, "Nenhum ADMIN com e-mail cadastrado."
 
-    assunto = f"[FGV PMO] Atualização de status — Solicitação #{solicitacao_id}"
+    assunto = f"[FGV PMO] Atualização de status - Solicitação #{solicitacao_id}"
     conteudo = f"""
         <h2 style="margin:0 0 8px;color:#1e3a8a;font-size:20px;">Status de solicitação atualizado</h2>
         <p style="margin:0 0 24px;color:#64748b;font-size:14px;">
@@ -1803,7 +1803,7 @@ def esconder_elementos_streamlit():
     <script>
     (function() {
         function removeUnwanted() {
-            // Sem remoção de botões — botão de colapso da sidebar é mantido
+            // Sem remoção de botões - botão de colapso da sidebar é mantido
 
             // Destaca botão ativo na sidebar
             function highlightNav() {
@@ -1944,7 +1944,7 @@ def tela_login():
     logo_b64 = get_base64_logo()
     st.markdown(f"""
     <style>
-    /* Login — fundo azul claro institucional */
+    /* Login - fundo azul claro institucional */
     .stApp {{ background: #e8eef6 !important; }}
     section.main .block-container {{ padding: 0 !important; max-width: 100% !important; }}
 
@@ -1966,7 +1966,7 @@ def tela_login():
         padding: 0 24px 0;
         margin-top: -1px;
     }}
-    /* Card do título — faz parte do mesmo bloco visual do form */
+    /* Card do título - faz parte do mesmo bloco visual do form */
     .lp-card {{
         width: 100%; max-width: 400px;
         background: #ffffff;
@@ -2270,7 +2270,7 @@ def pagina_consulta():
             filtrado = filtrado[mask]
 
     # Filtros avançados colapsáveis
-    with st.expander("Filtros avançados — custo e prazo"):
+    with st.expander("Filtros avançados - custo e prazo"):
         c9, c10, c11, c12 = st.columns(4)
         custo_min = c9.number_input("Custo mínimo (R$)", min_value=0.0, value=0.0, step=1000.0, format="%.2f")
         custo_max = c10.number_input("Custo máximo (R$)", min_value=0.0, value=0.0, step=1000.0, format="%.2f")
@@ -2377,7 +2377,7 @@ def pagina_consulta():
             st.markdown(
                 f"<div style='text-align:center;padding:8px 0;font-size:13px;color:var(--ink-secondary);'>"
                 f"Página <b>{pg_atual}</b> de <b>{n_pages}</b> &nbsp;·&nbsp; "
-                f"<b>{inicio+1}</b>–<b>{fim}</b> de <b>{total}</b> registros</div>",
+                f"<b>{inicio+1}</b>-<b>{fim}</b> de <b>{total}</b> registros</div>",
                 unsafe_allow_html=True)
         with pg4:
             if st.button("Próxima", use_container_width=True, disabled=pg_atual==n_pages):
@@ -2791,7 +2791,7 @@ def pagina_base():
         n_temas = df["tema"].nunique() if "tema" in df.columns else 0
         n_estados = df["estado"].nunique() if "estado" in df.columns else 0
         anos = pd.to_datetime(df["data_edital"], errors="coerce").dt.year.dropna()
-        periodo = f"{int(anos.min())}–{int(anos.max())}" if not anos.empty else "—"
+        periodo = f"{int(anos.min())}-{int(anos.max())}" if not anos.empty else "-"
         m1.metric("Total de registros", f"{total:,}".replace(",","."))
         m2.metric("Temas", n_temas)
         m3.metric("Estados cobertos", n_estados)
@@ -2855,7 +2855,7 @@ def pagina_base():
                     st.markdown(f"""
                     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;
                                 padding:12px 16px;margin-bottom:12px;font-size:0.84rem;color:#166534;">
-                        <strong>{arquivo.name}</strong> detectado — 
+                        <strong>{arquivo.name}</strong> detectado - 
                         aba <em>{sheet}</em>, {n_cols} colunas identificadas.
                     </div>
                     """, unsafe_allow_html=True)
@@ -3056,7 +3056,7 @@ def pagina_minha_conta():
 
     usuario  = st.session_state.usuario
     perfil   = st.session_state.perfil
-    email    = st.session_state.email or "—"
+    email    = st.session_state.email or "-"
     inicial  = usuario[0].upper() if usuario else "U"
 
     cores_perfil = {
@@ -3214,9 +3214,9 @@ def pagina_usuarios():
     if not df_users.empty:
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Total de usuários", len(df_users))
-        m2.metric("Ativos", int(df_users["ativo"].sum()) if "ativo" in df_users.columns else "—")
-        m3.metric("Inativos", int((df_users["ativo"] == 0).sum()) if "ativo" in df_users.columns else "—")
-        perfis_unicos = df_users["perfil"].nunique() if "perfil" in df_users.columns else "—"
+        m2.metric("Ativos", int(df_users["ativo"].sum()) if "ativo" in df_users.columns else "-")
+        m3.metric("Inativos", int((df_users["ativo"] == 0).sum()) if "ativo" in df_users.columns else "-")
+        perfis_unicos = df_users["perfil"].nunique() if "perfil" in df_users.columns else "-"
         m4.metric("Perfis distintos", perfis_unicos)
 
     # ── Abas ──
@@ -3249,7 +3249,7 @@ def pagina_usuarios():
             for _, row in df_view.iterrows():
                 uid      = int(row["id"])
                 uname    = str(row.get("username",""))
-                uemail   = str(row.get("email","") or "—")
+                uemail   = str(row.get("email","") or "-")
                 uperfil  = str(row.get("perfil",""))
                 uativo   = row.get("ativo", 1)
                 inicial  = uname[0].upper() if uname else "U"
@@ -3356,7 +3356,7 @@ def pagina_usuarios():
         </div>
         <div>
             <div style="font-weight:600;font-size:0.88rem;color:var(--ink-primary);">
-                E-mail automático — {'Habilitado' if smtp_ok else 'Não configurado'}
+                E-mail automático - {'Habilitado' if smtp_ok else 'Não configurado'}
             </div>
             <div style="font-size:0.78rem;color:var(--ink-secondary);">
                 {'SMTP configurado. Notificações de solicitações estão ativas.' if smtp_ok
@@ -3608,7 +3608,7 @@ def kerzner_total_para_projeto(subtema: str, esforco) -> dict | None:
     # Need at least prazos for hist_min/max even without esforco pairs
     if not ys_all:
         return None
-    # If xs < 3, can't do regression — use full prazo history for hist bounds
+    # If xs < 3, can't do regression - use full prazo history for hist bounds
     tem_regressao = len(xs) >= 3
 
     pearson = calcular_pearson(xs, ys) if tem_regressao else 0.0
@@ -3689,7 +3689,7 @@ def calcular_estatisticas_subtema(subtema: str):
 
 
 # =========================================================
-# IPCA — CORREÇÃO MONETÁRIA
+# IPCA - CORREÇÃO MONETÁRIA
 # =========================================================
 @st.cache_data(ttl=3600, show_spinner=False)
 def carregar_ipca() -> dict:
@@ -3836,7 +3836,7 @@ def exportar_projetos_excel(df_tabela: "pd.DataFrame", df_comp: "pd.DataFrame",
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Gráficos — {subtema_comp}</title>
+<title>Gráficos - {subtema_comp}</title>
 <style>
   body {{ font-family: Arial, sans-serif; background: #f0f4f9; margin: 0; padding: 24px; }}
   h1 {{ color: #0b1f3a; font-size: 1.4rem; margin-bottom: 4px; }}
@@ -3847,8 +3847,8 @@ def exportar_projetos_excel(df_tabela: "pd.DataFrame", df_comp: "pd.DataFrame",
 </style>
 </head>
 <body>
-<h1>Projetos Concluídos — {subtema_comp}</h1>
-<div class="sub">Estimativa Kerzner: {t_min:.1f}–{t_max:.1f} meses &nbsp;|&nbsp; Esforço: {esforco_label} &nbsp;|&nbsp; Gerado em: {_dt_html.now().strftime('%d/%m/%Y %H:%M')}</div>
+<h1>Projetos Concluídos - {subtema_comp}</h1>
+<div class="sub">Estimativa Kerzner: {t_min:.1f}-{t_max:.1f} meses &nbsp;|&nbsp; Esforço: {esforco_label} &nbsp;|&nbsp; Gerado em: {_dt_html.now().strftime('%d/%m/%Y %H:%M')}</div>
 """]
     figs_validos = [f for f in figs if f is not None]
     for i, fig in enumerate(figs_validos):
@@ -3979,16 +3979,16 @@ def pagina_projetos_concluidos():
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Projetos", len(df_exib))
             m2.metric("Prazo médio real",
-                      f"{prazo_vals.mean():.1f} m" if not prazo_vals.empty else "—")
+                      f"{prazo_vals.mean():.1f} m" if not prazo_vals.empty else "-")
             m3.metric("Prazo mín. / máx.",
-                      f"{prazo_vals.min():.1f} – {prazo_vals.max():.1f} m"
-                      if not prazo_vals.empty else "—")
+                      f"{prazo_vals.min():.1f} - {prazo_vals.max():.1f} m"
+                      if not prazo_vals.empty else "-")
             if not var_pct.empty:
                 mv = var_pct.mean()
                 m4.metric("Variação de custo média", f"{mv:+.1f}%",
                           delta=f"{'acima' if mv > 0 else 'abaixo'} do contratado")
             else:
-                m4.metric("Variação de custo média", "—")
+                m4.metric("Variação de custo média", "-")
 
             # ── IPCA ──
             ipca = carregar_ipca()
@@ -4004,7 +4004,7 @@ def pagina_projetos_concluidos():
                 prazo  = row.get("prazo_real_meses")
                 esforco= row.get("esforco")
                 if not sub or pd.isna(prazo):
-                    return "—"
+                    return "-"
                 kz = kerzner_total_para_projeto(sub, esforco)
                 if not kz:
                     return f"{prazo:.1f} m"
@@ -4018,8 +4018,8 @@ def pagina_projetos_concluidos():
 
             df_tabela["Prazo"] = df_tabela.apply(badge_prazo, axis=1)
             df_tabela["Estimativa Kerzner"] = df_tabela.apply(
-                lambda r: (lambda kz: f"{kz['total_min']:.1f}–{kz['total_max']:.1f} m"
-                           if kz else "—")(kerzner_total_para_projeto(
+                lambda r: (lambda kz: f"{kz['total_min']:.1f}-{kz['total_max']:.1f} m"
+                           if kz else "-")(kerzner_total_para_projeto(
                                r.get("subtema"), r.get("esforco"))), axis=1)
 
             def custo_corrigido(row):
@@ -4035,7 +4035,7 @@ def pagina_projetos_concluidos():
                 df_tabela["Custo corr. IPCA"] = df_tabela.apply(custo_corrigido, axis=1)
 
             def fmt_brl(x):
-                if pd.isnull(x) or x == 0: return "—"
+                if pd.isnull(x) or x == 0: return "-"
                 return f"R$ {x:,.2f}".replace(",","X").replace(".",",").replace("X",".")
 
             for col_c, col_l in [("custo_contratado","Custo contratado (R$)"),
@@ -4046,7 +4046,7 @@ def pagina_projetos_concluidos():
             for col_dt in ["data_inicio","data_conclusao"]:
                 if col_dt in df_tabela.columns:
                     df_tabela[col_dt] = pd.to_datetime(
-                        df_tabela[col_dt], errors="coerce").dt.strftime("%d/%m/%Y").fillna("—")
+                        df_tabela[col_dt], errors="coerce").dt.strftime("%d/%m/%Y").fillna("-")
 
             colunas_exib = ["nome_projeto","tema","subtema","estado","municipio",
                             "data_inicio","data_conclusao","esforco","unidade",
@@ -4147,7 +4147,7 @@ def pagina_projetos_concluidos():
                         esforco_label = f"média {media_esforco:.1f} {unid}".strip()
                     else:
                         kz = kerzner_total_para_projeto(subtema_comp, None)
-                        esforco_label = "sem esforço — usando histórico"
+                        esforco_label = "sem esforço - usando histórico"
 
                     if not kz:
                         st.info("Dados insuficientes para calcular Kerzner neste subtema.")
@@ -4200,7 +4200,7 @@ def pagina_projetos_concluidos():
                                                annotation_text=label,
                                                annotation_position="top right")
                             fig1.update_layout(
-                                title=f"Prazo real por projeto — {subtema_comp}",
+                                title=f"Prazo real por projeto - {subtema_comp}",
                                 xaxis_title="Projeto", yaxis_title="Meses",
                                 height=380, template="plotly_white", showlegend=False)
                             st.plotly_chart(fig1, use_container_width=True)
@@ -4222,7 +4222,7 @@ def pagina_projetos_concluidos():
                                 ))
                                 fig2.add_hrect(y0=t_min, y1=t_max, fillcolor="#3b82f6",
                                                opacity=0.08,
-                                               annotation_text=f"Intervalo Kerzner ({t_min:.1f}–{t_max:.1f}m)",
+                                               annotation_text=f"Intervalo Kerzner ({t_min:.1f}-{t_max:.1f}m)",
                                                annotation_position="top right")
                                 fig2.update_layout(
                                     title="Evolução do prazo ao longo do tempo",
@@ -4419,7 +4419,7 @@ def pagina_projetos_concluidos():
                         "Selecione o projeto a excluir",
                         df_proj["id"].tolist(),
                         format_func=lambda x: (
-                            f"{x} — "
+                            f"{x} - "
                             f"{df_proj.loc[df_proj['id']==x,'nome_projeto'].values[0]}"
                         )
                     )
@@ -4429,7 +4429,7 @@ def pagina_projetos_concluidos():
                     <div style="background:#fff5f5;border:1px solid #fecaca;
                                 border-radius:10px;padding:14px 16px;margin:12px 0;">
                         <div style="font-weight:600;color:#991b1b;margin-bottom:4px;">
-                            Atenção — ação irreversível
+                            Atenção - ação irreversível
                         </div>
                         <div style="color:#7f1d1d;font-size:0.85rem;">
                             O projeto <strong>{nome_del}</strong> será excluído permanentemente.
@@ -4538,7 +4538,7 @@ def exportar_analise_excel(data: dict) -> bytes:
     for label,value in [
         ("Pearson (Linear)",f"{pearson:.4f}"),("Spearman (Não-linear)",f"{spearman:.4f}"),
         ("Correlação Dominante","Logarítmica (Spearman)" if abs(spearman)>abs(pearson) else "Linear (Pearson)"),
-        ("Status da Correlação",f"{'FORTE (≥ 0,6) — usando regressão' if corr_forte else 'FRACA (< 0,6) — usando histórico'}"),
+        ("Status da Correlação",f"{'FORTE (≥ 0,6) - usando regressão' if corr_forte else 'FRACA (< 0,6) - usando histórico'}"),
         ("Tipo de Regressão Utilizado",data.get("reg_type_display","Automático")),
     ]:
         val(ws1,r,1,label,bold=True,color=DGRAY,bg=LGRAY); val(ws1,r,2,value); r+=1
@@ -4594,8 +4594,8 @@ def exportar_analise_excel(data: dict) -> bytes:
     for label,value in [
         ("Metodologia","Kerzner (2009)"),("Encerramento",enc_desc),
         ("Método de Cálculo",f"Regressão ({reg_label})" if corr_forte else "Valores históricos"),
-        ("Equação utilizada",reg.get("eq","—") if reg else "—"),
-        ("R²",f"{reg.get('r2',0):.4f}" if reg else "—"),
+        ("Equação utilizada",reg.get("eq","-") if reg else "-"),
+        ("R²",f"{reg.get('r2',0):.4f}" if reg else "-"),
     ]:
         val(ws2,r,1,label,bold=True,color=DGRAY,bg=LGRAY)
         ws2.merge_cells(start_row=r,start_column=2,end_row=r,end_column=4)
@@ -4896,13 +4896,13 @@ def gerar_relatorio_excel(
 
     ws1.row_dimensions[10].height = 6
     _section(ws1, 11, "CORRELAÇÃO", 2)
-    _kv(ws1, 12, "Pearson (Linear)", f"{pearson:.4f}  —  {corr_forca(pearson)}")
-    _kv(ws1, 13, "Spearman (Não-linear)", f"{spearman:.4f}  —  {corr_forca(spearman)}")
+    _kv(ws1, 12, "Pearson (Linear)", f"{pearson:.4f}  -  {corr_forca(pearson)}")
+    _kv(ws1, 13, "Spearman (Não-linear)", f"{spearman:.4f}  -  {corr_forca(spearman)}")
     dom = "Linear (Pearson)" if abs(pearson) >= abs(spearman) else "Logarítmica (Spearman)"
     _kv(ws1, 14, "Correlação Dominante", dom)
-    status_corr = f"FORTE (≥ 0,6) — usando regressão" if corr_forte else f"FRACA (< 0,6) — usando histórico"
+    status_corr = f"FORTE (≥ 0,6) - usando regressão" if corr_forte else f"FRACA (< 0,6) - usando histórico"
     _kv(ws1, 15, "Status da Correlação", status_corr)
-    _kv(ws1, 16, "Tipo de Regressão Utilizado", reg_type_label if reg else "—")
+    _kv(ws1, 16, "Tipo de Regressão Utilizado", reg_type_label if reg else "-")
 
     row = 17
     if reg and corr_forte:
@@ -4921,7 +4921,7 @@ def gerar_relatorio_excel(
     _kv(ws1, row, "Prazo Mínimo Histórico de Execução (meses)", f"{hist_exec_min:.2f}"); row += 1
     _kv(ws1, row, "Prazo Máximo Histórico de Execução (meses)", f"{hist_exec_max:.2f}"); row += 1
 
-    # Alertas — só execução
+    # Alertas - só execução
     alerts = []
     if exec_min > hist_exec_max:
         alerts.append(f"Prazo mínimo de execução estimado ({exec_min:.2f} m) ACIMA do máximo histórico ({hist_exec_max:.2f} m)")
@@ -5103,9 +5103,9 @@ def gerar_relatorio_excel(
             bg = C_NORM if row4 % 2 == 0 else C_WHITE
 
         vals = [
-            str(proj.get("nome_edital") or "—"),
-            str(proj.get("pais") or "—"),
-            str(proj.get("estado") or "—"),
+            str(proj.get("nome_edital") or "-"),
+            str(proj.get("pais") or "-"),
+            str(proj.get("estado") or "-"),
             str(proj.get("tipo_edital") or "Esforço"),
             proj.get("esforco") or 0,
             abs(proj.get("prazo_meses") or 0),
@@ -5156,7 +5156,7 @@ def pagina_analise_prazos():
     df_filt = df_edit if tema_sel == "Todos" else df_edit[df_edit["tema"] == tema_sel]
     with cf2:
         subtemas = sorted(df_filt["subtema"].dropna().unique().tolist())
-        subtema_sel = st.selectbox("Subtema (opcional — analisa tema inteiro se omitido)",
+        subtema_sel = st.selectbox("Subtema (Obrigatório)",
                                    ["Todos"] + subtemas, key="ap_subtema")
     if tema_sel == "Todos" and subtema_sel == "Todos":
         st.info("Selecione ao menos um Tema ou Subtema para iniciar a análise.")
@@ -5266,7 +5266,7 @@ def pagina_analise_prazos():
     # Status correlação
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
     if corr_forte:
-        st.success(f"Correlação forte detectada — máxima: {max_corr:.2f} (≥ 0,6). Regressão **{reg_type_label}** será usada.")
+        st.success(f"Correlação forte detectada - máxima: {max_corr:.2f} (≥ 0,6). Regressão **{reg_type_label}** será usada.")
     else:
         st.warning(f"Correlação fraca ({max_corr:.2f} < 0,6). Serão usados os valores históricos mínimos e máximos.")
 
@@ -5283,7 +5283,7 @@ def pagina_analise_prazos():
                 hovertemplate="<b>%{text}</b><br>Esforço: %{x}<br>Prazo: %{y:.1f} meses<extra></extra>",
                 name="Projetos"
             ))
-            title = f"Esforço vs Duração — {subtema_sel}"
+            title = f"Esforço vs Duração - {subtema_sel}"
             if reg and corr_forte:
                 xs_s = sorted(df_valido["esforco"].tolist())
                 ys_r = [reg["predict"](x) for x in xs_s]
@@ -5382,9 +5382,9 @@ def pagina_analise_prazos():
 
     # Calculadora Kerzner
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
-    st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:12px;">Calculadora de Prazos — Metodologia Kerzner</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:12px;">Calculadora de Prazos - Metodologia Kerzner</div>', unsafe_allow_html=True)
     if is_san:
-        st.info("Tema SAN — Encerramento = 10% da execução.")
+        st.info("Tema SAN - Encerramento = 10% da execução.")
 
     esforco_input = 0.0
     if corr_forte and reg:
@@ -5459,7 +5459,7 @@ def pagina_analise_prazos():
                 </div>
                 """, unsafe_allow_html=True)
 
-        # Alerta — só quando execução estimada > máximo histórico de execução
+        # Alerta - só quando execução estimada > máximo histórico de execução
         alerts = []
         if exec_min > hist_exec_max:
             alerts.append(f"Prazo mínimo de execução estimado ({exec_min:.1f} m) está **acima** do máximo histórico observado ({hist_exec_max:.1f} m)")
@@ -5484,7 +5484,7 @@ def pagina_analise_prazos():
         ]:
             if total > 0:
                 pp = pv/total*100; ep = ev/total*100; cp = cv/total*100
-                st.markdown(f"**{label}** — {total:.2f} meses")
+                st.markdown(f"**{label}** - {total:.2f} meses")
                 st.markdown(f"""
                 <div style="display:flex;height:28px;border-radius:8px;overflow:hidden;margin-bottom:4px;">
                     <div style="width:{pp:.1f}%;background:#f59e0b;"></div>
