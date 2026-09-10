@@ -1364,7 +1364,7 @@ def processar_upload_planilha(arquivo):
         "Tema": "tema", "Subtema": "subtema", "Serviços": "servicos",
         "País": "pais", "Estado": "estado", "Município": "municipio",
         "Nome Edital": "nome_edital", "Descrição": "descricao", "Esforço": "esforco",
-        "Unidade": "unidade", "Prazo de Execução (meses)": "prazo_meses",
+        "Unidade": "unidade", "Prazo (meses)": "prazo_meses",
         "Tipo de Edital": "tipo_edital", "Código Planilha": "codigo_planilha",
         "Fonte de Dados": "fonte_dado", "OBS": "observacao",
         "Custo de Execução": "custo_execucao", "Data edital (mês/ano)": "data_edital",
@@ -2314,9 +2314,9 @@ def pagina_consulta():
             "esforco":"Parâmetro","unidade":"Unidade",
             "esforco2":"esforco2","unidade2":"unidade2",
             "servicos":"Serviços",
-            "custo_execucao":"Custo Inicial de Execução (R$)","custo":"Custo Inicial de Execução(R$)",
+            "custo_execucao":"Custo da Execução (R$)","custo":"Custo da Execução (R$)",
             "prazo_meses":"Prazo (meses)","data_edital":"Data do edital",
-            "fonte_dado":"Fonte de dado/URL"
+            "fonte_dado":"URL"
         }
         df_exibicao = df_exibicao.rename(columns={k:v for k,v in mapa_colunas.items() if k in df_exibicao.columns})
 
@@ -2327,8 +2327,8 @@ def pagina_consulta():
             if pd.isnull(x) or x == 0: return ""
             return f"R$ {x:,.2f}".replace(",","X").replace(".",",").replace("X",".")
 
-        if "Custo Inicial (R$)" in df_exibicao.columns:
-            df_exibicao["Custo Inicial (R$)"] = df_exibicao["Custo Inicial (R$)"].apply(fmt_brl)
+        if "Custo da Execução (R$)" in df_exibicao.columns:
+            df_exibicao["Custo da Execução (R$)"] = df_exibicao["Custo da Execução (R$)"].apply(fmt_brl)
 
         ipca_bd = carregar_ipca()
         from datetime import datetime as _dt_now
@@ -2342,15 +2342,15 @@ def pagina_consulta():
                     v = corrigir_ipca(float(custo), str(data_b)[:7], data_ref_bd, ipca_bd)
                     return fmt_brl(v) if v else ""
                 except Exception: return ""
-            df_exibicao["Custo de Execução Recalculado com base no IPCA (R$)"] = filtrado.apply(_corrigir_linha, axis=1)
+            df_exibicao["Custo da Execução corrigido pelo IPCA (R$)"] = filtrado.apply(_corrigir_linha, axis=1)
         else:
-            df_exibicao["Custo de Execução Recalculado com base no IPCA (R$)"] = ""
+            df_exibicao["Custo da Execução corrigido pelo IPCA (R$)"] = ""
 
-        if "Custo Inicial (R$)" in df_exibicao.columns and "Custo de Execução Recalculado com base no IPCA (R$)" in df_exibicao.columns:
+        if "Custo da Execução (R$)" in df_exibicao.columns and "Custo da Execução corrigido pelo IPCA (R$)" in df_exibicao.columns:
             cols = list(df_exibicao.columns)
-            idx_custo = cols.index("Custo Inicial (R$)")
-            cols.remove("Custo de Execução Recalculado com base no IPCA (R$)")
-            cols.insert(idx_custo + 1, "Custo de Execução Recalculado com base no IPCA (R$)")
+            idx_custo = cols.index("Custo da Execução (R$)")
+            cols.remove("Custo da Execução corrigido pelo IPCA (R$)")
+            cols.insert(idx_custo + 1, "Custo da Execução corrigido pelo IPCA (R$)")
             df_exibicao = df_exibicao[cols]
 
         # Paginação
@@ -2383,9 +2383,9 @@ def pagina_consulta():
                 help="Unidade de medida referente ao 2° parâmetro."
             ),
         }
-        if "Custo de Execução Recalculado com base no IPCA (R$)" in df_exibicao.columns:
-            _col_cfg_consulta["Custo de Execução Recalculado com base no IPCA (R$)"] = st.column_config.TextColumn(
-                "Custo de Execução Recalculado com base no IPCA (R$)",
+        if "Custo da Execução corrigido pelo IPCA (R$)" in df_exibicao.columns:
+            _col_cfg_consulta["Custo da Execução corrigido pelo IPCA (R$)"] = st.column_config.TextColumn(
+                "Custo da Execução corrigido pelo IPCA (R$)",
                 help="Corrige o custo inicial pelo IPCA acumulado desde a data do edital ate o mes atual. Formula: Valor x PI(1 + IPCA_mes/100) para cada mes entre a data base e hoje. Fonte: Banco Central do Brasil, serie SGS 433."
             )
         st.dataframe(df_exibicao.iloc[inicio:fim], use_container_width=True,
@@ -3832,7 +3832,7 @@ def exportar_projetos_excel(df_tabela: "pd.DataFrame", df_comp: "pd.DataFrame",
         ("unidade", "Unidade", 10),
         ("Prazo", "Prazo", 14),
         ("Estimativa Kerzner", "Estimativa Kerzner", 18),
-        ("Custo contratado (R$)", "Custo contratado (R$)", 20),
+        ("Custo da Execução (R$)", "Custo da Execução (R$)", 20),
         ("Custo final (R$)", "Custo final (R$)", 20),
     ]
     # Only include columns that exist in df_tabela
@@ -4058,13 +4058,13 @@ def pagina_projetos_concluidos():
                         if v else None)
 
             if tem_ipca:
-                df_tabela["Custo corr. IPCA"] = df_tabela.apply(custo_corrigido, axis=1)
+                df_tabela["Custo da Execução corrigido pelo IPCA"] = df_tabela.apply(custo_corrigido, axis=1)
 
             def fmt_brl(x):
                 if pd.isnull(x) or x == 0: return "-"
                 return f"R$ {x:,.2f}".replace(",","X").replace(".",",").replace("X",".")
 
-            for col_c, col_l in [("custo_contratado","Custo contratado (R$)"),
+            for col_c, col_l in [("custo_contratado","Custo da Execução (R$)"),
                                    ("custo_final","Custo final (R$)")]:
                 if col_c in df_tabela.columns:
                     df_tabela[col_l] = df_tabela[col_c].apply(fmt_brl)
@@ -4077,9 +4077,9 @@ def pagina_projetos_concluidos():
             colunas_exib = ["nome_projeto","tema","subtema","estado","municipio",
                             "data_inicio","data_conclusao","esforco","unidade",
                             "Prazo","Estimativa Kerzner",
-                            "Custo contratado (R$)","Custo final (R$)"]
+                            "Custo da Execução (R$)","Custo final (R$)"]
             if tem_ipca:
-                colunas_exib.append("Custo corr. IPCA")
+                colunas_exib.append("Custo da Execução corrigido pelo IPCA")
             colunas_exib += ["observacoes","criado_por"]
 
             rename_map = {
@@ -4110,9 +4110,9 @@ def pagina_projetos_concluidos():
                     help="Unidade de medida referente ao 2° parâmetro."
                 ),
             }
-            if "Custo corr. IPCA" in df_show.columns:
-                _col_cfg_proj["Custo corr. IPCA"] = st.column_config.TextColumn(
-                    "Custo corr. IPCA",
+            if "Custo da Execução corrigido pelo IPCA" in df_show.columns:
+                _col_cfg_proj["Custo da Execução corrigido pelo IPCA"] = st.column_config.TextColumn(
+                    "Custo da Execução corrigido pelo IPCA",
                     help="Corrige o custo inicial pelo IPCA acumulado desde a data do edital ate o mes atual. Formula: Valor x PI(1 + IPCA_mes/100) para cada mes entre a data base e hoje. Fonte: Banco Central do Brasil, serie SGS 433."
                 )
             st.dataframe(df_show, use_container_width=True, hide_index=True,
@@ -4425,7 +4425,7 @@ def pagina_projetos_concluidos():
                     cc1, cc2 = st.columns(2)
                     with cc1:
                         custo_contratado_proj = st.number_input(
-                            "Custo contratado (R$)", min_value=0.0, step=1000.0, format="%.2f")
+                            "Custo da Execução (R$)", min_value=0.0, step=1000.0, format="%.2f")
                     with cc2:
                         custo_final_proj = st.number_input(
                             "Custo final realizado (R$)", min_value=0.0, step=1000.0, format="%.2f")
