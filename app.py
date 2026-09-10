@@ -1953,36 +1953,40 @@ def tela_login():
         background: linear-gradient(135deg, #0b1f3a 0%, #112a50 55%, #1a3f6f 100%);
         display: flex; flex-direction: column;
         align-items: center; justify-content: center;
-        padding: 48px 24px 56px;
+        padding: 40px 24px 40px;
     }}
-    .lp-logo {{ text-align: center; margin-bottom: 28px; }}
-    .lp-logo img {{ height: 48px; width: auto; object-fit: contain; }}
-    .lp-title {{
-        color: #ffffff; font-size: 1.4rem; font-weight: 700;
-        letter-spacing: -0.02em; text-align: center; margin-bottom: 4px;
-        font-family: 'Inter', sans-serif;
-    }}
-    .lp-sub {{
-        color: rgba(255,255,255,0.5); font-size: 0.72rem; text-align: center;
-        letter-spacing: 0.08em; text-transform: uppercase; font-weight: 500;
-        font-family: 'Inter', sans-serif;
-    }}
+    .lp-logo {{ text-align: center; margin-bottom: 0; }}
+    .lp-logo img {{ height: 68px; width: auto; object-fit: contain; }}
+
 
     /* Card branco que sobe sobre o fundo navy */
     .lp-card-wrap {{
         background: #e8eef6;
         display: flex; justify-content: center;
-        padding: 0 24px 40px;
+        padding: 0 24px 0;
         margin-top: -1px;
     }}
     .lp-card {{
         width: 100%; max-width: 400px;
         background: #ffffff;
         border-radius: 16px;
-        padding: 32px 28px 24px;
-        margin-top: -28px;
+        padding: 28px 28px 24px;
+        margin-top: -24px;
         box-shadow: 0 8px 32px rgba(11,31,58,0.12);
         position: relative; z-index: 1;
+    }}
+    .lp-title {{
+        color: #0b1f3a; font-size: 1.25rem; font-weight: 700;
+        letter-spacing: -0.02em; text-align: center;
+        margin-bottom: 3px; font-family: 'Inter', sans-serif;
+    }}
+    .lp-sub {{
+        color: #3d5575; font-size: 0.72rem; text-align: center;
+        letter-spacing: 0.07em; text-transform: uppercase; font-weight: 500;
+        margin-bottom: 20px; font-family: 'Inter', sans-serif;
+    }}
+    .lp-divider {{
+        height: 1px; background: #e2e8f0; margin-bottom: 20px;
     }}
 
     /* Labels em azul claro */
@@ -2019,10 +2023,25 @@ def tela_login():
     }}
 
     /* Rodapé em azul escuro (fundo claro) */
+    /* Form fields appear inside the card visually */
+    section.main .block-container > div > div > div {{
+        background: transparent !important;
+    }}
+    .stForm {{
+        background: #ffffff !important;
+        max-width: 400px !important;
+        margin: 0 auto !important;
+        padding: 0 28px !important;
+        border: none !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+    }}
+    .stForm > div {{ border: none !important; }}
     .lp-footer {{
         color: #1a3f6f;
         font-size: 0.75rem; text-align: center;
-        padding: 0 0 24px;
+        padding: 16px 0 32px;
+        background: #e8eef6;
         font-family: 'Inter', sans-serif;
         letter-spacing: 0.02em;
     }}
@@ -2032,11 +2051,14 @@ def tela_login():
         <div class="lp-logo">
             <img src="data:image/png;base64,{logo_b64}" />
         </div>
-        <div class="lp-title">Portal de Editais/Projetos</div>
-        <div class="lp-sub">FGV &middot; Project Management Office</div>
     </div>
     <div class="lp-card-wrap">
         <div class="lp-card">
+            <div class="lp-title">Portal de Editais/Projetos</div>
+            <div class="lp-sub">FGV &middot; Project Management Office</div>
+            <div class="lp-divider"></div>
+        </div>
+    </div>
     """, unsafe_allow_html=True)
 
     with st.form("form_login", clear_on_submit=False):
@@ -2045,8 +2067,6 @@ def tela_login():
         entrar = st.form_submit_button("Entrar", use_container_width=True)
 
     st.markdown("""
-        </div>
-    </div>
     <div class="lp-footer">Acesso restrito a usuários autorizados</div>
     """, unsafe_allow_html=True)
 
