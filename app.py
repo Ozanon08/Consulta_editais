@@ -1969,10 +1969,10 @@ def tela_login():
     .lp-card {{
         width: 100%; max-width: 400px;
         background: #ffffff;
-        border-radius: 16px;
-        padding: 28px 28px 24px;
+        border-radius: 16px 16px 0 0;
+        padding: 28px 28px 20px;
         margin-top: -24px;
-        box-shadow: 0 8px 32px rgba(11,31,58,0.12);
+        box-shadow: none;
         position: relative; z-index: 1;
     }}
     .lp-title {{
@@ -2023,18 +2023,18 @@ def tela_login():
     }}
 
     /* Rodapé em azul escuro (fundo claro) */
-    /* Form fields appear inside the card visually */
+    /* Form unificado com o card — mesmo bloco visual */
     section.main .block-container > div > div > div {{
         background: transparent !important;
     }}
     .stForm {{
         background: #ffffff !important;
         max-width: 400px !important;
-        margin: 0 auto !important;
-        padding: 0 28px !important;
+        margin: -8px auto 0 !important;
+        padding: 0 28px 24px !important;
         border: none !important;
-        box-shadow: none !important;
-        border-radius: 0 !important;
+        border-radius: 0 0 16px 16px !important;
+        box-shadow: 0 8px 32px rgba(11,31,58,0.12) !important;
     }}
     .stForm > div {{ border: none !important; }}
     .lp-footer {{
