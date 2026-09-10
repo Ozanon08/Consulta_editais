@@ -201,12 +201,12 @@ def aplicar_estilo_dark():
     }
     /* Remove espaços extras entre botões */
     section[data-testid="stSidebar"] .stButton {
-        margin: 2px 0 !important;
+        margin: 3px 0 !important;
         padding: 0 !important;
     }
     /* Espaçamento uniforme entre botões da sidebar */
     section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
-        gap: 2px !important;
+        gap: 3px !important;
     }
     /* O div vazio do sb-btn-active não deve ocupar espaço */
     section[data-testid="stSidebar"] .sb-btn-active {
@@ -297,12 +297,12 @@ def aplicar_estilo_dark():
     }
     /* Remove espaços extras entre botões */
     section[data-testid="stSidebar"] .stButton {
-        margin: 2px 0 !important;
+        margin: 3px 0 !important;
         padding: 0 !important;
     }
     /* Espaçamento uniforme entre botões da sidebar */
     section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
-        gap: 2px !important;
+        gap: 3px !important;
     }
     /* O div vazio do sb-btn-active não deve ocupar espaço */
     section[data-testid="stSidebar"] .sb-btn-active {
@@ -2052,39 +2052,14 @@ def menu_sidebar():
         menu_atual = st.session_state.menu
 
         # Logo
-        # Logo via st.image — funciona em todos os temas
-        try:
-            import base64 as _b64, os as _os
-            _paths = ["assets/FGV_PMO_LOGO_COMPLETO.png", "assets/fgv pmo logo.png"]
-            _img_path = next((p for p in _paths if _os.path.exists(p)), None)
-            if _img_path:
-                from PIL import Image as _PILImage
-                import io as _io
-                _img = _PILImage.open(_img_path).convert("RGBA")
-                # Inverte para branco (fundo transparente preservado)
-                _r, _g, _b, _a = _img.split()
-                _white = _PILImage.new("RGBA", _img.size, (255,255,255,0))
-                _white.paste(_PILImage.merge("RGBA", [
-                    _PILImage.eval(_r, lambda x: 255),
-                    _PILImage.eval(_g, lambda x: 255),
-                    _PILImage.eval(_b, lambda x: 255),
-                    _a
-                ]), mask=_a)
-                _buf = _io.BytesIO()
-                _white.save(_buf, format="PNG")
-                _buf.seek(0)
-                st.image(_buf, width=180)
-                st.markdown('<div style="height:4px;"></div>', unsafe_allow_html=True)
-            else:
-                st.markdown("**FGV PMO**")
-        except Exception:
-            # Fallback simples se PIL não disponível
-            _logo_b64 = get_base64_logo_completo() or get_base64_logo()
-            if _logo_b64:
-                st.markdown(f'<div style="text-align:center;padding:8px 0;">' +
-                            f'<img src="data:image/png;base64,{_logo_b64}" ' +
-                            f'style="width:180px;filter:brightness(0) invert(1);"/></div>',
-                            unsafe_allow_html=True)
+        # Logo — HTML com filtro CSS (mesmo padrão do light)
+        _logo_b64 = get_base64_logo_completo() or get_base64_logo()
+        if _logo_b64:
+            st.markdown(f"""
+            <div class="sidebar-logo-wrap">
+                <img src="data:image/png;base64,{_logo_b64}" class="sidebar-logo-img"/>
+            </div>
+            """, unsafe_allow_html=True)
         st.markdown('<div class="sb-divider"></div>', unsafe_allow_html=True)
 
         # Monta grupos
