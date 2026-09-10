@@ -1805,6 +1805,26 @@ def esconder_elementos_streamlit():
         function removeUnwanted() {
             // Sem remoção de botões — botão de colapso da sidebar é mantido
 
+            // Destaca botão ativo na sidebar
+            function highlightNav() {
+                var sidebar = document.querySelector('[data-testid="stSidebar"]');
+                if (!sidebar) { setTimeout(highlightNav, 150); return; }
+                var activeText = '';
+                sidebar.querySelectorAll('button').forEach(function(btn) {
+                    var txt = (btn.innerText || '').trim();
+                    if (txt === activeText) {
+                        btn.style.setProperty('background', 'rgba(255,255,255,0.12)', 'important');
+                        btn.style.setProperty('color', '#fff', 'important');
+                        btn.style.setProperty('-webkit-text-fill-color', '#fff', 'important');
+                        btn.style.setProperty('font-weight', '600', 'important');
+                        btn.style.setProperty('border-left', '2px solid var(--fgv-bright)', 'important');
+                        btn.style.setProperty('border-radius', '0 7px 7px 0', 'important');
+                    }
+                });
+            }
+            setTimeout(highlightNav, 200);
+            setTimeout(highlightNav, 600);
+
             // Agrupa botões de nav em caixas visuais
             function groupNavButtons() {
                 var sidebar = document.querySelector('[data-testid="stSidebar"]');
@@ -1921,89 +1941,113 @@ def metric_card(titulo, valor, subtitulo=""):
 # LOGIN
 # =========================================================
 def tela_login():
-    st.markdown("""
+    logo_b64 = get_base64_logo()
+    st.markdown(f"""
     <style>
-    .login-page-wrap {
-        min-height: 0vh;
+    /* Login page — full viewport centered */
+    .stApp {{ background: linear-gradient(135deg, #0b1f3a 0%, #112a50 50%, #1a3f6f 100%) !important; }}
+    section.main .block-container {{ padding: 0 !important; max-width: 100% !important; }}
+    div[data-testid="stVerticalBlock"] {{ gap: 0 !important; }}
+
+    .lp-wrap {{
+        min-height: 100vh;
         display: flex;
-        justify-content: center;
+        flex-direction: column;
         align-items: center;
-        padding: 0px;
-    }
-
-    .login-panel {
-        width: 100%;
-        max-width: 420px;
-    }
-
-    .login-brand {
+        justify-content: center;
+        padding: 24px 16px;
+    }}
+    .lp-logo {{
+        margin-bottom: 32px;
         text-align: center;
-        margin-bottom: 18px;
-    }
-
-    .login-brand img {
-        width: 220px;
-        max-width: 100%;
-        object-fit: contain;
-        margin-bottom: 10px;
-    }
-
-    .login-card {
-        padding: 5px;
-    }
-
-    .login-title {
+    }}
+    .lp-logo img {{
+        height: 52px; width: auto; object-fit: contain;
+        filter: brightness(1.1);
+    }}
+    .lp-card {{
+        width: 100%; max-width: 380px;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 16px;
+        padding: 36px 32px 28px;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        box-shadow: 0 20px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
+    }}
+    .lp-title {{
+        color: #ffffff;
+        font-size: 1.35rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
         text-align: center;
-        font-size: 1.9rem;
-        font-weight: 800;
-        margin-bottom: 8px;
-    }
-
-    .login-subtitle {
+        margin-bottom: 4px;
+        font-family: 'Inter', sans-serif;
+    }}
+    .lp-sub {{
+        color: rgba(255,255,255,0.45);
+        font-size: 0.78rem;
         text-align: center;
-        font-size: 0.98rem;
-        margin-bottom: 22px;
-        opacity: 0.9;
-    }
-
-    .login-footer {
-        margin-top: 16px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-weight: 500;
+        margin-bottom: 28px;
+        font-family: 'Inter', sans-serif;
+    }}
+    .lp-footer {{
+        color: rgba(255,255,255,0.28);
+        font-size: 0.75rem;
         text-align: center;
-        font-size: 0.88rem;
-        opacity: 0.85;
-    }
+        margin-top: 20px;
+        font-family: 'Inter', sans-serif;
+        letter-spacing: 0.02em;
+    }}
+    /* Override Streamlit inputs inside login */
+    .lp-card .stTextInput input {{
+        background: rgba(255,255,255,0.07) !important;
+        border: 1px solid rgba(255,255,255,0.15) !important;
+        border-radius: 8px !important;
+        color: #fff !important;
+        -webkit-text-fill-color: #fff !important;
+    }}
+    .lp-card .stTextInput input:focus {{
+        border-color: rgba(77,159,255,0.7) !important;
+        box-shadow: 0 0 0 3px rgba(41,121,212,0.25) !important;
+    }}
+    .lp-card .stTextInput input::placeholder {{
+        color: rgba(255,255,255,0.3) !important;
+    }}
+    .lp-card label {{ color: rgba(255,255,255,0.7) !important; font-size: 0.83rem !important; }}
+    .lp-card .stFormSubmitButton > button {{
+        background: linear-gradient(135deg, #1d6fc4, #2979d4) !important;
+        color: #fff !important; font-weight: 600 !important;
+        border: none !important; border-radius: 8px !important;
+        height: 44px !important; font-size: 0.9rem !important;
+        box-shadow: 0 4px 16px rgba(41,121,212,0.4) !important;
+        transition: opacity 0.15s ease !important;
+        margin-top: 8px !important;
+    }}
+    .lp-card .stFormSubmitButton > button:hover {{ opacity: 0.88 !important; transform: none !important; }}
     </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown('<div class="login-page-wrap">', unsafe_allow_html=True)
-    st.markdown('<div class="login-panel">', unsafe_allow_html=True)
-
-    st.markdown("""
-    <div class="login-brand">
-        <img src="data:image/png;base64,{}" />
-    </div>
-    """.format(get_base64_logo()), unsafe_allow_html=True)
-
-    st.markdown("""
-    <div class="login-card">
-        <div class="login-title">Portal de Consulta de Editais</div>
-        <div class="login-subtitle">FGV PMO</div>
+    <div class="lp-wrap">
+        <div class="lp-logo">
+            <img src="data:image/png;base64,{logo_b64}" />
+        </div>
+        <div class="lp-card">
+            <div class="lp-title">Portal de Editais/Projetos</div>
+            <div class="lp-sub">FGV &middot; Project Management Office</div>
     """, unsafe_allow_html=True)
 
     with st.form("form_login", clear_on_submit=False):
-        usuario = st.text_input("Usuário")
-        senha = st.text_input("Senha", type="password")
+        usuario = st.text_input("Usuário", placeholder="seu.usuario")
+        senha = st.text_input("Senha", type="password", placeholder="••••••••")
         entrar = st.form_submit_button("Entrar", use_container_width=True)
 
     st.markdown("""
-        <div class="login-footer">
-            Acesso restrito a usuários autorizados
+        <div class="lp-footer">Acesso restrito a usuários autorizados</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
 
     if entrar:
         try:
@@ -2072,15 +2116,41 @@ def menu_sidebar():
             all_opcoes.extend(grupo_itens)
 
         for opcao in all_opcoes:
-            ativo = menu_atual == opcao or menu_atual.startswith(opcao.split(" (")[0])
-            if ativo:
-                st.markdown('<div class="sb-btn-active">', unsafe_allow_html=True)
             if st.button(opcao, key=f"nav_{opcao}", use_container_width=True):
                 if st.session_state.menu != opcao:
                     st.session_state.menu = opcao
                     st.rerun()
-            if ativo:
-                st.markdown('</div>', unsafe_allow_html=True)
+
+        # JS para destacar botão ativo (injeta menu_atual como valor real)
+        import html as _h_sb
+        menu_safe = _h_sb.escape(repr(menu_atual))
+        st.markdown(f"""
+        <script>
+        (function(){{
+            var active = {menu_safe};
+            function hi(){{
+                var sb = document.querySelector('[data-testid="stSidebar"]');
+                if(!sb){{setTimeout(hi,150);return;}}
+                sb.querySelectorAll('button').forEach(function(b){{
+                    var t=(b.innerText||'').trim();
+                    if(t===active){{
+                        b.style.setProperty('background','rgba(255,255,255,0.12)','important');
+                        b.style.setProperty('color','#fff','important');
+                        b.style.setProperty('-webkit-text-fill-color','#fff','important');
+                        b.style.setProperty('font-weight','600','important');
+                        b.style.setProperty('border-left','2px solid #4d9fff','important');
+                        b.style.setProperty('border-radius','0 7px 7px 0','important');
+                    }} else {{
+                        b.style.removeProperty('border-left');
+                        b.style.removeProperty('border-radius');
+                        b.style.removeProperty('font-weight');
+                    }}
+                }});
+            }}
+            hi();setTimeout(hi,400);
+        }})();
+        </script>
+        """, unsafe_allow_html=True)
 
         # Rodapé
         st.markdown('<div class="sb-footer-sep"></div>', unsafe_allow_html=True)
