@@ -2208,7 +2208,6 @@ def pagina_consulta():
     for col in df.columns:
         if df[col].dtype == object:
             df[col] = df[col].fillna("").astype(str)
-
     df.columns = [c.strip() for c in df.columns]
 
     def achar_coluna(preferidas):
@@ -2218,66 +2217,50 @@ def pagina_consulta():
                     return c
         return None
 
-    col_tema = achar_coluna(["tema"])
-    col_subtema = achar_coluna(["subtema"])
-    col_estado = achar_coluna(["estado"])
-    col_municipio = achar_coluna(["municipio", "município"])
-    col_nome = achar_coluna(["nome", "denominacao", "denominação"])
-    col_desc = achar_coluna(["descricao", "descrição"])
-    col_codigo = achar_coluna(["codigo", "código", "codigo_planilha"])
-    col_obs = achar_coluna(["observacao", "observação", "obs"])
-    col_custo = achar_coluna(["custo", "valor", "custo_execucao"])
-    col_prazo = achar_coluna(["prazo_meses", "prazo"])
-    col_data = achar_coluna(["data_edital", "data edital", "data"])
+    col_tema     = achar_coluna(["tema"])
+    col_subtema  = achar_coluna(["subtema"])
+    col_estado   = achar_coluna(["estado"])
+    col_municipio= achar_coluna(["municipio", "município"])
+    col_nome     = achar_coluna(["nome", "denominacao", "denominação"])
+    col_desc     = achar_coluna(["descricao", "descrição"])
+    col_codigo   = achar_coluna(["codigo", "código", "codigo_planilha"])
+    col_obs      = achar_coluna(["observacao", "observação", "obs"])
+    col_custo    = achar_coluna(["custo", "valor", "custo_execucao"])
+    col_prazo    = achar_coluna(["prazo_meses", "prazo"])
+    col_data     = achar_coluna(["data_edital", "data edital", "data"])
 
-    if col_custo:
-        df[col_custo] = pd.to_numeric(df[col_custo], errors="coerce")
-    if col_prazo:
-        df[col_prazo] = pd.to_numeric(df[col_prazo], errors="coerce")
-    if col_data:
-        df[col_data] = pd.to_datetime(df[col_data], errors="coerce")
-
-
-    st.subheader("Filtros de consulta")
+    if col_custo: df[col_custo] = pd.to_numeric(df[col_custo], errors="coerce")
+    if col_prazo: df[col_prazo] = pd.to_numeric(df[col_prazo], errors="coerce")
+    if col_data:  df[col_data]  = pd.to_datetime(df[col_data], errors="coerce")
 
     def opcoes(df_base, col):
-        if not col:
-            return ["Todos"]
+        if not col: return ["Todos"]
         return ["Todos"] + sorted(df_base[col].dropna().replace("", pd.NA).dropna().unique().tolist())
 
-    # Filtros em cascata: cada filtro restringe as opções dos seguintes
-    filtrado = df.copy()
+    # ── Filtros principais ──
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
 
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        tema = st.selectbox("Tema", opcoes(filtrado, col_tema))
+    filtrado = df.copy()
+    f1, f2, f3, f4 = st.columns(4)
+    with f1:
+        tema = st.selectbox("Tema", opcoes(filtrado, col_tema), label_visibility="visible")
     if col_tema and tema != "Todos":
         filtrado = filtrado[filtrado[col_tema] == tema]
-
-    with c2:
+    with f2:
         subtema = st.selectbox("Subtema", opcoes(filtrado, col_subtema))
     if col_subtema and subtema != "Todos":
         filtrado = filtrado[filtrado[col_subtema] == subtema]
-
-    with c3:
+    with f3:
         estado = st.selectbox("Estado", opcoes(filtrado, col_estado))
     if col_estado and estado != "Todos":
         filtrado = filtrado[filtrado[col_estado] == estado]
-
-    with c4:
+    with f4:
         municipio = st.selectbox("Município", opcoes(filtrado, col_municipio))
     if col_municipio and municipio != "Todos":
         filtrado = filtrado[filtrado[col_municipio] == municipio]
 
-    busca = st.text_input("Busca textual", placeholder="Nome, descrição, código...")
-
-    c9, c10, c11, c12 = st.columns(4)
-    custo_min = c9.number_input("Custo mínimo", min_value=0.0, value=0.0, step=1000.0, format="%.2f")
-    custo_max = c10.number_input("Custo máximo", min_value=0.0, value=0.0, step=1000.0, format="%.2f")
-    prazo_min = c11.number_input("Prazo mínimo (meses)", min_value=0.0, value=0.0, step=1.0, format="%.2f")
-    prazo_max = c12.number_input("Prazo máximo (meses)", min_value=0.0, value=0.0, step=1.0, format="%.2f")
-    st.markdown('</div>', unsafe_allow_html=True)
-
+    busca = st.text_input("Busca textual", placeholder="Nome, descrição, código...",
+                          label_visibility="collapsed")
     if busca:
         texto_cols = [c for c in [col_nome, col_desc, col_codigo, col_obs] if c]
         if texto_cols:
@@ -2286,306 +2269,248 @@ def pagina_consulta():
                 mask = mask | filtrado[c].astype(str).str.contains(busca, case=False, na=False)
             filtrado = filtrado[mask]
 
-    if col_custo:
-        if custo_min > 0:
-            filtrado = filtrado[filtrado[col_custo] >= custo_min]
-        if custo_max > 0:
-            filtrado = filtrado[filtrado[col_custo] <= custo_max]
-    if col_prazo:
-        if prazo_min > 0:
-            filtrado = filtrado[filtrado[col_prazo] >= prazo_min]
-        if prazo_max > 0:
-            filtrado = filtrado[filtrado[col_prazo] <= prazo_max]
+    # Filtros avançados colapsáveis
+    with st.expander("Filtros avançados — custo e prazo"):
+        c9, c10, c11, c12 = st.columns(4)
+        custo_min = c9.number_input("Custo mínimo (R$)", min_value=0.0, value=0.0, step=1000.0, format="%.2f")
+        custo_max = c10.number_input("Custo máximo (R$)", min_value=0.0, value=0.0, step=1000.0, format="%.2f")
+        prazo_min = c11.number_input("Prazo mínimo (meses)", min_value=0.0, value=0.0, step=1.0, format="%.1f")
+        prazo_max = c12.number_input("Prazo máximo (meses)", min_value=0.0, value=0.0, step=1.0, format="%.1f")
 
+    if col_custo:
+        if custo_min > 0: filtrado = filtrado[filtrado[col_custo] >= custo_min]
+        if custo_max > 0: filtrado = filtrado[filtrado[col_custo] <= custo_max]
+    if col_prazo:
+        if prazo_min > 0: filtrado = filtrado[filtrado[col_prazo] >= prazo_min]
+        if prazo_max > 0: filtrado = filtrado[filtrado[col_prazo] <= prazo_max]
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Métricas ──
     total_registros = len(filtrado)
-    total_temas = filtrado[col_tema].nunique() if col_tema else 0
-    total_estados = filtrado[col_estado].nunique() if col_estado else 0
-    custo_medio = filtrado[col_custo].mean() if col_custo and not filtrado.empty else 0
+    total_temas     = filtrado[col_tema].nunique()   if col_tema   else 0
+    total_estados   = filtrado[col_estado].nunique() if col_estado else 0
+    custo_medio     = filtrado[col_custo].mean()     if col_custo and not filtrado.empty else 0
 
     m1, m2, m3, m4 = st.columns(4)
-    with m1:
-        metric_card("Registros filtrados", total_registros)
-    with m2:
-        metric_card("Temas", total_temas)
-    with m3:
-        metric_card("Estados", total_estados)
-    with m4:
-        metric_card("Custo médio", formatar_numero(custo_medio if pd.notna(custo_medio) else 0))
+    with m1: metric_card("Registros filtrados", total_registros)
+    with m2: metric_card("Temas", total_temas)
+    with m3: metric_card("Estados", total_estados)
+    with m4: metric_card("Custo médio", formatar_numero(custo_medio if pd.notna(custo_medio) else 0))
 
+    # ── Abas: Tabela | Evolução | Mapa ──
+    tab_tabela, tab_evolucao, tab_mapa = st.tabs(["Tabela", "Evolução por tema", "Distribuição geográfica"])
 
-    st.subheader("Resultados")
+    # ── TAB Tabela ──
+    with tab_tabela:
+        colunas_remover = ["id","tipo_edital","codigo_planilha","metodo_calculo","valor_min","valor_max","observacao"]
+        colunas_remover_existentes = [c for c in colunas_remover if c in filtrado.columns]
+        df_exibicao = filtrado.drop(columns=colunas_remover_existentes)
 
-    colunas_remover = [
-        "id", "tipo_edital", "codigo_planilha", "metodo_calculo", "valor_min", "valor_max", "observacao"
-    ]
-    colunas_remover_existentes = [c for c in colunas_remover if c in filtrado.columns]
-    df_exibicao = filtrado.drop(columns=colunas_remover_existentes)
+        mapa_colunas = {
+            "codigo":"Código","nome":"Nome","descricao":"Objetivo do Projeto",
+            "tema":"Tema","subtema":"Subtema","pais":"País","estado":"Estado",
+            "municipio":"Município","nome_edital":"Edital",
+            "esforco":"Parâmetro","unidade":"Unidade","servicos":"Serviços",
+            "custo_execucao":"Custo Inicial (R$)","custo":"Custo Inicial (R$)",
+            "prazo_meses":"Prazo (meses)","data_edital":"Data do edital",
+            "fonte_dado":"URL"
+        }
+        df_exibicao = df_exibicao.rename(columns={k:v for k,v in mapa_colunas.items() if k in df_exibicao.columns})
 
-    mapa_colunas = {
-        "codigo": "Código",
-        "nome": "Nome",
-        "descricao": "Objetivo do Projeto",
-        "tema": "Tema",
-        "subtema": "Subtema",
-        "pais": "País",
-        "estado": "Estado",
-        "municipio": "Município",
-        "nome_edital": "Edital",
-        "esforco": "Parâmetro utilizado para verificação do prazo",
-        "unidade": "Unidade de Medida do Parâmetro ",
-        "servicos": "Serviços",
-        "custo_execucao": "Custo Inicial (R$)",
-        "custo": "Custo Inicial (R$)",
-        "prazo_meses": "Prazo de execução (meses)",
-        "data_edital": "Data do edital",
-        "fonte_dado": "URL"
-    }
-    df_exibicao = df_exibicao.rename(columns={k: v for k, v in mapa_colunas.items() if k in df_exibicao.columns})
+        if "Data do edital" in df_exibicao.columns:
+            df_exibicao["Data do edital"] = pd.to_datetime(df_exibicao["Data do edital"], errors="coerce").dt.strftime("%d/%m/%Y")
 
-    if "Data do edital" in df_exibicao.columns:
-        df_exibicao["Data do edital"] = pd.to_datetime(df_exibicao["Data do edital"], errors="coerce").dt.strftime("%d/%m/%Y")
+        def fmt_brl(x):
+            if pd.isnull(x) or x == 0: return ""
+            return f"R$ {x:,.2f}".replace(",","X").replace(".",",").replace("X",".")
 
-    def fmt_brl(x):
-        if pd.isnull(x) or x == 0:
-            return ""
-        return f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        if "Custo Inicial (R$)" in df_exibicao.columns:
+            df_exibicao["Custo Inicial (R$)"] = df_exibicao["Custo Inicial (R$)"].apply(fmt_brl)
 
-    if "Custo Inicial (R$)" in df_exibicao.columns:
-        df_exibicao["Custo Inicial (R$)"] = df_exibicao["Custo Inicial (R$)"].apply(fmt_brl)
+        ipca_bd = carregar_ipca()
+        from datetime import datetime as _dt_now
+        data_ref_bd = f"{_dt_now.now().year}-{_dt_now.now().month:02d}"
+        if ipca_bd and "custo_execucao" in filtrado.columns and "data_edital" in filtrado.columns:
+            def _corrigir_linha(row):
+                custo = row.get("custo_execucao")
+                data_b = row.get("data_edital")
+                if not custo or not data_b or pd.isnull(custo) or pd.isnull(data_b): return ""
+                try:
+                    v = corrigir_ipca(float(custo), str(data_b)[:7], data_ref_bd, ipca_bd)
+                    return fmt_brl(v) if v else ""
+                except Exception: return ""
+            df_exibicao["Custo Recalculado com base no IPCA (R$)"] = filtrado.apply(_corrigir_linha, axis=1)
+        else:
+            df_exibicao["Custo Recalculado com base no IPCA (R$)"] = ""
 
-    # Custo corrigido pelo IPCA
-    ipca_bd = carregar_ipca()
-    from datetime import datetime as _dt_now
-    data_ref_bd = f"{_dt_now.now().year}-{_dt_now.now().month:02d}"
+        if "Custo Inicial (R$)" in df_exibicao.columns and "Custo Recalculado com base no IPCA (R$)" in df_exibicao.columns:
+            cols = list(df_exibicao.columns)
+            idx_custo = cols.index("Custo Inicial (R$)")
+            cols.remove("Custo Recalculado com base no IPCA (R$)")
+            cols.insert(idx_custo + 1, "Custo Recalculado com base no IPCA (R$)")
+            df_exibicao = df_exibicao[cols]
 
-    if ipca_bd and "custo_execucao" in filtrado.columns and "data_edital" in filtrado.columns:
-        def _corrigir_linha(row):
-            custo = row.get("custo_execucao")
-            data_b = row.get("data_edital")
-            if not custo or not data_b or pd.isnull(custo) or pd.isnull(data_b):
-                return ""
-            try:
-                data_str = str(data_b)[:7]  # YYYY-MM
-                v = corrigir_ipca(float(custo), data_str, data_ref_bd, ipca_bd)
-                return fmt_brl(v) if v else ""
-            except Exception:
-                return ""
-        df_exibicao["Custo Recalculado com base no IPCA (R$)"] = filtrado.apply(_corrigir_linha, axis=1)
-    else:
-        df_exibicao["Custo Recalculado com base no IPCA (R$)"] = ""
-
-    # Reordena colunas para colocar os dois custos lado a lado
-    if "Custo Inicial (R$)" in df_exibicao.columns and "Custo Recalculado com base no IPCA (R$)" in df_exibicao.columns:
-        cols = list(df_exibicao.columns)
-        idx_custo = cols.index("Custo Inicial (R$)")
-        cols.remove("Custo Recalculado com base no IPCA (R$)")
-        cols.insert(idx_custo + 1, "Custo Recalculado com base no IPCA (R$)")
-        df_exibicao = df_exibicao[cols]
-
-    #  Paginação
-    PAGE_SIZE = 50
-    total = len(df_exibicao)
-    n_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
-    if "pagina_consulta" not in st.session_state:
-        st.session_state["pagina_consulta"] = 1
-    # Reset se filtros mudaram e página ficou fora do range
-    if st.session_state["pagina_consulta"] > n_pages:
-        st.session_state["pagina_consulta"] = 1
-
-    pg_atual = st.session_state["pagina_consulta"]
-    inicio = (pg_atual - 1) * PAGE_SIZE
-    fim = min(inicio + PAGE_SIZE, total)
-
-    st.dataframe(df_exibicao.iloc[inicio:fim], use_container_width=True, hide_index=True)
-
-    # Controles de paginação
-    pg1, pg2, pg3, pg4, pg5 = st.columns([1, 1, 3, 1, 1])
-    with pg1:
-        if st.button(" Primeira", use_container_width=True, disabled=pg_atual == 1):
+        # Paginação
+        PAGE_SIZE = 50
+        total = len(df_exibicao)
+        n_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
+        if "pagina_consulta" not in st.session_state:
             st.session_state["pagina_consulta"] = 1
-            st.rerun()
-    with pg2:
-        if st.button("‹ Anterior", use_container_width=True, disabled=pg_atual == 1):
-            st.session_state["pagina_consulta"] -= 1
-            st.rerun()
-    with pg3:
-        st.markdown(
-            f"<div style='text-align:center;padding:8px 0;font-size:13px;color:var(--ink-secondary);'>"
-            f"Página <b>{pg_atual}</b> de <b>{n_pages}</b> &nbsp;·&nbsp; "
-            f"Exibindo registros <b>{inicio+1}</b>–<b>{fim}</b> de <b>{total}</b></div>",
-            unsafe_allow_html=True
-        )
-    with pg4:
-        if st.button("Próxima ›", use_container_width=True, disabled=pg_atual == n_pages):
-            st.session_state["pagina_consulta"] += 1
-            st.rerun()
-    with pg5:
-        if st.button("Última ", use_container_width=True, disabled=pg_atual == n_pages):
-            st.session_state["pagina_consulta"] = n_pages
-            st.rerun()
+        if st.session_state["pagina_consulta"] > n_pages:
+            st.session_state["pagina_consulta"] = 1
+        pg_atual = st.session_state["pagina_consulta"]
+        inicio = (pg_atual - 1) * PAGE_SIZE
+        fim = min(inicio + PAGE_SIZE, total)
 
-    if pode_baixar_arquivos(st.session_state.perfil):
-        col_dl1, col_dl2 = st.columns([1, 5])
-        with col_dl1:
-            st.download_button(
-                "Baixar CSV",
-                data=filtrado.to_csv(index=False).encode("utf-8-sig"),
-                file_name="consulta_editais.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
-        with col_dl2:
-            st.download_button(
-                "Baixar Excel",
-                data=to_excel_bytes(filtrado),
-                file_name="consulta_editais.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=False
-            )
+        st.dataframe(df_exibicao.iloc[inicio:fim], use_container_width=True, hide_index=True)
 
-    #  Gráfico de evolução por tema
-    if not filtrado.empty and "data_edital" in filtrado.columns and "tema" in filtrado.columns:
-        try:
-            import plotly.graph_objects as go
-            df_graf = filtrado[["data_edital", "tema"]].copy()
-            df_graf["data_edital"] = pd.to_datetime(df_graf["data_edital"], errors="coerce")
-            df_graf = df_graf.dropna(subset=["data_edital"])
-            df_graf["ano"] = df_graf["data_edital"].dt.year.astype(int)
-            df_graf = df_graf[df_graf["ano"] >= 2015]
-            if not df_graf.empty:
-                pivot = df_graf.groupby(["ano", "tema"]).size().reset_index(name="n")
-                temas_graf = pivot.groupby("tema")["n"].sum().nlargest(8).index.tolist()
-                pivot = pivot[pivot["tema"].isin(temas_graf)]
-                cores = ["#1d6fc4","#10b981","#f59e0b","#ef4444","#8b5cf6",
-                         "#06b6d4","#ec4899","#84cc16"]
-                fig = go.Figure()
-                for i, tema_g in enumerate(temas_graf):
-                    d = pivot[pivot["tema"] == tema_g].sort_values("ano")
-                    fig.add_trace(go.Scatter(
-                        x=d["ano"].tolist(), y=d["n"].tolist(),
-                        name=tema_g, mode="lines+markers",
-                        line=dict(width=2, color=cores[i % len(cores)]),
-                        marker=dict(size=6),
-                    ))
-                fig.update_layout(
-                    title="Evolução de editais/projetos por tema ao longo do tempo",
-                    xaxis_title="Ano", yaxis_title="Nº de editais/projetos",
-                    height=380, template="plotly_white",
-                    legend=dict(orientation="h", yanchor="bottom", y=-0.4),
-                    margin=dict(t=50, b=100, l=40, r=20),
-                    xaxis=dict(tickmode="linear", dtick=1),
-                )
-                st.plotly_chart(fig, use_container_width=True)
-        except ImportError:
-            pass
+        # Controles paginação + exportação na mesma linha
+        pg1, pg2, pg3, pg4, pg5, _, dl1, dl2 = st.columns([1,1,3,1,1,1,1,1])
+        with pg1:
+            if st.button("Primeira", use_container_width=True, disabled=pg_atual==1):
+                st.session_state["pagina_consulta"] = 1; st.rerun()
+        with pg2:
+            if st.button("Anterior", use_container_width=True, disabled=pg_atual==1):
+                st.session_state["pagina_consulta"] -= 1; st.rerun()
+        with pg3:
+            st.markdown(
+                f"<div style='text-align:center;padding:8px 0;font-size:13px;color:var(--ink-secondary);'>"
+                f"Página <b>{pg_atual}</b> de <b>{n_pages}</b> &nbsp;·&nbsp; "
+                f"<b>{inicio+1}</b>–<b>{fim}</b> de <b>{total}</b> registros</div>",
+                unsafe_allow_html=True)
+        with pg4:
+            if st.button("Próxima", use_container_width=True, disabled=pg_atual==n_pages):
+                st.session_state["pagina_consulta"] += 1; st.rerun()
+        with pg5:
+            if st.button("Última", use_container_width=True, disabled=pg_atual==n_pages):
+                st.session_state["pagina_consulta"] = n_pages; st.rerun()
+        if pode_baixar_arquivos(st.session_state.perfil):
+            with dl1:
+                st.download_button("CSV", data=filtrado.to_csv(index=False).encode("utf-8-sig"),
+                                   file_name="consulta_editais.csv", mime="text/csv",
+                                   use_container_width=True)
+            with dl2:
+                st.download_button("Excel", data=to_excel_bytes(filtrado),
+                                   file_name="consulta_editais.xlsx",
+                                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                   use_container_width=True)
 
-    # ── Mapa de editais por estado/país ──
-    if not filtrado.empty:
-        try:
-            import plotly.express as px
+    # ── TAB Evolução ──
+    with tab_evolucao:
+        if not filtrado.empty and col_data and col_tema:
+            try:
+                import plotly.graph_objects as go
+                df_graf = filtrado[[col_data, col_tema]].copy()
+                df_graf[col_data] = pd.to_datetime(df_graf[col_data], errors="coerce")
+                df_graf = df_graf.dropna(subset=[col_data])
+                df_graf["ano"] = df_graf[col_data].dt.year.astype(int)
+                df_graf = df_graf[df_graf["ano"] >= 2015]
+                if not df_graf.empty:
+                    pivot = df_graf.groupby(["ano", col_tema]).size().reset_index(name="n")
+                    temas_graf = pivot.groupby(col_tema)["n"].sum().nlargest(8).index.tolist()
+                    pivot = pivot[pivot[col_tema].isin(temas_graf)]
+                    cores = ["#1d6fc4","#10b981","#f59e0b","#ef4444","#8b5cf6",
+                             "#06b6d4","#ec4899","#84cc16"]
+                    fig = go.Figure()
+                    for i, tema_g in enumerate(temas_graf):
+                        d = pivot[pivot[col_tema] == tema_g].sort_values("ano")
+                        fig.add_trace(go.Scatter(
+                            x=d["ano"].tolist(), y=d["n"].tolist(),
+                            name=tema_g, mode="lines+markers",
+                            line=dict(width=2, color=cores[i % len(cores)]),
+                            marker=dict(size=6),
+                        ))
+                    fig.update_layout(
+                        title="Evolução de editais/projetos por tema",
+                        xaxis_title="Ano", yaxis_title="Nº de editais/projetos",
+                        height=400, template="plotly_white",
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.4),
+                        margin=dict(t=50, b=120, l=40, r=20),
+                        xaxis=dict(tickmode="linear", dtick=1),
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("Sem dados de evolução para o filtro selecionado.")
+            except ImportError:
+                st.info("Instale plotly para visualizar os gráficos.")
+        else:
+            st.info("Sem dados suficientes para o gráfico.")
 
-            # Agrupa por país e estado
-            tem_estado = "estado" in filtrado.columns and filtrado["estado"].notna().any()
-            tem_pais   = "pais"   in filtrado.columns and filtrado["pais"].notna().any()
+    # ── TAB Mapa ──
+    with tab_mapa:
+        if not filtrado.empty:
+            try:
+                import plotly.express as px
+                tem_estado = "estado" in filtrado.columns and filtrado["estado"].notna().any()
+                tem_pais   = "pais"   in filtrado.columns and filtrado["pais"].notna().any()
 
-            if tem_estado:
-                df_mapa = (
-                    filtrado.groupby(["pais", "estado"], dropna=True)
-                    .size()
-                    .reset_index(name="qtd")
-                )
-                df_mapa = df_mapa[df_mapa["qtd"] > 0]
+                if tem_estado:
+                    df_mapa = (filtrado.groupby(["pais","estado"], dropna=True)
+                               .size().reset_index(name="qtd"))
+                    df_mapa = df_mapa[df_mapa["qtd"] > 0]
+                    uf_map = {
+                        "Acre":"AC","Alagoas":"AL","Amapá":"AP","Amazonas":"AM",
+                        "Bahia":"BA","Ceará":"CE","Distrito Federal":"DF",
+                        "Espírito Santo":"ES","Goiás":"GO","Maranhão":"MA",
+                        "Mato Grosso":"MT","Mato Grosso do Sul":"MS","Minas Gerais":"MG",
+                        "Pará":"PA","Paraíba":"PB","Paraná":"PR","Pernambuco":"PE",
+                        "Piauí":"PI","Rio de Janeiro":"RJ","Rio Grande do Norte":"RN",
+                        "Rio Grande do Sul":"RS","Rondônia":"RO","Roraima":"RR",
+                        "Santa Catarina":"SC","São Paulo":"SP","Sergipe":"SE","Tocantins":"TO",
+                    }
+                    df_br = df_mapa[df_mapa["pais"] == "Brasil"].copy()
+                    df_br["uf"] = df_br["estado"].map(uf_map)
+                    df_br = df_br.dropna(subset=["uf"])
 
-                # Mapa coroplético Brasil por estado (abreviações UF)
-                # Tabela de siglas para estados brasileiros
-                uf_map = {
-                    "Acre":"AC","Alagoas":"AL","Amapá":"AP","Amazonas":"AM",
-                    "Bahia":"BA","Ceará":"CE","Distrito Federal":"DF",
-                    "Espírito Santo":"ES","Goiás":"GO","Maranhão":"MA",
-                    "Mato Grosso":"MT","Mato Grosso do Sul":"MS","Minas Gerais":"MG",
-                    "Pará":"PA","Paraíba":"PB","Paraná":"PR","Pernambuco":"PE",
-                    "Piauí":"PI","Rio de Janeiro":"RJ","Rio Grande do Norte":"RN",
-                    "Rio Grande do Sul":"RS","Rondônia":"RO","Roraima":"RR",
-                    "Santa Catarina":"SC","São Paulo":"SP","Sergipe":"SE","Tocantins":"TO",
-                }
-                df_br = df_mapa[df_mapa["pais"] == "Brasil"].copy()
-                df_br["uf"] = df_br["estado"].map(uf_map)
-                df_br = df_br.dropna(subset=["uf"])
+                    if not df_br.empty:
+                        sub_mapa, sub_tabela = st.tabs(["Mapa", "Tabela por estado"])
+                        with sub_mapa:
+                            fig_mapa = px.choropleth(
+                                df_br,
+                                geojson="https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson",
+                                locations="uf", featureidkey="properties.sigla",
+                                color="qtd", hover_name="estado",
+                                hover_data={"qtd":True,"uf":False},
+                                color_continuous_scale=[[0,"#dbeafe"],[0.3,"#93c5fd"],[0.6,"#3b82f6"],[1.0,"#1e3a8a"]],
+                                labels={"qtd":"Editais/Projetos"},
+                                title="Editais/Projetos por estado (Brasil)",
+                            )
+                            fig_mapa.update_geos(fitbounds="locations", visible=False)
+                            fig_mapa.update_layout(height=500, margin=dict(l=0,r=0,t=40,b=0),
+                                                   coloraxis_colorbar=dict(title="Qtd."))
+                            st.plotly_chart(fig_mapa, use_container_width=True)
+                        with sub_tabela:
+                            st.dataframe(df_mapa.sort_values("qtd", ascending=False)
+                                         .rename(columns={"pais":"País","estado":"Estado","qtd":"Editais/Projetos"}),
+                                         use_container_width=True, hide_index=True)
+                            df_top = df_br.sort_values("qtd", ascending=True).tail(20)
+                            fig_bar = px.bar(df_top, x="qtd", y="estado", orientation="h",
+                                             labels={"qtd":"Editais/Projetos","estado":"Estado"},
+                                             color="qtd", color_continuous_scale=["#93c5fd","#1e3a8a"],
+                                             title="Top 20 estados")
+                            fig_bar.update_layout(height=420, template="plotly_white",
+                                                  showlegend=False, coloraxis_showscale=False,
+                                                  margin=dict(l=10,r=10,t=40,b=10))
+                            st.plotly_chart(fig_bar, use_container_width=True)
 
-                if not df_br.empty:
-                    st.markdown("### Distribuição geográfica dos editais/projetos")
-                    tab_mapa, tab_tabela = st.tabs(["Mapa", "Tabela por estado"])
+                elif tem_pais:
+                    df_pais = filtrado.groupby("pais", dropna=True).size().reset_index(name="qtd")
+                    fig_pais = px.bar(df_pais.sort_values("qtd", ascending=False),
+                                      x="pais", y="qtd",
+                                      labels={"pais":"País","qtd":"Editais/Projetos"},
+                                      title="Editais/Projetos por país",
+                                      color="qtd", color_continuous_scale=["#93c5fd","#1e3a8a"])
+                    fig_pais.update_layout(height=350, template="plotly_white",
+                                           showlegend=False, coloraxis_showscale=False)
+                    st.plotly_chart(fig_pais, use_container_width=True)
+                else:
+                    st.info("Sem dados geográficos para exibir.")
+            except ImportError:
+                st.info("Instale plotly para visualizar o mapa.")
+        else:
+            st.info("Sem dados para o mapa com o filtro selecionado.")
 
-                    with tab_mapa:
-                        fig_mapa = px.choropleth(
-                            df_br,
-                            geojson="https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson",
-                            locations="uf",
-                            featureidkey="properties.sigla",
-                            color="qtd",
-                            hover_name="estado",
-                            hover_data={"qtd": True, "uf": False},
-                            color_continuous_scale=[
-                                [0,   "#dbeafe"],
-                                [0.3, "#93c5fd"],
-                                [0.6, "#3b82f6"],
-                                [1.0, "#1e3a8a"],
-                            ],
-                            labels={"qtd": "Editais/Projetos"},
-                            title="Editais/Projetos por estado (Brasil)",
-                        )
-                        fig_mapa.update_geos(fitbounds="locations", visible=False)
-                        fig_mapa.update_layout(
-                            height=500,
-                            margin=dict(l=0, r=0, t=40, b=0),
-                            coloraxis_colorbar=dict(title="Qtd. editais/projetos"),
-                        )
-                        st.plotly_chart(fig_mapa, use_container_width=True)
-
-                    with tab_tabela:
-                        df_tab = (
-                            df_mapa.sort_values("qtd", ascending=False)
-                            .rename(columns={"pais": "País", "estado": "Estado", "qtd": "Editais/Projetos"})
-                        )
-                        st.dataframe(df_tab, use_container_width=True, hide_index=True)
-
-                        df_top = df_br.sort_values("qtd", ascending=True).tail(20)
-                        fig_bar = px.bar(
-                            df_top, x="qtd", y="estado",
-                            orientation="h",
-                            labels={"qtd": "Editais/Projetos", "estado": "Estado"},
-                            color="qtd",
-                            color_continuous_scale=["#93c5fd", "#1e3a8a"],
-                            title="Top 20 estados por número de editais/projetos",
-                        )
-                        fig_bar.update_layout(
-                            height=420, template="plotly_white",
-                            showlegend=False, coloraxis_showscale=False,
-                            margin=dict(l=10, r=10, t=40, b=10),
-                        )
-                        st.plotly_chart(fig_bar, use_container_width=True)
-
-            elif tem_pais:
-                df_pais = (
-                    filtrado.groupby("pais", dropna=True)
-                    .size()
-                    .reset_index(name="qtd")
-                )
-                st.markdown("### Distribuição geográfica dos editais/projetos")
-                fig_pais = px.bar(
-                    df_pais.sort_values("qtd", ascending=False),
-                    x="pais", y="qtd",
-                    labels={"pais": "País", "qtd": "Editais/Projetos"},
-                    title="Editais/Projetos por país",
-                    color="qtd",
-                    color_continuous_scale=["#93c5fd", "#1e3a8a"],
-                )
-                fig_pais.update_layout(height=350, template="plotly_white",
-                                       showlegend=False, coloraxis_showscale=False)
-                st.plotly_chart(fig_pais, use_container_width=True)
-
-        except ImportError:
-            pass
 
 
 # =========================================================
