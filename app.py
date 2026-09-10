@@ -156,48 +156,28 @@ def aplicar_estilo_dark():
     /* ── SIDEBAR NAV MODERNO ── */
     .sb-divider {
         height: 1px; background: rgba(255,255,255,.1);
-        margin: 8px 0 16px;
+        margin: 4px 0 12px;
     }
-    .sb-nav-wrap { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
     .sb-group-label {
-        font-size: 0.62rem; font-weight: 700; letter-spacing: 0.1em;
-        text-transform: uppercase; color: rgba(255,255,255,.3);
-        padding: 10px 12px 4px; margin-top: 4px;
+        font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em;
+        text-transform: uppercase; color: rgba(255,255,255,.28);
+        padding: 12px 4px 4px;
     }
-    .sb-group-sep { height: 8px; }
-    .sb-nav-item {
-        display: flex; align-items: center; gap: 10px;
-        padding: 9px 12px; border-radius: 8px;
-        font-size: 0.875rem; font-weight: 400;
-        color: rgba(255,255,255,.62);
-        cursor: pointer; transition: background 140ms ease, color 140ms ease;
-        position: relative; margin: 1px 0;
+    .sb-group-sep { height: 4px; }
+    .sb-footer-sep {
+        height: 1px; background: rgba(255,255,255,.08);
+        margin: 8px 0;
     }
-    .sb-nav-item:hover {
-        background: rgba(255,255,255,.08);
-        color: rgba(255,255,255,.9);
-    }
-    .sb-nav-active {
-        background: rgba(255,255,255,.1) !important;
-        color: #fff !important; font-weight: 600;
-    }
-    .sb-nav-indicator {
-        position: absolute; left: 0; top: 20%; bottom: 20%;
-        width: 3px; border-radius: 0 3px 3px 0;
-        background: var(--fgv-bright);
-    }
-    /* Esconde os botões Streamlit que ficam por baixo do HTML de nav */
-    .sb-nav-wrap + div .stButton > button,
-    .sb-nav-wrap ~ div > div > div > div .stButton > button {
-        position: absolute !important; opacity: 0 !important;
-        pointer-events: none !important; height: 0 !important;
-        padding: 0 !important; margin: 0 !important;
-        border: none !important; min-height: 0 !important;
-    }
-    /* Rodapé da sidebar */
-    .sb-footer {
-        margin-top: auto; padding-top: 12px;
-        border-top: 1px solid rgba(255,255,255,.08);
+    /* Botão ativo — wrapper que sobrepõe o estilo do botão */
+    .sb-btn-active .stButton > button {
+        background: rgba(255,255,255,.12) !important;
+        color: #fff !important;
+        -webkit-text-fill-color: #fff !important;
+        font-weight: 600 !important;
+        border: none !important;
+        border-left: 3px solid var(--fgv-bright) !important;
+        border-radius: 0 8px 8px 0 !important;
+        box-shadow: none !important;
     }
     /*  NAV ITEM ATIVO  */
     .nav-ativo {
@@ -221,48 +201,28 @@ def aplicar_estilo_dark():
     /* ── SIDEBAR NAV MODERNO ── */
     .sb-divider {
         height: 1px; background: rgba(255,255,255,.1);
-        margin: 8px 0 16px;
+        margin: 4px 0 12px;
     }
-    .sb-nav-wrap { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
     .sb-group-label {
-        font-size: 0.62rem; font-weight: 700; letter-spacing: 0.1em;
-        text-transform: uppercase; color: rgba(255,255,255,.3);
-        padding: 10px 12px 4px; margin-top: 4px;
+        font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em;
+        text-transform: uppercase; color: rgba(255,255,255,.28);
+        padding: 12px 4px 4px;
     }
-    .sb-group-sep { height: 8px; }
-    .sb-nav-item {
-        display: flex; align-items: center; gap: 10px;
-        padding: 9px 12px; border-radius: 8px;
-        font-size: 0.875rem; font-weight: 400;
-        color: rgba(255,255,255,.62);
-        cursor: pointer; transition: background 140ms ease, color 140ms ease;
-        position: relative; margin: 1px 0;
+    .sb-group-sep { height: 4px; }
+    .sb-footer-sep {
+        height: 1px; background: rgba(255,255,255,.08);
+        margin: 8px 0;
     }
-    .sb-nav-item:hover {
-        background: rgba(255,255,255,.08);
-        color: rgba(255,255,255,.9);
-    }
-    .sb-nav-active {
-        background: rgba(255,255,255,.1) !important;
-        color: #fff !important; font-weight: 600;
-    }
-    .sb-nav-indicator {
-        position: absolute; left: 0; top: 20%; bottom: 20%;
-        width: 3px; border-radius: 0 3px 3px 0;
-        background: var(--fgv-bright);
-    }
-    /* Esconde os botões Streamlit que ficam por baixo do HTML de nav */
-    .sb-nav-wrap + div .stButton > button,
-    .sb-nav-wrap ~ div > div > div > div .stButton > button {
-        position: absolute !important; opacity: 0 !important;
-        pointer-events: none !important; height: 0 !important;
-        padding: 0 !important; margin: 0 !important;
-        border: none !important; min-height: 0 !important;
-    }
-    /* Rodapé da sidebar */
-    .sb-footer {
-        margin-top: auto; padding-top: 12px;
-        border-top: 1px solid rgba(255,255,255,.08);
+    /* Botão ativo — wrapper que sobrepõe o estilo do botão */
+    .sb-btn-active .stButton > button {
+        background: rgba(255,255,255,.12) !important;
+        color: #fff !important;
+        -webkit-text-fill-color: #fff !important;
+        font-weight: 600 !important;
+        border: none !important;
+        border-left: 3px solid var(--fgv-bright) !important;
+        border-radius: 0 8px 8px 0 !important;
+        box-shadow: none !important;
     }
     /*  SIDEBAR NAV RADIO  */
     section[data-testid="stSidebar"] div[role="radiogroup"] { gap: 2px !important; }
@@ -1919,18 +1879,19 @@ def menu_sidebar():
         perfil = st.session_state.perfil
         menu_atual = st.session_state.menu
 
-        # ── Logo ──
+        # Logo
         st.markdown("""
         <div class="sidebar-logo-wrap">
             <img src="data:image/png;base64,{logo}" class="sidebar-logo-img"/>
         </div>
+        <div class="sb-divider"></div>
         """.format(logo=get_base64_logo()), unsafe_allow_html=True)
 
-        # ── Separador ──
-        st.markdown('<div class="sb-divider"></div>', unsafe_allow_html=True)
-
-        # ── Monta grupos de navegação ──
-        grupo_consulta = ["Base de Prazos", "Análise de Prazos", "Projetos Concluídos"]             if perfil in ("ADMIN", "PMO") else ["Base de Prazos", "Projetos Concluídos"]
+        # Monta grupos
+        grupo_consulta = ["Base de Prazos"]
+        if perfil in ("ADMIN", "PMO"):
+            grupo_consulta += ["Análise de Prazos"]
+        grupo_consulta.append("Projetos Concluídos")
 
         grupo_operacional = []
         if perfil in ("ADMIN", "PMO", "COORDENADOR"):
@@ -1943,7 +1904,6 @@ def menu_sidebar():
                     grupo_operacional.append("Solicitações")
             else:
                 grupo_operacional.append("Solicitações")
-
         if perfil in ("ADMIN", "PMO"):
             grupo_operacional.append("Base de dados")
 
@@ -1951,40 +1911,30 @@ def menu_sidebar():
         if perfil == "ADMIN":
             grupo_conta.append("Usuários")
 
-        # ── Renderiza grupos com separadores e rótulos ──
         grupos = [
             ("Consulta", grupo_consulta),
             ("Operacional", grupo_operacional),
             ("Conta", grupo_conta),
         ]
 
-        import html as _html_sb
-        nav_items_html = ""
-        all_opcoes = []
-
         for grupo_label, grupo_itens in grupos:
             if not grupo_itens:
                 continue
-            nav_items_html += f'<div class="sb-group-label">{grupo_label}</div>'
+            st.markdown(f'<div class="sb-group-label">{grupo_label}</div>', unsafe_allow_html=True)
             for opcao in grupo_itens:
                 ativo = menu_atual == opcao or menu_atual.startswith(opcao.split(" (")[0])
-                cls = "sb-nav-item sb-nav-active" if ativo else "sb-nav-item"
-                indicador = '<span class="sb-nav-indicator"></span>' if ativo else ""
-                nav_items_html += f'<div class="{cls}" data-opcao="{_html_sb.escape(opcao)}">{indicador}{_html_sb.escape(opcao)}</div>'
-            all_opcoes.extend(grupo_itens)
-            nav_items_html += '<div class="sb-group-sep"></div>'
+                if ativo:
+                    st.markdown('<div class="sb-btn-active">', unsafe_allow_html=True)
+                if st.button(opcao, key=f"nav_{opcao}", use_container_width=True):
+                    if st.session_state.menu != opcao:
+                        st.session_state.menu = opcao
+                        st.rerun()
+                if ativo:
+                    st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('<div class="sb-group-sep"></div>', unsafe_allow_html=True)
 
-        st.markdown(f'<div class="sb-nav-wrap">{nav_items_html}</div>', unsafe_allow_html=True)
-
-        # Botões invisíveis para capturar cliques (Streamlit não permite onclick em HTML)
-        for opcao in all_opcoes:
-            if st.button(opcao, key=f"nav_{opcao}", use_container_width=True):
-                if st.session_state.menu != opcao:
-                    st.session_state.menu = opcao
-                    st.rerun()
-
-        # ── Rodapé: tema + sair ──
-        st.markdown('<div class="sb-footer">', unsafe_allow_html=True)
+        # Rodapé
+        st.markdown('<div class="sb-footer-sep"></div>', unsafe_allow_html=True)
         fc1, fc2, fc3 = st.columns([1, 1, 2])
         with fc1:
             if st.button("●" if tema_atual == "Light" else "○", key="btn_light", use_container_width=True):
@@ -1999,8 +1949,6 @@ def menu_sidebar():
         with fc3:
             if st.button("Sair", use_container_width=True, key="btn_sair_sidebar"):
                 logout()
-        st.markdown('</div>', unsafe_allow_html=True)
-
 
 # =========================================================
 # CONSULTA
