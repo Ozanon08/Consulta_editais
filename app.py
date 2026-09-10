@@ -2043,21 +2043,20 @@ def menu_sidebar():
             ("Configurações", grupo_conta),
         ]
 
-        for grupo_label, grupo_itens in grupos:
-            if not grupo_itens:
-                continue
-            st.markdown(f'<div class="sb-group-label">{grupo_label}</div>', unsafe_allow_html=True)
-            with st.container():
-                for opcao in grupo_itens:
-                    ativo = menu_atual == opcao or menu_atual.startswith(opcao.split(" (")[0])
-                    if ativo:
-                        st.markdown('<div class="sb-btn-active">', unsafe_allow_html=True)
-                    if st.button(opcao, key=f"nav_{opcao}", use_container_width=True):
-                        if st.session_state.menu != opcao:
-                            st.session_state.menu = opcao
-                            st.rerun()
-                    if ativo:
-                        st.markdown('</div>', unsafe_allow_html=True)
+        all_opcoes = []
+        for _, grupo_itens in grupos:
+            all_opcoes.extend(grupo_itens)
+
+        for opcao in all_opcoes:
+            ativo = menu_atual == opcao or menu_atual.startswith(opcao.split(" (")[0])
+            if ativo:
+                st.markdown('<div class="sb-btn-active">', unsafe_allow_html=True)
+            if st.button(opcao, key=f"nav_{opcao}", use_container_width=True):
+                if st.session_state.menu != opcao:
+                    st.session_state.menu = opcao
+                    st.rerun()
+            if ativo:
+                st.markdown('</div>', unsafe_allow_html=True)
 
         # Rodapé
         st.markdown('<div class="sb-footer-sep"></div>', unsafe_allow_html=True)
