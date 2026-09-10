@@ -2365,8 +2365,8 @@ def pagina_consulta():
 
         st.dataframe(df_exibicao.iloc[inicio:fim], use_container_width=True, hide_index=True)
 
-        # Controles paginação + exportação na mesma linha
-        pg1, pg2, pg3, pg4, pg5, _, dl1, dl2 = st.columns([1,1,3,1,1,1,1,1])
+        # Paginação
+        pg1, pg2, pg3, pg4, pg5 = st.columns([1, 1, 3, 1, 1])
         with pg1:
             if st.button("Primeira", use_container_width=True, disabled=pg_atual==1):
                 st.session_state["pagina_consulta"] = 1; st.rerun()
@@ -2385,13 +2385,16 @@ def pagina_consulta():
         with pg5:
             if st.button("Última", use_container_width=True, disabled=pg_atual==n_pages):
                 st.session_state["pagina_consulta"] = n_pages; st.rerun()
+
+        # Exportação em linha separada
         if pode_baixar_arquivos(st.session_state.perfil):
+            dl1, dl2, _ = st.columns([1, 1, 4])
             with dl1:
-                st.download_button("CSV", data=filtrado.to_csv(index=False).encode("utf-8-sig"),
+                st.download_button("Exportar CSV", data=filtrado.to_csv(index=False).encode("utf-8-sig"),
                                    file_name="consulta_editais.csv", mime="text/csv",
                                    use_container_width=True)
             with dl2:
-                st.download_button("Excel", data=to_excel_bytes(filtrado),
+                st.download_button("Exportar Excel", data=to_excel_bytes(filtrado),
                                    file_name="consulta_editais.xlsx",
                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                    use_container_width=True)
