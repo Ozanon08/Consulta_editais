@@ -3265,93 +3265,178 @@ def pagina_minha_conta():
 # USUÁRIOS
 # =========================================================
 def pagina_usuarios():
+    import html as _h_usr
     header_principal()
 
     if not pode_gerenciar_usuarios(st.session_state.perfil):
         st.error("Acesso restrito ao perfil ADMIN.")
         return
 
-    st.markdown('<div class="section-card">', unsafe_allow_html=True)
-    st.subheader("Criar novo usuário")
-
-    with st.form("form_novo_usuario", clear_on_submit=True):
-        novo_user = st.text_input("Usuário")
-        novo_email = st.text_input("E-mail")
-        nova_senha = st.text_input("Senha", type="password")
-        perfil = st.selectbox("Perfil", ["ADMIN", "PMO", "COORDENADOR", "GERAL"])
-        criar = st.form_submit_button("Criar usuário")
-
-    if criar:
-        if not novo_user.strip() or not nova_senha.strip():
-            st.warning("Preencha usuário e senha.")
-        elif not novo_email.strip():
-            st.warning("Preencha o e-mail do usuário.")
-        else:
-            ok_senha, msg_senha = validar_senha(nova_senha)
-            if not ok_senha:
-                st.warning(msg_senha)
-            else:
-                try:
-                    criar_usuario(novo_user, novo_email, nova_senha, perfil)
-                    st.success("Usuário criado com sucesso.")
-                    st.rerun()
-                except psycopg2.errors.UniqueViolation:
-                    st.error("Já existe um usuário com esse nome ou e-mail.")
-                except Exception as e:
-                    logger.error("Erro ao criar usuario: %s", e)
-                    st.error("Erro ao criar o usuário. Verifique se o nome ou e-mail já existe.")
-
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown('<div class="section-card">', unsafe_allow_html=True)
-    st.subheader("Usuários cadastrados")
+    cores_perfil = {
+        "ADMIN":       ("#fee2e2","#991b1b","#ef4444"),
+        "PMO":         ("#dbeafe","#1e40af","#3b82f6"),
+        "COORDENADOR": ("#fef3c7","#92400e","#f59e0b"),
+        "GERAL":       ("#f0fdf4","#166534","#10b981"),
+    }
 
     df_users = listar_usuarios()
-    if df_users.empty:
-        st.info("Nenhum usuário cadastrado.")
-    else:
-        df_exib = df_users.copy()
-        df_exib["ativo"] = df_exib["ativo"].map({1: "Sim", 0: "Não"})
-        st.dataframe(df_exib, use_container_width=True, hide_index=True)
 
-        st.markdown("### Gerenciar usuário")
-        c1, c2 = st.columns(2)
-        with c1:
-            user_id = st.selectbox(
-                "Usuário",
-                df_users["id"].tolist(),
-                format_func=lambda x: f"{x} - {df_users.loc[df_users['id'] == x, 'username'].values[0]}"
-            )
-        with c2:
-            status = st.selectbox("Novo status", ["Ativo", "Inativo"])
+    # ── Métricas ──
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
+    if not df_users.empty:
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Total de usuários", len(df_users))
+        m2.metric("Ativos", int(df_users["ativo"].sum()) if "ativo" in df_users.columns else "—")
+        m3.metric("Inativos", int((df_users["ativo"] == 0).sum()) if "ativo" in df_users.columns else "—")
+        perfis_unicos = df_users["perfil"].nunique() if "perfil" in df_users.columns else "—"
+        m4.metric("Perfis distintos", perfis_unicos)
 
-        c3, c4 = st.columns(2)
-        with c3:
-            if st.button("Salvar alteração de status", use_container_width=True):
-                alterar_status_usuario(user_id, 1 if status == "Ativo" else 0)
-                st.success("Status atualizado com sucesso.")
-                st.rerun()
+    # ── Abas ──
+    tab_lista, tab_novo = st.tabs(["Usuários cadastrados", "Criar novo usuário"])
 
-        with c4:
-            if st.button("Excluir usuário", use_container_width=True):
-                username_selecionado = df_users.loc[df_users["id"] == user_id, "username"].values[0]
-                if username_selecionado.upper() == st.session_state.usuario.upper():
-                    st.error("Você não pode excluir o próprio usuário logado.")
-                elif username_selecionado.upper() == "ADMIN":
-                    st.error("Não é permitido excluir o usuário ADMIN padrão.")
+    # ── TAB: Lista de usuários como cards ──
+    with tab_lista:
+        if df_users.empty:
+            st.info("Nenhum usuário cadastrado.")
+        else:
+            # Filtros
+            fa, fb = st.columns([2, 1])
+            with fa:
+                busca_usr = st.text_input("Buscar usuário", placeholder="Nome ou e-mail...",
+                                          label_visibility="collapsed")
+            with fb:
+                filtro_perfil = st.selectbox("Perfil", ["Todos","ADMIN","PMO","COORDENADOR","GERAL"],
+                                             label_visibility="collapsed")
+
+            df_view = df_users.copy()
+            if busca_usr:
+                mask = (df_view["username"].str.contains(busca_usr, case=False, na=False) |
+                        df_view.get("email", pd.Series(dtype=str)).str.contains(busca_usr, case=False, na=False))
+                df_view = df_view[mask]
+            if filtro_perfil != "Todos" and "perfil" in df_view.columns:
+                df_view = df_view[df_view["perfil"] == filtro_perfil]
+
+            st.markdown(f'<div style="height:8px;"></div>', unsafe_allow_html=True)
+
+            for _, row in df_view.iterrows():
+                uid      = int(row["id"])
+                uname    = str(row.get("username",""))
+                uemail   = str(row.get("email","") or "—")
+                uperfil  = str(row.get("perfil",""))
+                uativo   = row.get("ativo", 1)
+                inicial  = uname[0].upper() if uname else "U"
+                bg_p, fg_p, cor_av = cores_perfil.get(uperfil, ("#f1f5f9","#475569","#94a3b8"))
+                status_badge = (
+                    '<span style="background:#dcfce7;color:#166534;padding:2px 10px;'
+                    'border-radius:999px;font-size:11px;font-weight:600;">Ativo</span>'
+                    if uativo else
+                    '<span style="background:#f1f5f9;color:#64748b;padding:2px 10px;'
+                    'border-radius:999px;font-size:11px;font-weight:600;">Inativo</span>'
+                )
+                perfil_badge = (
+                    f'<span style="background:{bg_p};color:{fg_p};padding:2px 10px;'
+                    f'border-radius:999px;font-size:11px;font-weight:600;">{_h_usr.escape(uperfil)}</span>'
+                )
+                st.markdown(f"""
+                <div style="display:flex;align-items:center;gap:14px;
+                            border:1px solid var(--border-subtle);border-radius:10px;
+                            padding:12px 16px;background:var(--surface-1);margin-bottom:6px;">
+                    <div style="width:40px;height:40px;border-radius:50%;flex-shrink:0;
+                                background:linear-gradient(135deg,{cor_av},{cor_av}88);
+                                display:flex;align-items:center;justify-content:center;
+                                font-size:1rem;font-weight:700;color:#fff;">
+                        {_h_usr.escape(inicial)}
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:600;font-size:0.9rem;color:var(--ink-primary);">
+                            {_h_usr.escape(uname)}
+                        </div>
+                        <div style="font-size:0.78rem;color:var(--ink-secondary);">
+                            {_h_usr.escape(uemail)}
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        {perfil_badge} {status_badge}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Controles inline
+                is_self  = uname.upper() == st.session_state.usuario.upper()
+                is_admin = uname.upper() == "ADMIN"
+                if not is_self and not is_admin:
+                    cc1, cc2, cc3 = st.columns([3, 1, 1])
+                    with cc2:
+                        novo_status = 0 if uativo else 1
+                        label_btn = "Desativar" if uativo else "Ativar"
+                        if st.button(label_btn, key=f"ativ_{uid}", use_container_width=True):
+                            alterar_status_usuario(uid, novo_status)
+                            st.cache_data.clear()
+                            st.rerun()
+                    with cc3:
+                        if st.button("Excluir", key=f"excl_{uid}", use_container_width=True):
+                            excluir_usuario(uid)
+                            st.cache_data.clear()
+                            st.rerun()
+                st.markdown('<div style="height:2px;"></div>', unsafe_allow_html=True)
+
+    # ── TAB: Criar usuário ──
+    with tab_novo:
+        st.caption("Preencha os dados do novo usuário. A senha deve ter ao menos 8 caracteres, uma maiúscula, uma minúscula e um número.")
+        with st.form("form_novo_usuario", clear_on_submit=True):
+            c1, c2 = st.columns(2)
+            with c1:
+                novo_user  = st.text_input("Usuário *", placeholder="nome.sobrenome")
+                novo_email = st.text_input("E-mail *", placeholder="email@dominio.com")
+            with c2:
+                nova_senha = st.text_input("Senha *", type="password")
+                perfil_novo = st.selectbox("Perfil *", ["GERAL","COORDENADOR","PMO","ADMIN"])
+            criar = st.form_submit_button("Criar usuário", type="primary",
+                                          use_container_width=True)
+
+        if criar:
+            if not novo_user.strip() or not nova_senha.strip():
+                st.warning("Preencha usuário e senha.")
+            elif not novo_email.strip():
+                st.warning("Preencha o e-mail do usuário.")
+            else:
+                ok_senha, msg_senha = validar_senha(nova_senha)
+                if not ok_senha:
+                    st.warning(msg_senha)
                 else:
-                    excluir_usuario(user_id)
-                    st.success("Usuário excluído com sucesso.")
-                    st.rerun()
+                    try:
+                        criar_usuario(novo_user, novo_email, nova_senha, perfil_novo)
+                        st.success(f"Usuário '{novo_user}' criado com sucesso.")
+                        st.cache_data.clear()
+                        st.rerun()
+                    except psycopg2.errors.UniqueViolation:
+                        st.error("Já existe um usuário com esse nome ou e-mail.")
+                    except Exception as e:
+                        logger.error("Erro ao criar usuario: %s", e)
+                        st.error("Erro ao criar o usuário.")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
+    # ── Status do e-mail ──
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
-    st.subheader("Configuração de e-mail")
-    if all([SMTP_SERVER, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM]):
-        st.success("SMTP configurado. Os e-mails automáticos estão habilitados.")
-    else:
-        st.warning("SMTP não configurado. Defina SMTP_SERVER, SMTP_PORT, SMTP_USER, SMTP_PASSWORD e EMAIL_FROM como variáveis de ambiente.")
+    smtp_ok = all([SMTP_SERVER, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM])
+    st.markdown(f"""
+    <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;
+                    background:{'#10b981' if smtp_ok else '#f59e0b'};
+                    box-shadow:0 0 6px {'#10b981' if smtp_ok else '#f59e0b'}88;">
+        </div>
+        <div>
+            <div style="font-weight:600;font-size:0.88rem;color:var(--ink-primary);">
+                E-mail automático — {'Habilitado' if smtp_ok else 'Não configurado'}
+            </div>
+            <div style="font-size:0.78rem;color:var(--ink-secondary);">
+                {'SMTP configurado. Notificações de solicitações estão ativas.' if smtp_ok
+                 else 'Defina SMTP_SERVER, SMTP_PORT, SMTP_USER, SMTP_PASSWORD e EMAIL_FROM nos Secrets.'}
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 
