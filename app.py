@@ -271,20 +271,49 @@ def aplicar_estilo_dark():
 
         /*  HEADER  */
     .header-full-width {
-        background: linear-gradient(100deg, var(--fgv-navy) 0%, var(--fgv-blue) 50%, var(--fgv-mid) 100%);
-        padding: 28px 36px 24px; color: #fff; min-height: 128px;
-        border-bottom: 1px solid var(--border-strong);
+        background: linear-gradient(135deg, var(--fgv-navy) 0%, #112a50 60%, var(--fgv-blue) 100%);
+        padding: 0 36px; color: #fff; height: 68px;
+        border-bottom: 1px solid rgba(255,255,255,.07);
+        box-shadow: 0 1px 0 rgba(41,121,212,.25), 0 4px 24px rgba(0,0,0,.2);
+        position: relative; overflow: hidden;
     }
-    .header-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-    .header-text-block { flex: 1; min-width: 0; }
-    .header-logo-block { flex-shrink: 0; display: flex; align-items: center; }
-    .header-logo-full { height: 64px; max-width: 240px; object-fit: contain; opacity: .95; }
-    .header-title { font-size: 1.75rem; font-weight: 700; color: #fff; margin-bottom: 6px; letter-spacing: -0.02em; line-height: 1.2; }
-    .header-subtitle { font-size: 0.9rem; color: rgba(255,255,255,.75); margin-bottom: 12px; }
+    .header-full-width::before {
+        content: "";
+        position: absolute; inset: 0;
+        background: radial-gradient(ellipse at 72% 50%, rgba(41,121,212,.2) 0%, transparent 62%);
+        pointer-events: none;
+    }
+    .header-inner {
+        display: flex; align-items: center;
+        justify-content: space-between; height: 100%;
+        position: relative; z-index: 1;
+    }
+    .header-left { display: flex; align-items: center; gap: 20px; }
+    .header-text-block { display: flex; flex-direction: column; gap: 1px; }
+    .header-logo-block { display: flex; align-items: center; }
+    .header-logo-full { height: 34px; width: auto; object-fit: contain; opacity: .9; display: block; }
+    .header-divider { width: 1px; height: 26px; background: rgba(255,255,255,.18); flex-shrink: 0; }
+    .header-title { font-size: 0.92rem; font-weight: 600; color: #fff; letter-spacing: -0.01em; line-height: 1.3; white-space: nowrap; }
+    .header-subtitle { font-size: 0.68rem; color: rgba(255,255,255,.45); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500; }
+    .header-right { display: flex; align-items: center; gap: 12px; }
     .header-profile {
-        display: inline-flex; align-items: center; gap: 6px;
-        background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.15);
-        padding: 5px 12px; border-radius: 999px; font-size: 0.85rem; color: #fff;
+        display: inline-flex; align-items: center; gap: 8px;
+        background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12);
+        padding: 6px 14px 6px 8px; border-radius: 999px;
+        font-size: 0.78rem; color: rgba(255,255,255,.85);
+        transition: background 160ms ease, border-color 160ms ease;
+        cursor: default;
+    }
+    .header-profile:hover { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.22); }
+    .header-avatar {
+        width: 22px; height: 22px; border-radius: 50%;
+        background: linear-gradient(135deg, var(--fgv-accent), var(--fgv-bright));
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 0.6rem; font-weight: 700; color: #fff; flex-shrink: 0; text-transform: uppercase;
+    }
+    .header-page-name {
+        font-size: 0.68rem; font-weight: 600; color: rgba(255,255,255,.38);
+        letter-spacing: 0.07em; text-transform: uppercase;
     }
 
     /*  SECTION CARDS  */
@@ -579,22 +608,51 @@ def aplicar_estilo_light():
     }
     section[data-testid="stSidebar"] .stButton > button:hover { background: var(--fgv-mid) !important; }
 
-    /*  HEADER  */
+        /*  HEADER  */
     .header-full-width {
-        background: linear-gradient(100deg, var(--fgv-navy) 0%, var(--fgv-blue) 50%, var(--fgv-mid) 100%);
-        padding: 28px 36px 24px; color: #fff; min-height: 128px;
-        border-bottom: 2px solid rgba(255,255,255,.08);
+        background: linear-gradient(135deg, var(--fgv-navy) 0%, #112a50 60%, var(--fgv-blue) 100%);
+        padding: 0 36px; color: #fff; height: 68px;
+        border-bottom: 1px solid rgba(255,255,255,.07);
+        box-shadow: 0 1px 0 rgba(41,121,212,.25), 0 4px 24px rgba(0,0,0,.2);
+        position: relative; overflow: hidden;
     }
-    .header-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-    .header-text-block { flex: 1; min-width: 0; }
-    .header-logo-block { flex-shrink: 0; display: flex; align-items: center; }
-    .header-logo-full { height: 64px; max-width: 240px; object-fit: contain; opacity: .95; }
-    .header-title { font-size: 1.75rem; font-weight: 700; color: #fff; margin-bottom: 6px; letter-spacing: -0.02em; line-height: 1.2; }
-    .header-subtitle { font-size: 0.9rem; color: rgba(255,255,255,.78); margin-bottom: 12px; }
+    .header-full-width::before {
+        content: "";
+        position: absolute; inset: 0;
+        background: radial-gradient(ellipse at 72% 50%, rgba(41,121,212,.2) 0%, transparent 62%);
+        pointer-events: none;
+    }
+    .header-inner {
+        display: flex; align-items: center;
+        justify-content: space-between; height: 100%;
+        position: relative; z-index: 1;
+    }
+    .header-left { display: flex; align-items: center; gap: 20px; }
+    .header-text-block { display: flex; flex-direction: column; gap: 1px; }
+    .header-logo-block { display: flex; align-items: center; }
+    .header-logo-full { height: 34px; width: auto; object-fit: contain; opacity: .9; display: block; }
+    .header-divider { width: 1px; height: 26px; background: rgba(255,255,255,.18); flex-shrink: 0; }
+    .header-title { font-size: 0.92rem; font-weight: 600; color: #fff; letter-spacing: -0.01em; line-height: 1.3; white-space: nowrap; }
+    .header-subtitle { font-size: 0.68rem; color: rgba(255,255,255,.45); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500; }
+    .header-right { display: flex; align-items: center; gap: 12px; }
     .header-profile {
-        display: inline-flex; align-items: center; gap: 6px;
-        background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.18);
-        padding: 5px 12px; border-radius: 999px; font-size: 0.85rem; color: #fff;
+        display: inline-flex; align-items: center; gap: 8px;
+        background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12);
+        padding: 6px 14px 6px 8px; border-radius: 999px;
+        font-size: 0.78rem; color: rgba(255,255,255,.85);
+        transition: background 160ms ease, border-color 160ms ease;
+        cursor: default;
+    }
+    .header-profile:hover { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.22); }
+    .header-avatar {
+        width: 22px; height: 22px; border-radius: 50%;
+        background: linear-gradient(135deg, var(--fgv-accent), var(--fgv-bright));
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 0.6rem; font-weight: 700; color: #fff; flex-shrink: 0; text-transform: uppercase;
+    }
+    .header-page-name {
+        font-size: 0.68rem; font-weight: 600; color: rgba(255,255,255,.38);
+        letter-spacing: 0.07em; text-transform: uppercase;
     }
 
     /*  SECTION CARDS  */
@@ -1611,17 +1669,32 @@ def header_principal():
     esconder_elementos_streamlit()
     logo_b64 = get_base64_logo_completo()
 
+    import html as _html_esc
+    usuario_safe = _html_esc.escape(str(st.session_state.get("usuario", "")))
+    perfil_safe  = _html_esc.escape(str(st.session_state.get("perfil", "")))
+    menu_safe    = _html_esc.escape(str(st.session_state.get("menu", "Portal")))
+    inicial = usuario_safe[0].upper() if usuario_safe else "U"
+
     st.markdown(
         f"""
         <div class="header-full-width">
             <div class="header-inner">
-                <div class="header-text-block">
-                    <div class="header-title">Consulta e busca de novos editais</div>
-                    <div class="header-subtitle">Para calculo de prazo completo, entrar em contato com FGV PMO</div>
-                    <div class="header-profile"><b>Perfil ativo:</b> {st.session_state.usuario}</div>
+                <div class="header-left">
+                    <div class="header-logo-block">
+                        <img src="data:image/png;base64,{logo_b64}" class="header-logo-full"/>
+                    </div>
+                    <div class="header-divider"></div>
+                    <div class="header-text-block">
+                        <div class="header-title">Portal de Editais/Projetos</div>
+                        <div class="header-subtitle">FGV &middot; Project Management Office</div>
+                    </div>
                 </div>
-                <div class="header-logo-block">
-                    <img src="data:image/png;base64,{logo_b64}" class="header-logo-full"/>
+                <div class="header-right">
+                    <div class="header-page-name">{menu_safe}</div>
+                    <div class="header-profile">
+                        <div class="header-avatar">{inicial}</div>
+                        {usuario_safe}
+                    </div>
                 </div>
             </div>
         </div>
