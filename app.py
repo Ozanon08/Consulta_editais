@@ -130,15 +130,6 @@ def aplicar_estilo_dark():
         visibility: visible !important;
     }
     section[data-testid="stSidebar"] .stButton > button {
-        height: 24px !important; padding: 0 !important; font-size: 12px !important;
-        border-radius: var(--radius-sm) !important; background: var(--fgv-accent) !important;
-        color: #fff !important; border: none !important; font-weight: 600 !important; box-shadow: none !important;
-    }
-    section[data-testid="stSidebar"] .stButton > button:hover { background: var(--fgv-mid) !important; }
-
-
-    /*  NAV MENU (light)  */
-    section[data-testid="stSidebar"] .stButton > button {
         background: rgba(255,255,255,0.06) !important;
         color: rgba(255,255,255,0.85) !important;
         -webkit-text-fill-color: rgba(255,255,255,0.85) !important;
@@ -787,14 +778,6 @@ def aplicar_estilo_light():
         display: block !important;
         visibility: visible !important;
     }
-    section[data-testid="stSidebar"] .stButton > button {
-        height: 24px !important; padding: 0 !important; font-size: 12px !important;
-        border-radius: var(--radius-sm) !important; background: var(--fgv-accent) !important;
-        color: #fff !important; -webkit-text-fill-color: #fff !important;
-        border: none !important; font-weight: 600 !important; box-shadow: none !important;
-    }
-    section[data-testid="stSidebar"] .stButton > button:hover { background: var(--fgv-mid) !important; }
-
         /*  HEADER  */
     .header-full-width {
         background: linear-gradient(135deg, var(--fgv-navy) 0%, #112a50 60%, var(--fgv-blue) 100%);
@@ -2119,19 +2102,39 @@ def menu_sidebar():
         menu_atual = st.session_state.menu
 
         # Logo
-        _logo_b64 = get_base64_logo_completo() or get_base64_logo()
-        if _logo_b64:
-            st.markdown(f"""
-            <div class="sidebar-logo-wrap">
-                <img src="data:image/png;base64,{_logo_b64}" class="sidebar-logo-img"
-                     style="display:block!important;visibility:visible!important;
-                            width:200px;max-width:100%;object-fit:contain;
-                            filter:brightness(0) invert(1);opacity:0.92;"/>
-            </div>
-            <div class="sb-divider"></div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown('<div class="sb-divider"></div>', unsafe_allow_html=True)
+        # Logo via st.image — funciona em todos os temas
+        try:
+            import base64 as _b64, os as _os
+            _paths = ["assets/FGV_PMO_LOGO_COMPLETO.png", "assets/fgv pmo logo.png"]
+            _img_path = next((p for p in _paths if _os.path.exists(p)), None)
+            if _img_path:
+                from PIL import Image as _PILImage
+                import io as _io
+                _img = _PILImage.open(_img_path).convert("RGBA")
+                # Inverte para branco (fundo transparente preservado)
+                _r, _g, _b, _a = _img.split()
+                _white = _PILImage.new("RGBA", _img.size, (255,255,255,0))
+                _white.paste(_PILImage.merge("RGBA", [
+                    _PILImage.eval(_r, lambda x: 255),
+                    _PILImage.eval(_g, lambda x: 255),
+                    _PILImage.eval(_b, lambda x: 255),
+                    _a
+                ]), mask=_a)
+                _buf = _io.BytesIO()
+                _white.save(_buf, format="PNG")
+                _buf.seek(0)
+                st.image(_buf, use_container_width=True)
+            else:
+                st.markdown("**FGV PMO**")
+        except Exception:
+            # Fallback simples se PIL não disponível
+            _logo_b64 = get_base64_logo_completo() or get_base64_logo()
+            if _logo_b64:
+                st.markdown(f'<div style="text-align:center;padding:8px 0;">' +
+                            f'<img src="data:image/png;base64,{_logo_b64}" ' +
+                            f'style="width:180px;filter:brightness(0) invert(1);"/></div>',
+                            unsafe_allow_html=True)
+        st.markdown('<div class="sb-divider"></div>', unsafe_allow_html=True)
 
         # Monta grupos
         grupo_consulta = ["Base de Prazos"]
