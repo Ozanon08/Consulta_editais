@@ -2963,8 +2963,10 @@ def pagina_base():
                 """, unsafe_allow_html=True)
                 c1, c2, c3 = st.columns(3)
                 with c1:
-                    ne_tema = st.selectbox("Tema *", [""] + temas_ref)
-                    ne_subtema = st.text_input("Subtema *")
+                    ne_tema = st.text_input("Tema *",
+                        placeholder="Ex: Infraestrutura Urbana e Industrial")
+                    ne_subtema = st.text_input("Subtema *",
+                        placeholder="Ex: Pavimentação Estadual")
                 with c2:
                     ne_nome_edital = st.text_input("Nome do edital *")
                     ne_pais = st.text_input("País", value="Brasil")
@@ -4326,26 +4328,16 @@ def pagina_projetos_concluidos():
 
             # ── Sub-aba: Cadastrar manualmente ──
             with sub_manual:
-                conn_view = get_conn()
-                try:
-                    df_temas = pd.read_sql_query(
-                        "SELECT DISTINCT tema, subtema FROM vw_consulta_editais "
-                        "WHERE tema IS NOT NULL ORDER BY tema, subtema", conn_view)
-                except Exception:
-                    df_temas = pd.DataFrame(columns=["tema","subtema"])
-                finally:
-                    conn_view.close()
-
-                temas_disp = sorted(df_temas["tema"].dropna().unique().tolist())
+                temas_disp = []  # texto livre — não precisa carregar lista
                 pc1, pc2 = st.columns(2)
                 with pc1:
-                    tema_proj = st.selectbox("Tema", [""]+temas_disp, key="pc_form_tema")
+                    tema_proj = st.text_input("Tema",
+                        placeholder="Ex: Infraestrutura Urbana e Industrial",
+                        key="pc_form_tema")
                 with pc2:
-                    subtemas_disp = (sorted(df_temas[df_temas["tema"]==tema_proj]
-                                     ["subtema"].dropna().unique().tolist())
-                                     if tema_proj else [])
-                    subtema_proj = st.selectbox("Subtema", [""]+subtemas_disp,
-                                                key="pc_form_subtema")
+                    subtema_proj = st.text_input("Subtema",
+                        placeholder="Ex: Edificação",
+                        key="pc_form_subtema")
 
                 with st.form("form_proj_concluido", clear_on_submit=True):
                     st.markdown("""
