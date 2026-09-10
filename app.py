@@ -114,7 +114,7 @@ def aplicar_estilo_dark():
         transform: none !important;
     }
     .sidebar-logo-wrap { display: flex; justify-content: center; padding: 2px 0 10px; }
-    .sidebar-logo-img { width: 220px; max-width: 100%; object-fit: contain; }
+    .sidebar-logo-img { width: 220px; max-width: 100%; object-fit: contain; filter: brightness(0) invert(1); }
     section[data-testid="stSidebar"] .stButton > button {
         height: 24px !important; padding: 0 !important; font-size: 12px !important;
         border-radius: var(--radius-sm) !important; background: var(--fgv-accent) !important;
@@ -766,7 +766,7 @@ def aplicar_estilo_light():
         transform: none !important;
     }
     .sidebar-logo-wrap { display: flex; justify-content: center; padding: 2px 0 10px; }
-    .sidebar-logo-img { width: 220px; max-width: 100%; object-fit: contain; filter: brightness(1.3); }
+    .sidebar-logo-img { width: 220px; max-width: 100%; object-fit: contain; filter: brightness(0) invert(1); }
     section[data-testid="stSidebar"] .stButton > button {
         height: 24px !important; padding: 0 !important; font-size: 12px !important;
         border-radius: var(--radius-sm) !important; background: var(--fgv-accent) !important;
