@@ -1364,7 +1364,7 @@ def processar_upload_planilha(arquivo):
         "Tema": "tema", "Subtema": "subtema", "Serviços": "servicos",
         "País": "pais", "Estado": "estado", "Município": "municipio",
         "Nome Edital": "nome_edital", "Descrição": "descricao", "Esforço": "esforco",
-        "Unidade": "unidade", "Prazo (meses)": "prazo_meses",
+        "Unidade": "unidade", "Prazo de Execução (meses)": "prazo_meses",
         "Tipo de Edital": "tipo_edital", "Código Planilha": "codigo_planilha",
         "Fonte de Dados": "fonte_dado", "OBS": "observacao",
         "Custo de Execução": "custo_execucao", "Data edital (mês/ano)": "data_edital",
@@ -2314,9 +2314,9 @@ def pagina_consulta():
             "esforco":"Parâmetro","unidade":"Unidade",
             "esforco2":"esforco2","unidade2":"unidade2",
             "servicos":"Serviços",
-            "custo_execucao":"Custo Inicial (R$)","custo":"Custo Inicial (R$)",
+            "custo_execucao":"Custo Inicial de Execução (R$)","custo":"Custo Inicial de Execução(R$)",
             "prazo_meses":"Prazo (meses)","data_edital":"Data do edital",
-            "fonte_dado":"URL"
+            "fonte_dado":"Fonte de dado/URL"
         }
         df_exibicao = df_exibicao.rename(columns={k:v for k,v in mapa_colunas.items() if k in df_exibicao.columns})
 
@@ -2342,15 +2342,15 @@ def pagina_consulta():
                     v = corrigir_ipca(float(custo), str(data_b)[:7], data_ref_bd, ipca_bd)
                     return fmt_brl(v) if v else ""
                 except Exception: return ""
-            df_exibicao["Custo Recalculado com base no IPCA (R$)"] = filtrado.apply(_corrigir_linha, axis=1)
+            df_exibicao["Custo de Execução Recalculado com base no IPCA (R$)"] = filtrado.apply(_corrigir_linha, axis=1)
         else:
-            df_exibicao["Custo Recalculado com base no IPCA (R$)"] = ""
+            df_exibicao["Custo de Execução Recalculado com base no IPCA (R$)"] = ""
 
-        if "Custo Inicial (R$)" in df_exibicao.columns and "Custo Recalculado com base no IPCA (R$)" in df_exibicao.columns:
+        if "Custo Inicial (R$)" in df_exibicao.columns and "Custo de Execução Recalculado com base no IPCA (R$)" in df_exibicao.columns:
             cols = list(df_exibicao.columns)
             idx_custo = cols.index("Custo Inicial (R$)")
-            cols.remove("Custo Recalculado com base no IPCA (R$)")
-            cols.insert(idx_custo + 1, "Custo Recalculado com base no IPCA (R$)")
+            cols.remove("Custo de Execução Recalculado com base no IPCA (R$)")
+            cols.insert(idx_custo + 1, "Custo de Execução Recalculado com base no IPCA (R$)")
             df_exibicao = df_exibicao[cols]
 
         # Paginação
@@ -2383,9 +2383,9 @@ def pagina_consulta():
                 help="Unidade de medida referente ao 2° parâmetro."
             ),
         }
-        if "Custo Recalculado com base no IPCA (R$)" in df_exibicao.columns:
-            _col_cfg_consulta["Custo Recalculado com base no IPCA (R$)"] = st.column_config.TextColumn(
-                "Custo Recalculado com base no IPCA (R$)",
+        if "Custo de Execução Recalculado com base no IPCA (R$)" in df_exibicao.columns:
+            _col_cfg_consulta["Custo de Execução Recalculado com base no IPCA (R$)"] = st.column_config.TextColumn(
+                "Custo de Execução Recalculado com base no IPCA (R$)",
                 help="Corrige o custo inicial pelo IPCA acumulado desde a data do edital ate o mes atual. Formula: Valor x PI(1 + IPCA_mes/100) para cada mes entre a data base e hoje. Fonte: Banco Central do Brasil, serie SGS 433."
             )
         st.dataframe(df_exibicao.iloc[inicio:fim], use_container_width=True,
