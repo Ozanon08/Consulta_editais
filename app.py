@@ -2592,111 +2592,154 @@ def pagina_consulta():
 # SOLICITAÇÕES
 # =========================================================
 def pagina_solicitacoes():
+    import html as _html_sol
     header_principal()
 
+    def badge_status(s):
+        cores = {
+            "PENDENTE":    ("#fef3c7","#92400e","#f59e0b"),
+            "EM ANÁLISE":  ("#dbeafe","#1e40af","#3b82f6"),
+            "CONCLUÍDA":   ("#dcfce7","#166534","#10b981"),
+            "RECUSADA":    ("#fee2e2","#991b1b","#ef4444"),
+        }
+        s_safe = s if s in cores else "DESCONHECIDO"
+        bg, fg, _ = cores.get(s_safe, ("#f1f5f9","#475569","#94a3b8"))
+        return (f'<span style="background:{bg};color:{fg};padding:3px 12px;'
+                f'border-radius:999px;font-size:11px;font-weight:700;'
+                f'letter-spacing:0.04em;">{_html_sol.escape(s_safe)}</span>')
+
+    def sol_card(row):
+        import html as _h
+        sid    = int(row["id"])
+        tema_s = _h.escape(str(row.get("tema_solicitado", "")))
+        desc_s = _h.escape(str(row.get("descricao", "") or ""))
+        sol_s  = _h.escape(str(row.get("solicitante", "")))
+        data_s = str(row.get("data_solicitacao", ""))[:10]
+        status = str(row.get("status", ""))
+        badge  = badge_status(status)
+        cores_borda = {
+            "PENDENTE": "#f59e0b", "EM ANÁLISE": "#3b82f6",
+            "CONCLUÍDA": "#10b981", "RECUSADA": "#ef4444",
+        }
+        cor = cores_borda.get(status, "#94a3b8")
+        desc_html = (f'<div style="color:#64748b;font-size:0.82rem;margin-bottom:4px;">{desc_s}</div>'
+                     if desc_s else "")
+        st.markdown(f"""
+        <div style="border:1px solid #e2e8f0;border-left:4px solid {cor};
+                    border-radius:10px;padding:14px 16px;background:#fff;margin-bottom:2px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+                <div style="flex:1;min-width:0;">
+                    <div style="font-weight:700;color:#0f172a;font-size:0.92rem;margin-bottom:3px;">
+                        #{sid} &nbsp;·&nbsp; {tema_s}
+                    </div>
+                    {desc_html}
+                    <div style="color:#94a3b8;font-size:0.75rem;">{sol_s} &nbsp;·&nbsp; {data_s}</div>
+                </div>
+                <div style="flex-shrink:0;padding-top:2px;">{badge}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ── Nova solicitação ──
     if pode_solicitar(st.session_state.perfil):
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.subheader("Solicitar busca de novos editais/projetos")
-
+        st.subheader("Nova solicitação")
+        st.caption("Descreva o tema que deseja pesquisar. A equipe PMO será notificada.")
         with st.form("form_solicitacao_tema", clear_on_submit=True):
-            tema = st.text_input("Tema da pesquisa")
-            descricao = st.text_area("Descrição complementar", placeholder="Explique melhor o tema, palavras-chave, região, observações...")
-            enviar = st.form_submit_button("Enviar solicitação")
-
+            tema = st.text_input("Tema da pesquisa",
+                                 placeholder="Ex: Pavimentação urbana, Saneamento rural...")
+            descricao = st.text_area("Descrição complementar (opcional)",
+                                     placeholder="Palavras-chave, região de interesse, observações...",
+                                     height=90)
+            enviar = st.form_submit_button("Enviar solicitação", use_container_width=True)
         if enviar:
             if not tema.strip():
                 st.warning("Informe o tema da pesquisa.")
             else:
                 solicitacao_id = inserir_solicitacao(
-                    tema=tema,
-                    descricao=descricao,
-                    solicitante=st.session_state.usuario,
-                    perfil=st.session_state.perfil
-                )
-                ok_email, msg_email = enviar_email_nova_solicitacao_para_admins(
-                    tema=tema,
-                    descricao=descricao,
+                    tema=tema, descricao=descricao,
                     solicitante=st.session_state.usuario,
                     perfil=st.session_state.perfil,
-                    solicitacao_id=solicitacao_id
                 )
-                if ok_email:
-                    st.success("Solicitação registrada com sucesso e notificação enviada aos administradores.")
-                else:
-                    st.success("Solicitação registrada com sucesso.")
-                    st.info(f"Aviso sobre e-mail: {msg_email}")
+                ok_email, _ = enviar_email_nova_solicitacao_para_admins(
+                    tema=tema, descricao=descricao,
+                    solicitante=st.session_state.usuario,
+                    perfil=st.session_state.perfil,
+                    solicitacao_id=solicitacao_id,
+                )
+                st.success("Solicitação registrada e notificação enviada." if ok_email
+                           else "Solicitação registrada.")
+                st.cache_data.clear()
                 st.rerun()
-
         st.markdown('</div>', unsafe_allow_html=True)
 
+    # ── Painel ADMIN/PMO: cards com controle inline ──
     if pode_ver_solicitacoes(st.session_state.perfil):
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.subheader("Solicitações recebidas")
-
         df_sol = listar_solicitacoes()
-        if df_sol.empty:
-            st.info("Nenhuma solicitação cadastrada.")
-        else:
-            st.dataframe(df_sol, use_container_width=True, hide_index=True)
-            st.markdown("### Atualizar status")
-            c1, c2 = st.columns(2)
-            with c1:
-                ids = df_sol["id"].tolist()
-                solicitacao_id = st.selectbox("ID da solicitação", ids)
-            with c2:
-                novo_status = st.selectbox("Novo status", ["PENDENTE", "EM ANÁLISE", "CONCLUÍDA", "RECUSADA"])
 
-            if st.button("Salvar status"):
-                dados_sol = obter_solicitacao_por_id(solicitacao_id)
-                if not dados_sol:
-                    st.error("Solicitação não encontrada.")
-                else:
-                    _, tema_solicitado, _, solicitante, _, _, _ = dados_sol
-                    atualizar_status_solicitacao(solicitacao_id, novo_status)
-                    ok_email, msg_email = enviar_email_atualizacao_status_para_admins(
-                        solicitacao_id=solicitacao_id,
-                        tema=tema_solicitado,
-                        solicitante=solicitante,
-                        novo_status=novo_status
+        ha, hb = st.columns([3, 1])
+        with ha:
+            st.subheader("Solicitações recebidas")
+        with hb:
+            filtro = st.selectbox("Filtrar", ["Todas","PENDENTE","EM ANÁLISE","CONCLUÍDA","RECUSADA"],
+                                  key="sol_filtro", label_visibility="collapsed")
+
+        df_view = df_sol if filtro == "Todas" else df_sol[df_sol["status"] == filtro]
+
+        n_pend = len(df_sol[df_sol["status"] == "PENDENTE"])
+        if n_pend:
+            st.markdown(
+                f'<div style="display:inline-flex;align-items:center;gap:6px;'
+                f'background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;'
+                f'padding:6px 14px;font-size:0.82rem;color:#92400e;font-weight:600;'
+                f'margin-bottom:12px;">{n_pend} pendente(s) aguardando análise</div>',
+                unsafe_allow_html=True,
+            )
+
+        if df_view.empty:
+            st.info("Nenhuma solicitação encontrada.")
+        else:
+            for _, row in df_view.iterrows():
+                sol_card(row)
+                sid = int(row["id"])
+                _, cc2, cc3 = st.columns([3, 2, 1])
+                with cc2:
+                    novo_status = st.selectbox(
+                        "Status", ["PENDENTE","EM ANÁLISE","CONCLUÍDA","RECUSADA"],
+                        index=(["PENDENTE","EM ANÁLISE","CONCLUÍDA","RECUSADA"].index(row["status"])
+                               if row["status"] in ["PENDENTE","EM ANÁLISE","CONCLUÍDA","RECUSADA"] else 0),
+                        key=f"status_{sid}", label_visibility="collapsed",
                     )
-                    if ok_email:
-                        st.success("Status atualizado e e-mail enviado aos administradores.")
-                    else:
-                        st.success("Status atualizado.")
-                        st.info(f"Aviso sobre e-mail: {msg_email}")
-                    st.rerun()
+                with cc3:
+                    if st.button("Salvar", key=f"salvar_{sid}", use_container_width=True):
+                        dados_sol = obter_solicitacao_por_id(sid)
+                        if dados_sol:
+                            _, tema_sol, _, sol_name, _, _, _ = dados_sol
+                            atualizar_status_solicitacao(sid, novo_status)
+                            enviar_email_atualizacao_status_para_admins(
+                                solicitacao_id=sid, tema=tema_sol,
+                                solicitante=sol_name, novo_status=novo_status,
+                            )
+                            st.cache_data.clear()
+                            st.rerun()
+                st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
 
         st.markdown('</div>', unsafe_allow_html=True)
-    #  Histórico próprio (todos os perfis veem suas solicitações)
+
+    # ── Minhas solicitações ──
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
     st.subheader("Minhas solicitações")
     df_todas = listar_solicitacoes()
-    df_minhas = df_todas[df_todas["solicitante"].str.upper() == st.session_state.usuario.upper()].copy()
+    df_minhas = df_todas[
+        df_todas["solicitante"].str.upper() == st.session_state.usuario.upper()
+    ].copy()
     if df_minhas.empty:
         st.info("Você ainda não possui solicitações registradas.")
     else:
-        # Badges de status coloridos
-        def badge_status(s):
-            import html as _html
-            cores = {"PENDENTE": ("#fef3c7","#92400e"), "EM ANÁLISE": ("#dbeafe","#1e40af"),
-                     "CONCLUÍDA": ("#dcfce7","#166534"), "RECUSADA": ("#fee2e2","#991b1b")}
-            # Só aceita valores conhecidos — fallback seguro para qualquer outro valor
-            s_safe = s if s in cores else "DESCONHECIDO"
-            bg, fg = cores.get(s_safe, ("#f1f5f9","#475569"))
-            return f'<span style="background:{bg};color:{fg};padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;">{_html.escape(s_safe)}</span>'
-
-        st.markdown(f"**{len(df_minhas)}** solicitação(ões) encontrada(s)")
+        st.caption(f"{len(df_minhas)} solicitação(ões) registrada(s)")
         for _, row in df_minhas.iterrows():
-            with st.expander(f"#{row['id']} — {row['tema_solicitado']}  |  {row['data_solicitacao'][:10]}"):
-                col_a, col_b = st.columns([2,1])
-                with col_a:
-                    st.markdown(f"**Tema:** {row['tema_solicitado']}")
-                    if row.get('descricao'):
-                        st.markdown(f"**Descrição:** {row['descricao']}")
-                    st.markdown(f"**Data:** {row['data_solicitacao']}")
-                with col_b:
-                    st.markdown(f"**Status:**", unsafe_allow_html=False)
-                    st.markdown(badge_status(row['status']), unsafe_allow_html=True)
+            sol_card(row)
     st.markdown('</div>', unsafe_allow_html=True)
 
 
