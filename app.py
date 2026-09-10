@@ -2123,7 +2123,7 @@ def menu_sidebar():
                 _buf = _io.BytesIO()
                 _white.save(_buf, format="PNG")
                 _buf.seek(0)
-                st.image(_buf, use_container_width=True)
+                st.image(_buf, width=180)
             else:
                 st.markdown("**FGV PMO**")
         except Exception:
