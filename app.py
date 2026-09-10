@@ -161,39 +161,39 @@ def aplicar_estilo_dark():
     .sb-group-label {
         font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em;
         text-transform: uppercase; color: rgba(255,255,255,.3);
-        padding: 0 2px 5px;
+        padding: 0 2px 4px; margin-top: 6px;
     }
-    .sb-group-box {
-        background: rgba(0,0,0,.15);
-        border: 1px solid rgba(255,255,255,.07);
-        border-radius: 10px;
-        padding: 4px;
-        margin-bottom: 8px;
-    }
-    .sb-group-box .stButton > button {
+    /* Botões de nav menores e alinhados à esquerda */
+    section[data-testid="stSidebar"] .stButton > button {
         background: transparent !important;
         color: rgba(255,255,255,.65) !important;
         -webkit-text-fill-color: rgba(255,255,255,.65) !important;
         border: none !important;
         border-radius: 7px !important;
-        font-size: 0.8rem !important;
+        font-size: 0.82rem !important;
         font-weight: 400 !important;
-        padding: 6px 10px !important;
+        padding: 7px 10px !important;
         height: auto !important;
         min-height: 0 !important;
         box-shadow: none !important;
         transform: none !important;
         text-align: left !important;
         justify-content: flex-start !important;
+        margin: 1px 0 !important;
+        display: flex !important;
+        width: 100% !important;
+        visibility: visible !important;
+        opacity: 1 !important;
     }
-    .sb-group-box .stButton > button:hover {
+    section[data-testid="stSidebar"] .stButton > button:hover {
         background: rgba(255,255,255,.08) !important;
         color: #fff !important;
         -webkit-text-fill-color: #fff !important;
         transform: none !important;
     }
+    /* Botão ativo */
     .sb-btn-active .stButton > button {
-        background: rgba(255,255,255,.13) !important;
+        background: rgba(255,255,255,.12) !important;
         color: #fff !important;
         -webkit-text-fill-color: #fff !important;
         font-weight: 600 !important;
@@ -202,11 +202,21 @@ def aplicar_estilo_dark():
         box-shadow: none !important;
         transform: none !important;
     }
-    .sb-group-sep { height: 2px; }
+    /* Tema e sair ficam menores */
     .sb-footer-sep {
         height: 1px; background: rgba(255,255,255,.08);
-        margin: 8px 0;
+        margin: 10px 0 6px;
     }
+    /* Remove espaços extras entre botões */
+    section[data-testid="stSidebar"] .stButton {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"] {
+        gap: 0 !important;
+    }
+    /* Caixa visual por grupo via JS */
+    .sb-group-end { margin-bottom: 8px; }
     /*  NAV ITEM ATIVO  */
     .nav-ativo {
         background: rgba(255,255,255,0.15) !important;
@@ -234,39 +244,39 @@ def aplicar_estilo_dark():
     .sb-group-label {
         font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em;
         text-transform: uppercase; color: rgba(255,255,255,.3);
-        padding: 0 2px 5px;
+        padding: 0 2px 4px; margin-top: 6px;
     }
-    .sb-group-box {
-        background: rgba(0,0,0,.15);
-        border: 1px solid rgba(255,255,255,.07);
-        border-radius: 10px;
-        padding: 4px;
-        margin-bottom: 8px;
-    }
-    .sb-group-box .stButton > button {
+    /* Botões de nav menores e alinhados à esquerda */
+    section[data-testid="stSidebar"] .stButton > button {
         background: transparent !important;
         color: rgba(255,255,255,.65) !important;
         -webkit-text-fill-color: rgba(255,255,255,.65) !important;
         border: none !important;
         border-radius: 7px !important;
-        font-size: 0.8rem !important;
+        font-size: 0.82rem !important;
         font-weight: 400 !important;
-        padding: 6px 10px !important;
+        padding: 7px 10px !important;
         height: auto !important;
         min-height: 0 !important;
         box-shadow: none !important;
         transform: none !important;
         text-align: left !important;
         justify-content: flex-start !important;
+        margin: 1px 0 !important;
+        display: flex !important;
+        width: 100% !important;
+        visibility: visible !important;
+        opacity: 1 !important;
     }
-    .sb-group-box .stButton > button:hover {
+    section[data-testid="stSidebar"] .stButton > button:hover {
         background: rgba(255,255,255,.08) !important;
         color: #fff !important;
         -webkit-text-fill-color: #fff !important;
         transform: none !important;
     }
+    /* Botão ativo */
     .sb-btn-active .stButton > button {
-        background: rgba(255,255,255,.13) !important;
+        background: rgba(255,255,255,.12) !important;
         color: #fff !important;
         -webkit-text-fill-color: #fff !important;
         font-weight: 600 !important;
@@ -275,11 +285,21 @@ def aplicar_estilo_dark():
         box-shadow: none !important;
         transform: none !important;
     }
-    .sb-group-sep { height: 2px; }
+    /* Tema e sair ficam menores */
     .sb-footer-sep {
         height: 1px; background: rgba(255,255,255,.08);
-        margin: 8px 0;
+        margin: 10px 0 6px;
     }
+    /* Remove espaços extras entre botões */
+    section[data-testid="stSidebar"] .stButton {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"] {
+        gap: 0 !important;
+    }
+    /* Caixa visual por grupo via JS */
+    .sb-group-end { margin-bottom: 8px; }
     /*  SIDEBAR NAV RADIO  */
     section[data-testid="stSidebar"] div[role="radiogroup"] { gap: 2px !important; }
     section[data-testid="stSidebar"] label[data-testid="stWidgetLabel"] { display: none !important; }
@@ -1747,6 +1767,43 @@ def esconder_elementos_streamlit():
     (function() {
         function removeUnwanted() {
             // Sem remoção de botões — botão de colapso da sidebar é mantido
+
+            // Agrupa botões de nav em caixas visuais
+            function groupNavButtons() {
+                var sidebar = document.querySelector('[data-testid="stSidebar"]');
+                if (!sidebar) return;
+                // Remove caixas anteriores para não duplicar
+                sidebar.querySelectorAll('.sb-group-box-js').forEach(function(el) {
+                    var parent = el.parentNode;
+                    while (el.firstChild) parent.insertBefore(el.firstChild, el);
+                    parent.removeChild(el);
+                });
+                // Encontra todos os rótulos de grupo
+                var labels = sidebar.querySelectorAll('.sb-group-label');
+                labels.forEach(function(label) {
+                    var box = document.createElement('div');
+                    box.className = 'sb-group-box-js';
+                    box.style.cssText = 'background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:4px;margin-bottom:10px;';
+                    label.parentNode.insertBefore(box, label.nextSibling);
+                    // Move próximos irmãos (botões) para dentro da caixa até o próximo rótulo ou separador
+                    var next = box.nextSibling;
+                    while (next && !next.classList?.contains('sb-group-label') && !next.classList?.contains('sb-footer-sep')) {
+                        var toMove = next;
+                        next = next.nextSibling;
+                        // Só move se contiver um botão
+                        if (toMove.querySelector && toMove.querySelector('button')) {
+                            box.appendChild(toMove);
+                        }
+                    }
+                });
+            }
+            setTimeout(groupNavButtons, 300);
+            setTimeout(groupNavButtons, 800);
+            var navObserver = new MutationObserver(function() { groupNavButtons(); });
+            setTimeout(function() {
+                var sidebar = document.querySelector('[data-testid="stSidebar"]');
+                if (sidebar) navObserver.observe(sidebar, { childList: true, subtree: false });
+            }, 500);
         }
         removeUnwanted();
         setTimeout(removeUnwanted, 500);
@@ -1969,7 +2026,7 @@ def menu_sidebar():
 
         grupos = [
             ("Consulta", grupo_consulta),
-            ("Monitoramento", grupo_operacional),
+            ("Gestão", grupo_operacional),
             ("Configurações", grupo_conta),
         ]
 
@@ -1977,7 +2034,6 @@ def menu_sidebar():
             if not grupo_itens:
                 continue
             st.markdown(f'<div class="sb-group-label">{grupo_label}</div>', unsafe_allow_html=True)
-            st.markdown('<div class="sb-group-box">', unsafe_allow_html=True)
             for opcao in grupo_itens:
                 ativo = menu_atual == opcao or menu_atual.startswith(opcao.split(" (")[0])
                 if ativo:
@@ -1988,7 +2044,6 @@ def menu_sidebar():
                         st.rerun()
                 if ativo:
                     st.markdown('</div>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
 
         # Rodapé
         st.markdown('<div class="sb-footer-sep"></div>', unsafe_allow_html=True)
