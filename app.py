@@ -379,6 +379,93 @@ def aplicar_estilo_dark():
     div[data-baseweb="option"][aria-selected="true"] {
         background: rgba(41,121,212,.25) !important;
     }
+
+    /* =========================================================
+       MOTION SYSTEM - corporativo-premium, ease-out-quart
+       Reduced-motion: crossfade simples, sem transform
+    ========================================================= */
+    @keyframes fgv-fade-up {
+        from { opacity: 0; transform: translateY(14px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fgv-fade-in {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+    }
+    @keyframes fgv-slide-right {
+        from { opacity: 0; transform: translateX(-10px); }
+        to   { opacity: 1; transform: translateX(0); }
+    }
+    :root {
+        --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+        --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
+        --dur-fast: 160ms;
+        --dur-base: 260ms;
+        --dur-slow: 400ms;
+    }
+    section.main .block-container > div {
+        animation: fgv-fade-up var(--dur-slow) var(--ease-out-expo) both;
+    }
+    section.main .block-container > div:nth-child(1) { animation-delay: 0ms; }
+    section.main .block-container > div:nth-child(2) { animation-delay: 40ms; }
+    section.main .block-container > div:nth-child(3) { animation-delay: 80ms; }
+    section.main .block-container > div:nth-child(4) { animation-delay: 120ms; }
+    section.main .block-container > div:nth-child(5) { animation-delay: 160ms; }
+    section.main .block-container > div:nth-child(6) { animation-delay: 200ms; }
+    section.main .block-container > div:nth-child(7) { animation-delay: 240ms; }
+    section.main .block-container > div:nth-child(8) { animation-delay: 280ms; }
+    section[data-testid="stSidebar"] > div:first-child {
+        animation: fgv-slide-right var(--dur-slow) var(--ease-out-expo) both;
+    }
+    .section-card {
+        animation: fgv-fade-up var(--dur-base) var(--ease-out-quart) both;
+        transition: box-shadow var(--dur-fast) var(--ease-out-quart), border-color var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    .section-card:hover {
+        box-shadow: 0 4px 20px rgba(11,31,58,.12) !important;
+        border-color: var(--border-strong) !important;
+    }
+    div[data-testid="stMetric"] {
+        animation: fgv-fade-up var(--dur-base) var(--ease-out-quart) both;
+        transition: box-shadow var(--dur-fast) var(--ease-out-quart), transform var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    div[data-testid="stMetric"]:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(11,31,58,.1) !important;
+    }
+    .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {
+        transition: background var(--dur-fast) var(--ease-out-quart), box-shadow var(--dur-fast) var(--ease-out-quart), transform var(--dur-fast) var(--ease-out-quart), border-color var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    section[data-testid="stSidebar"] .stButton > button {
+        transition: background var(--dur-fast) var(--ease-out-quart), color var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    div[data-testid="stDataFrame"] {
+        animation: fgv-fade-in var(--dur-base) var(--ease-out-quart) both;
+    }
+    div[data-testid="stExpander"] {
+        transition: box-shadow var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    div[data-testid="stExpander"]:hover {
+        box-shadow: 0 2px 12px rgba(11,31,58,.08) !important;
+    }
+    div[data-baseweb="select"] > div {
+        transition: border-color var(--dur-fast) var(--ease-out-quart), box-shadow var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    .header-full-width {
+        animation: fgv-fade-in var(--dur-slow) var(--ease-out-expo) both;
+    }
+    div[data-testid="stAlert"] {
+        animation: fgv-fade-up var(--dur-base) var(--ease-out-quart) both;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        @keyframes fgv-fade-up    { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fgv-fade-in    { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fgv-slide-right { from { opacity: 0; } to { opacity: 1; } }
+        :root { --dur-fast: 80ms; --dur-base: 120ms; --dur-slow: 160ms; }
+        div[data-testid="stMetric"]:hover { transform: none !important; }
+        .stButton > button:hover { transform: none !important; }
+    }
+
     /*  TABLE  */
     div[data-testid="stDataFrame"] { background: var(--surface-1) !important; border: 1px solid var(--border) !important; border-radius: var(--radius-md) !important; }
     div[data-testid="stDataFrame"] div[role="grid"] { background: var(--surface-1) !important; }
@@ -629,6 +716,93 @@ def aplicar_estilo_light():
         color: var(--fgv-blue) !important;
         font-weight: 600 !important;
     }
+
+    /* =========================================================
+       MOTION SYSTEM - corporativo-premium, ease-out-quart
+       Reduced-motion: crossfade simples, sem transform
+    ========================================================= */
+    @keyframes fgv-fade-up {
+        from { opacity: 0; transform: translateY(14px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fgv-fade-in {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+    }
+    @keyframes fgv-slide-right {
+        from { opacity: 0; transform: translateX(-10px); }
+        to   { opacity: 1; transform: translateX(0); }
+    }
+    :root {
+        --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+        --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
+        --dur-fast: 160ms;
+        --dur-base: 260ms;
+        --dur-slow: 400ms;
+    }
+    section.main .block-container > div {
+        animation: fgv-fade-up var(--dur-slow) var(--ease-out-expo) both;
+    }
+    section.main .block-container > div:nth-child(1) { animation-delay: 0ms; }
+    section.main .block-container > div:nth-child(2) { animation-delay: 40ms; }
+    section.main .block-container > div:nth-child(3) { animation-delay: 80ms; }
+    section.main .block-container > div:nth-child(4) { animation-delay: 120ms; }
+    section.main .block-container > div:nth-child(5) { animation-delay: 160ms; }
+    section.main .block-container > div:nth-child(6) { animation-delay: 200ms; }
+    section.main .block-container > div:nth-child(7) { animation-delay: 240ms; }
+    section.main .block-container > div:nth-child(8) { animation-delay: 280ms; }
+    section[data-testid="stSidebar"] > div:first-child {
+        animation: fgv-slide-right var(--dur-slow) var(--ease-out-expo) both;
+    }
+    .section-card {
+        animation: fgv-fade-up var(--dur-base) var(--ease-out-quart) both;
+        transition: box-shadow var(--dur-fast) var(--ease-out-quart), border-color var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    .section-card:hover {
+        box-shadow: 0 4px 20px rgba(11,31,58,.12) !important;
+        border-color: var(--border-strong) !important;
+    }
+    div[data-testid="stMetric"] {
+        animation: fgv-fade-up var(--dur-base) var(--ease-out-quart) both;
+        transition: box-shadow var(--dur-fast) var(--ease-out-quart), transform var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    div[data-testid="stMetric"]:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(11,31,58,.1) !important;
+    }
+    .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {
+        transition: background var(--dur-fast) var(--ease-out-quart), box-shadow var(--dur-fast) var(--ease-out-quart), transform var(--dur-fast) var(--ease-out-quart), border-color var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    section[data-testid="stSidebar"] .stButton > button {
+        transition: background var(--dur-fast) var(--ease-out-quart), color var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    div[data-testid="stDataFrame"] {
+        animation: fgv-fade-in var(--dur-base) var(--ease-out-quart) both;
+    }
+    div[data-testid="stExpander"] {
+        transition: box-shadow var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    div[data-testid="stExpander"]:hover {
+        box-shadow: 0 2px 12px rgba(11,31,58,.08) !important;
+    }
+    div[data-baseweb="select"] > div {
+        transition: border-color var(--dur-fast) var(--ease-out-quart), box-shadow var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    .header-full-width {
+        animation: fgv-fade-in var(--dur-slow) var(--ease-out-expo) both;
+    }
+    div[data-testid="stAlert"] {
+        animation: fgv-fade-up var(--dur-base) var(--ease-out-quart) both;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        @keyframes fgv-fade-up    { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fgv-fade-in    { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fgv-slide-right { from { opacity: 0; } to { opacity: 1; } }
+        :root { --dur-fast: 80ms; --dur-base: 120ms; --dur-slow: 160ms; }
+        div[data-testid="stMetric"]:hover { transform: none !important; }
+        .stButton > button:hover { transform: none !important; }
+    }
+
     /*  TABLE  */
     div[data-testid="stDataFrame"] { background: #fff !important; border: 1px solid var(--border) !important; border-radius: var(--radius-md) !important; }
     div[data-testid="stDataFrame"] div[role="grid"] { background: #fff !important; }
@@ -1035,6 +1209,12 @@ def processar_upload_planilha(arquivo):
         return None if s in ("", "-", "nan", "None", "NaN", "<NA>") else s
 
     def upsert(table, nome):
+        _TABELAS_PERMITIDAS = {
+            "tema", "subtema", "pais", "estado", "municipio",
+            "tipo_edital", "unidade", "fonte_dado", "servico"
+        }
+        if table not in _TABELAS_PERMITIDAS:
+            raise ValueError(f"Tabela não permitida: {table}")
         nome = limpar(nome)
         if not nome:
             return None
@@ -2160,10 +2340,13 @@ def pagina_solicitacoes():
     else:
         # Badges de status coloridos
         def badge_status(s):
+            import html as _html
             cores = {"PENDENTE": ("#fef3c7","#92400e"), "EM ANÁLISE": ("#dbeafe","#1e40af"),
                      "CONCLUÍDA": ("#dcfce7","#166534"), "RECUSADA": ("#fee2e2","#991b1b")}
-            bg, fg = cores.get(s, ("#f1f5f9","#475569"))
-            return f'<span style="background:{bg};color:{fg};padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;">{s}</span>'
+            # Só aceita valores conhecidos — fallback seguro para qualquer outro valor
+            s_safe = s if s in cores else "DESCONHECIDO"
+            bg, fg = cores.get(s_safe, ("#f1f5f9","#475569"))
+            return f'<span style="background:{bg};color:{fg};padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;">{_html.escape(s_safe)}</span>'
 
         st.markdown(f"**{len(df_minhas)}** solicitação(ões) encontrada(s)")
         for _, row in df_minhas.iterrows():
@@ -2193,6 +2376,12 @@ def _inserir_edital_individual(tema, subtema, pais, estado, municipio,
     cur = conn.cursor()
 
     def upsert(table, nome):
+        _TABELAS_PERMITIDAS = {
+            "tema", "subtema", "pais", "estado", "municipio",
+            "tipo_edital", "unidade", "fonte_dado", "servico"
+        }
+        if table not in _TABELAS_PERMITIDAS:
+            raise ValueError(f"Tabela não permitida: {table}")
         if not nome:
             return None
         cur.execute(f"SELECT id FROM {table} WHERE nome = %s", (nome,))
@@ -2778,6 +2967,8 @@ def kerzner_total_para_projeto(subtema: str, esforco) -> dict | None:
     import math
 
     def _buscar_df(campo, valor):
+        if campo not in ("subtema", "tema"):
+            raise ValueError(f"Campo não permitido: {campo}")
         conn = get_conn()
         try:
             return pd.read_sql_query(f"""
