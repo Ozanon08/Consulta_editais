@@ -2363,7 +2363,15 @@ def pagina_consulta():
         inicio = (pg_atual - 1) * PAGE_SIZE
         fim = min(inicio + PAGE_SIZE, total)
 
-        st.dataframe(df_exibicao.iloc[inicio:fim], use_container_width=True, hide_index=True)
+        _col_cfg_consulta = {}
+        if "Custo Recalculado com base no IPCA (R$)" in df_exibicao.columns:
+            import streamlit as _st
+            _col_cfg_consulta["Custo Recalculado com base no IPCA (R$)"] = _st.column_config.TextColumn(
+                "Custo Recalculado com base no IPCA (R$)",
+                help="Corrige o custo inicial pelo IPCA acumulado desde a data do edital ate o mes atual. Formula: Valor x PI(1 + IPCA_mes/100) para cada mes entre a data base e hoje. Fonte: Banco Central do Brasil, serie SGS 433."
+            )
+        st.dataframe(df_exibicao.iloc[inicio:fim], use_container_width=True,
+                     hide_index=True, column_config=_col_cfg_consulta if _col_cfg_consulta else None)
 
         # Paginação
         pg1, pg2, pg3, pg4, pg5 = st.columns([1, 1, 3, 1, 1])
@@ -4066,7 +4074,14 @@ def pagina_projetos_concluidos():
             df_show = df_tabela[
                 [c for c in colunas_exib if c in df_tabela.columns]
             ].rename(columns=rename_map)
-            st.dataframe(df_show, use_container_width=True, hide_index=True)
+            _col_cfg_proj = {}
+            if "Custo corr. IPCA" in df_show.columns:
+                _col_cfg_proj["Custo corr. IPCA"] = st.column_config.TextColumn(
+                    "Custo corr. IPCA",
+                    help="Corrige o custo inicial pelo IPCA acumulado desde a data do edital ate o mes atual. Formula: Valor x PI(1 + IPCA_mes/100) para cada mes entre a data base e hoje. Fonte: Banco Central do Brasil, serie SGS 433."
+                )
+            st.dataframe(df_show, use_container_width=True, hide_index=True,
+                         column_config=_col_cfg_proj if _col_cfg_proj else None)
 
             # Legenda visual
             st.markdown("""
@@ -5156,7 +5171,7 @@ def pagina_analise_prazos():
     df_filt = df_edit if tema_sel == "Todos" else df_edit[df_edit["tema"] == tema_sel]
     with cf2:
         subtemas = sorted(df_filt["subtema"].dropna().unique().tolist())
-        subtema_sel = st.selectbox("Subtema (Obrigatório)",
+        subtema_sel = st.selectbox("Subtema (opcional)",
                                    ["Todos"] + subtemas, key="ap_subtema")
     if tema_sel == "Todos" and subtema_sel == "Todos":
         st.info("Selecione ao menos um Tema ou Subtema para iniciar a análise.")
