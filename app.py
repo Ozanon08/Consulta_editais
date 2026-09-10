@@ -156,28 +156,56 @@ def aplicar_estilo_dark():
     /* ── SIDEBAR NAV MODERNO ── */
     .sb-divider {
         height: 1px; background: rgba(255,255,255,.1);
-        margin: 4px 0 12px;
+        margin: 4px 0 10px;
     }
     .sb-group-label {
-        font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em;
-        text-transform: uppercase; color: rgba(255,255,255,.28);
-        padding: 12px 4px 4px;
+        font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em;
+        text-transform: uppercase; color: rgba(255,255,255,.3);
+        padding: 0 2px 5px;
     }
-    .sb-group-sep { height: 4px; }
-    .sb-footer-sep {
-        height: 1px; background: rgba(255,255,255,.08);
-        margin: 8px 0;
+    .sb-group-box {
+        background: rgba(0,0,0,.15);
+        border: 1px solid rgba(255,255,255,.07);
+        border-radius: 10px;
+        padding: 4px;
+        margin-bottom: 8px;
     }
-    /* Botão ativo — wrapper que sobrepõe o estilo do botão */
+    .sb-group-box .stButton > button {
+        background: transparent !important;
+        color: rgba(255,255,255,.65) !important;
+        -webkit-text-fill-color: rgba(255,255,255,.65) !important;
+        border: none !important;
+        border-radius: 7px !important;
+        font-size: 0.8rem !important;
+        font-weight: 400 !important;
+        padding: 6px 10px !important;
+        height: auto !important;
+        min-height: 0 !important;
+        box-shadow: none !important;
+        transform: none !important;
+        text-align: left !important;
+        justify-content: flex-start !important;
+    }
+    .sb-group-box .stButton > button:hover {
+        background: rgba(255,255,255,.08) !important;
+        color: #fff !important;
+        -webkit-text-fill-color: #fff !important;
+        transform: none !important;
+    }
     .sb-btn-active .stButton > button {
-        background: rgba(255,255,255,.12) !important;
+        background: rgba(255,255,255,.13) !important;
         color: #fff !important;
         -webkit-text-fill-color: #fff !important;
         font-weight: 600 !important;
-        border: none !important;
-        border-left: 3px solid var(--fgv-bright) !important;
-        border-radius: 0 8px 8px 0 !important;
+        border-left: 2px solid var(--fgv-bright) !important;
+        border-radius: 0 7px 7px 0 !important;
         box-shadow: none !important;
+        transform: none !important;
+    }
+    .sb-group-sep { height: 2px; }
+    .sb-footer-sep {
+        height: 1px; background: rgba(255,255,255,.08);
+        margin: 8px 0;
     }
     /*  NAV ITEM ATIVO  */
     .nav-ativo {
@@ -201,28 +229,56 @@ def aplicar_estilo_dark():
     /* ── SIDEBAR NAV MODERNO ── */
     .sb-divider {
         height: 1px; background: rgba(255,255,255,.1);
-        margin: 4px 0 12px;
+        margin: 4px 0 10px;
     }
     .sb-group-label {
-        font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em;
-        text-transform: uppercase; color: rgba(255,255,255,.28);
-        padding: 12px 4px 4px;
+        font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em;
+        text-transform: uppercase; color: rgba(255,255,255,.3);
+        padding: 0 2px 5px;
     }
-    .sb-group-sep { height: 4px; }
-    .sb-footer-sep {
-        height: 1px; background: rgba(255,255,255,.08);
-        margin: 8px 0;
+    .sb-group-box {
+        background: rgba(0,0,0,.15);
+        border: 1px solid rgba(255,255,255,.07);
+        border-radius: 10px;
+        padding: 4px;
+        margin-bottom: 8px;
     }
-    /* Botão ativo — wrapper que sobrepõe o estilo do botão */
+    .sb-group-box .stButton > button {
+        background: transparent !important;
+        color: rgba(255,255,255,.65) !important;
+        -webkit-text-fill-color: rgba(255,255,255,.65) !important;
+        border: none !important;
+        border-radius: 7px !important;
+        font-size: 0.8rem !important;
+        font-weight: 400 !important;
+        padding: 6px 10px !important;
+        height: auto !important;
+        min-height: 0 !important;
+        box-shadow: none !important;
+        transform: none !important;
+        text-align: left !important;
+        justify-content: flex-start !important;
+    }
+    .sb-group-box .stButton > button:hover {
+        background: rgba(255,255,255,.08) !important;
+        color: #fff !important;
+        -webkit-text-fill-color: #fff !important;
+        transform: none !important;
+    }
     .sb-btn-active .stButton > button {
-        background: rgba(255,255,255,.12) !important;
+        background: rgba(255,255,255,.13) !important;
         color: #fff !important;
         -webkit-text-fill-color: #fff !important;
         font-weight: 600 !important;
-        border: none !important;
-        border-left: 3px solid var(--fgv-bright) !important;
-        border-radius: 0 8px 8px 0 !important;
+        border-left: 2px solid var(--fgv-bright) !important;
+        border-radius: 0 7px 7px 0 !important;
         box-shadow: none !important;
+        transform: none !important;
+    }
+    .sb-group-sep { height: 2px; }
+    .sb-footer-sep {
+        height: 1px; background: rgba(255,255,255,.08);
+        margin: 8px 0;
     }
     /*  SIDEBAR NAV RADIO  */
     section[data-testid="stSidebar"] div[role="radiogroup"] { gap: 2px !important; }
@@ -1913,14 +1969,15 @@ def menu_sidebar():
 
         grupos = [
             ("Consulta", grupo_consulta),
-            ("Operacional", grupo_operacional),
-            ("Conta", grupo_conta),
+            ("Monitoramento", grupo_operacional),
+            ("Configurações", grupo_conta),
         ]
 
         for grupo_label, grupo_itens in grupos:
             if not grupo_itens:
                 continue
             st.markdown(f'<div class="sb-group-label">{grupo_label}</div>', unsafe_allow_html=True)
+            st.markdown('<div class="sb-group-box">', unsafe_allow_html=True)
             for opcao in grupo_itens:
                 ativo = menu_atual == opcao or menu_atual.startswith(opcao.split(" (")[0])
                 if ativo:
@@ -1931,7 +1988,7 @@ def menu_sidebar():
                         st.rerun()
                 if ativo:
                     st.markdown('</div>', unsafe_allow_html=True)
-            st.markdown('<div class="sb-group-sep"></div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
         # Rodapé
         st.markdown('<div class="sb-footer-sep"></div>', unsafe_allow_html=True)
