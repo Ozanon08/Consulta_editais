@@ -225,11 +225,23 @@ def aplicar_estilo_dark():
         margin: 0 !important;
         padding: 0 !important;
     }
-    section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"] {
+    /* Zero gap em todos os filhos da sidebar */
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
         gap: 0 !important;
     }
-    /* Caixa visual por grupo via JS */
-    .sb-group-end { margin-bottom: 8px; }
+    /* O div vazio do sb-btn-active não deve ocupar espaço */
+    section[data-testid="stSidebar"] .sb-btn-active {
+        display: contents !important;
+    }
+    /* Paragraphs vazios gerados pelo st.markdown não ocupam espaço */
+    section[data-testid="stSidebar"] p:empty,
+    section[data-testid="stSidebar"] div.stMarkdown:empty,
+    section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"]:has(div:empty) {
+        display: none !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
     /*  NAV ITEM ATIVO  */
     .nav-ativo {
         background: rgba(255,255,255,0.15) !important;
@@ -308,11 +320,23 @@ def aplicar_estilo_dark():
         margin: 0 !important;
         padding: 0 !important;
     }
-    section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlock"] {
+    /* Zero gap em todos os filhos da sidebar */
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
         gap: 0 !important;
     }
-    /* Caixa visual por grupo via JS */
-    .sb-group-end { margin-bottom: 8px; }
+    /* O div vazio do sb-btn-active não deve ocupar espaço */
+    section[data-testid="stSidebar"] .sb-btn-active {
+        display: contents !important;
+    }
+    /* Paragraphs vazios gerados pelo st.markdown não ocupam espaço */
+    section[data-testid="stSidebar"] p:empty,
+    section[data-testid="stSidebar"] div.stMarkdown:empty,
+    section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"]:has(div:empty) {
+        display: none !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
     /*  SIDEBAR NAV RADIO  */
     section[data-testid="stSidebar"] div[role="radiogroup"] { gap: 2px !important; }
     section[data-testid="stSidebar"] label[data-testid="stWidgetLabel"] { display: none !important; }
