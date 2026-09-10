@@ -1959,13 +1959,14 @@ def tela_login():
     .lp-logo img {{ height: 68px; width: auto; object-fit: contain; }}
 
 
-    /* Card branco que sobe sobre o fundo navy */
+    /* Wrapper que centraliza card+form como bloco único */
     .lp-card-wrap {{
         background: #e8eef6;
         display: flex; justify-content: center;
         padding: 0 24px 0;
         margin-top: -1px;
     }}
+    /* Card do título — faz parte do mesmo bloco visual do form */
     .lp-card {{
         width: 100%; max-width: 400px;
         background: #ffffff;
@@ -1974,6 +1975,19 @@ def tela_login():
         margin-top: -24px;
         box-shadow: none;
         position: relative; z-index: 1;
+        box-sizing: border-box;
+    }}
+    /* Form alinhado com o card */
+    .stForm {{
+        background: #ffffff !important;
+        width: 100% !important;
+        max-width: 400px !important;
+        margin: -8px auto 0 !important;
+        padding: 0 28px 24px !important;
+        border: none !important;
+        border-radius: 0 0 16px 16px !important;
+        box-shadow: 0 8px 32px rgba(11,31,58,0.12) !important;
+        box-sizing: border-box !important;
     }}
     .lp-title {{
         color: #0b1f3a; font-size: 1.25rem; font-weight: 700;
@@ -2023,18 +2037,8 @@ def tela_login():
     }}
 
     /* Rodapé em azul escuro (fundo claro) */
-    /* Form unificado com o card — mesmo bloco visual */
     section.main .block-container > div > div > div {{
         background: transparent !important;
-    }}
-    .stForm {{
-        background: #ffffff !important;
-        max-width: 400px !important;
-        margin: -8px auto 0 !important;
-        padding: 0 28px 24px !important;
-        border: none !important;
-        border-radius: 0 0 16px 16px !important;
-        box-shadow: 0 8px 32px rgba(11,31,58,0.12) !important;
     }}
     .stForm > div {{ border: none !important; }}
     .lp-footer {{
