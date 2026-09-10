@@ -129,6 +129,20 @@ def aplicar_estilo_dark():
         display: block !important;
         visibility: visible !important;
     }
+    /* Remove padding do st.image na sidebar */
+    section[data-testid="stSidebar"] [data-testid="stImage"] {
+        padding: 0 !important;
+        margin: 0 !important;
+        line-height: 0 !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stImage"] > div {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stImage"] img {
+        display: block !important;
+        margin: 0 auto !important;
+    }
     section[data-testid="stSidebar"] .stButton > button {
         background: rgba(255,255,255,0.06) !important;
         color: rgba(255,255,255,0.85) !important;
@@ -2053,13 +2067,44 @@ def menu_sidebar():
 
         # Logo
         # Logo — HTML com filtro CSS (mesmo padrão do light)
+        import os as _os
+        _tema_atual_logo = st.session_state.get("tema_visual", "Light")
         _logo_b64 = get_base64_logo_completo() or get_base64_logo()
-        if _logo_b64:
-            st.markdown(f"""
-            <div class="sidebar-logo-wrap">
-                <img src="data:image/png;base64,{_logo_b64}" class="sidebar-logo-img"/>
-            </div>
-            """, unsafe_allow_html=True)
+        if _tema_atual_logo == "Dark":
+            # No dark, usa st.image com PIL para garantir visibilidade
+            try:
+                from PIL import Image as _PIL
+                import io as _io
+                _paths = ["assets/FGV_PMO_LOGO_COMPLETO.png", "assets/fgv pmo logo.png"]
+                _img_path = next((p for p in _paths if _os.path.exists(p)), None)
+                if _img_path:
+                    _img = _PIL.open(_img_path).convert("RGBA")
+                    _r, _g, _b_ch, _a = _img.split()
+                    _new_img = _PIL.merge("RGBA", [
+                        _PIL.eval(_r, lambda x: 255),
+                        _PIL.eval(_g, lambda x: 255),
+                        _PIL.eval(_b_ch, lambda x: 255),
+                        _a
+                    ])
+                    _buf = _io.BytesIO()
+                    _new_img.save(_buf, format="PNG")
+                    _buf.seek(0)
+                    col_l, col_c, col_r = st.columns([1, 4, 1])
+                    with col_c:
+                        st.image(_buf, use_container_width=True)
+            except Exception:
+                if _logo_b64:
+                    st.markdown(f'<div style="text-align:center;padding:8px 0 4px;">' +
+                                f'<img src="data:image/png;base64,{_logo_b64}" ' +
+                                f'style="width:180px;filter:brightness(0) invert(1);display:block;margin:0 auto;"/></div>',
+                                unsafe_allow_html=True)
+        else:
+            if _logo_b64:
+                st.markdown(f"""
+                <div class="sidebar-logo-wrap">
+                    <img src="data:image/png;base64,{_logo_b64}" class="sidebar-logo-img"/>
+                </div>
+                """, unsafe_allow_html=True)
         st.markdown('<div class="sb-divider"></div>', unsafe_allow_html=True)
 
         # Monta grupos
