@@ -2311,19 +2311,20 @@ def pagina_dashboard():
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     card_style = ("background:var(--surface-1);border:1px solid var(--border-subtle);"
                   "border-radius:12px;padding:16px 18px;text-align:left;height:90px;")
-    lbl_style  = ("font-size:0.65rem;font-weight:700;letter-spacing:0.08em;"
-                  "text-transform:uppercase;color:var(--ink-secondary);margin-bottom:8px;")
+    lbl_style  = ("font-size:0.6rem;font-weight:700;letter-spacing:0.06em;"
+                  "text-transform:uppercase;color:var(--ink-secondary);margin-bottom:6px;"
+                  "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")
     val_style  = "font-size:1.6rem;font-weight:700;color:var(--ink-primary);letter-spacing:-0.02em;line-height:1;"
     sub_style  = "font-size:0.72rem;color:#64748b;margin-top:4px;"
 
     with c1:
         st.markdown(
-            f'<div style="{card_style}"><div style="{lbl_style}">Editais/Projetos</div>' +
+            f'<div style="{card_style}"><div style="{lbl_style}">Editais</div>' +
             f'<div style="{val_style}">{total_editais}</div></div>',
             unsafe_allow_html=True)
     with c2:
         st.markdown(
-            f'<div style="{card_style}"><div style="{lbl_style}">Projetos Concluidos</div>' +
+            f'<div style="{card_style}"><div style="{lbl_style}">Concluidos</div>' +
             f'<div style="{val_style}">{total_projetos}</div></div>',
             unsafe_allow_html=True)
     with c3:
@@ -2338,7 +2339,7 @@ def pagina_dashboard():
             unsafe_allow_html=True)
     with c5:
         st.markdown(
-            f'<div style="{card_style}"><div style="{lbl_style}">Solicitacoes Pendentes</div>' +
+            f'<div style="{card_style}"><div style="{lbl_style}">Pendentes</div>' +
             f'<div style="{val_style}">{sol_pendentes}</div>' +
             f'<div style="{sub_style}">{sol_total} no total</div></div>',
             unsafe_allow_html=True)
