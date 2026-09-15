@@ -2229,9 +2229,12 @@ def carregar_stats_dashboard():
         """)
         stats["editais_por_mes"] = cur.fetchall()
 
-        # Solicitacoes por status
-        cur.execute("SELECT status, COUNT(*) FROM solicitacoes_tema GROUP BY status")
-        stats["sol_por_status"] = dict(cur.fetchall())
+        # Solicitacoes por status — cursor separado para evitar conflito
+        cur2 = conn.cursor()
+        cur2.execute("SELECT status, COUNT(*) FROM solicitacoes_tema GROUP BY status")
+        rows_status = cur2.fetchall()
+        cur2.close()
+        stats["sol_por_status"] = {str(r[0]): int(r[1]) for r in rows_status}
 
         # Historico de uploads
         try:
@@ -2369,8 +2372,6 @@ def pagina_dashboard():
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
         st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:12px;">Solicitacoes por status</div>', unsafe_allow_html=True)
         sol_status = stats.get("sol_por_status", {})
-        # Debug temporario
-        st.caption(f"Debug sol_status: {sol_status} | sol_total: {stats.get('sol_total')} | sol_pendentes: {stats.get('sol_pendentes')}")
         if sol_status:
             try:
                 import plotly.graph_objects as go
