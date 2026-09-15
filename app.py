@@ -2193,71 +2193,64 @@ def registrar_upload_historico(tipo: str, qtd_registros: int, usuario: str):
 def carregar_stats_dashboard():
     """Carrega estatisticas para o dashboard."""
     conn = get_conn()
-    stats = {}
+    stats = {
+        "total_editais": 0, "total_projetos": 0,
+        "sol_pendentes": 0, "sol_total": 0,
+        "total_temas": 0, "total_estados": 0,
+        "ipca_ultimo": None, "ipca_defasagem_meses": 999,
+        "sol_por_status": {}, "uploads": [], "editais_por_mes": []
+    }
     try:
         cur = conn.cursor()
 
-        cur.execute("SELECT COUNT(*) FROM edital")
-        stats["total_editais"] = cur.fetchone()[0]
+        def q(sql, params=None):
+            try:
+                cur.execute(sql, params)
+                return cur.fetchall()
+            except Exception as _e:
+                logger.error("Dashboard query error: %s — %s", sql[:60], _e)
+                conn.rollback()
+                return []
 
-        cur.execute("SELECT COUNT(*) FROM projetos_concluidos")
-        stats["total_projetos"] = cur.fetchone()[0]
+        def q1(sql, params=None):
+            rows = q(sql, params)
+            return rows[0][0] if rows else 0
 
-        cur.execute("SELECT COUNT(*) FROM solicitacoes_tema WHERE status = 'PENDENTE'")
-        stats["sol_pendentes"] = cur.fetchone()[0]
+        stats["total_editais"]  = q1("SELECT COUNT(*) FROM edital")
+        stats["total_projetos"] = q1("SELECT COUNT(*) FROM projetos_concluidos")
+        stats["sol_pendentes"]  = q1("SELECT COUNT(*) FROM solicitacoes_tema WHERE status = 'PENDENTE'")
+        stats["sol_total"]      = q1("SELECT COUNT(*) FROM solicitacoes_tema")
+        stats["total_temas"]    = q1("SELECT COUNT(DISTINCT tema_id) FROM edital")
+        stats["total_estados"]  = q1("SELECT COUNT(DISTINCT estado_id) FROM edital")
 
-        cur.execute("SELECT COUNT(*) FROM solicitacoes_tema")
-        stats["sol_total"] = cur.fetchone()[0]
-
-        cur.execute("SELECT COUNT(DISTINCT tema_id) FROM edital")
-        stats["total_temas"] = cur.fetchone()[0]
-
-        cur.execute("SELECT COUNT(DISTINCT estado_id) FROM edital")
-        stats["total_estados"] = cur.fetchone()[0]
-
-        # Ultimo IPCA
-        cur.execute("SELECT ano, mes FROM ipca_mensal ORDER BY ano DESC, mes DESC LIMIT 1")
-        row = cur.fetchone()
-        stats["ipca_ultimo"] = f"{row[1]:02d}/{row[0]}" if row else None
-
-        # Editais por mes (ultimos 12 meses)
-        cur.execute("""
-            SELECT DATE_TRUNC('month', criado_em::timestamp) AS mes, COUNT(*)
-            FROM edital
-            WHERE criado_em IS NOT NULL
-            GROUP BY 1 ORDER BY 1 DESC LIMIT 12
-        """)
-        stats["editais_por_mes"] = cur.fetchall()
-
-        # Solicitacoes por status — cursor separado para evitar conflito
-        cur2 = conn.cursor()
-        cur2.execute("SELECT status, COUNT(*) FROM solicitacoes_tema GROUP BY status")
-        rows_status = cur2.fetchall()
-        cur2.close()
-        stats["sol_por_status"] = {str(r[0]): int(r[1]) for r in rows_status}
-
-        # Historico de uploads
-        try:
-            cur.execute("""
-                SELECT tipo, qtd_registros, usuario, criado_em
-                FROM upload_historico
-                ORDER BY criado_em DESC LIMIT 10
-            """)
-            stats["uploads"] = cur.fetchall()
-        except Exception:
-            stats["uploads"] = []
-
-        # Defasagem IPCA
-        if row:
+        # IPCA
+        ipca_rows = q("SELECT ano, mes FROM ipca_mensal ORDER BY ano DESC, mes DESC LIMIT 1")
+        if ipca_rows:
+            ano_i, mes_i = ipca_rows[0]
+            stats["ipca_ultimo"] = f"{mes_i:02d}/{ano_i}"
             from datetime import datetime as _dt
             now = _dt.now()
-            meses_def = (now.year - row[0]) * 12 + (now.month - row[1])
-            stats["ipca_defasagem_meses"] = meses_def
-        else:
-            stats["ipca_defasagem_meses"] = 999
+            stats["ipca_defasagem_meses"] = (now.year - ano_i) * 12 + (now.month - mes_i)
+
+        # Solicitacoes por status
+        status_rows = q("SELECT status, COUNT(*) FROM solicitacoes_tema GROUP BY status")
+        stats["sol_por_status"] = {str(r[0]): int(r[1]) for r in status_rows}
+
+        # Historico de uploads
+        stats["uploads"] = q("""
+            SELECT tipo, qtd_registros, usuario, criado_em
+            FROM upload_historico ORDER BY criado_em DESC LIMIT 10
+        """)
+
+        # Editais por mes
+        stats["editais_por_mes"] = q("""
+            SELECT DATE_TRUNC('month', criado_em::timestamp) AS mes, COUNT(*)
+            FROM edital WHERE criado_em IS NOT NULL
+            GROUP BY 1 ORDER BY 1 DESC LIMIT 12
+        """)
 
     except Exception as e:
-        logger.error("Erro ao carregar stats dashboard: %s", e)
+        logger.error("Erro geral ao carregar stats dashboard: %s", e)
     finally:
         conn.close()
     return stats
@@ -2372,6 +2365,7 @@ def pagina_dashboard():
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
         st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:12px;">Solicitacoes por status</div>', unsafe_allow_html=True)
         sol_status = stats.get("sol_por_status", {})
+        st.caption(f"DEBUG: sol_status={sol_status} | tipo={type(sol_status)} | len={len(sol_status)}")
         if sol_status:
             try:
                 import plotly.graph_objects as go
