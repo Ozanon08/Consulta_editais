@@ -1737,7 +1737,7 @@ def init_session():
     if "email" not in st.session_state:
         st.session_state.email = None
     if "menu" not in st.session_state:
-        st.session_state.menu = "Base de Prazos"
+        st.session_state.menu = "Dashboard" if st.session_state.get("perfil") in ("ADMIN","PMO") else "Base de Prazos"
     if "tema_visual" not in st.session_state:
         st.session_state.tema_visual = "Light"
 
@@ -1747,7 +1747,7 @@ def logout():
     st.session_state.usuario = None
     st.session_state.perfil = None
     st.session_state.email = None
-    st.session_state.menu = "Base de Prazos"
+    st.session_state.menu = "Dashboard"
     st.rerun()
 
 
@@ -2074,7 +2074,10 @@ def menu_sidebar():
         st.markdown('<div class="sb-divider" style="margin-top:4px;"></div>', unsafe_allow_html=True)
 
         # Monta grupos
-        grupo_consulta = ["Base de Prazos"]
+        grupo_consulta = []
+        if perfil in ("ADMIN", "PMO"):
+            grupo_consulta.append("Dashboard")
+        grupo_consulta.append("Base de Prazos")
         if perfil in ("ADMIN", "PMO"):
             grupo_consulta += ["Análise de Prazos"]
         grupo_consulta.append("Projetos Concluídos")
@@ -2164,6 +2167,235 @@ def menu_sidebar():
 # =========================================================
 # CONSULTA
 # =========================================================
+
+# =========================================================
+# DASHBOARD (ADMIN / PMO)
+# =========================================================
+def registrar_upload_historico(tipo: str, qtd_registros: int, usuario: str):
+    """Registra um upload no historico."""
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO upload_historico (tipo, qtd_registros, usuario, criado_em)
+            VALUES (%s, %s, %s, %s)
+        """, (tipo, qtd_registros, usuario, agora_str()))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def carregar_stats_dashboard():
+    """Carrega estatisticas para o dashboard."""
+    conn = get_conn()
+    stats = {}
+    try:
+        cur = conn.cursor()
+
+        cur.execute("SELECT COUNT(*) FROM edital")
+        stats["total_editais"] = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM projetos_concluidos")
+        stats["total_projetos"] = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM solicitacoes_tema WHERE status = 'PENDENTE'")
+        stats["sol_pendentes"] = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM solicitacoes_tema")
+        stats["sol_total"] = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(DISTINCT tema_id) FROM edital")
+        stats["total_temas"] = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(DISTINCT estado_id) FROM edital")
+        stats["total_estados"] = cur.fetchone()[0]
+
+        # Ultimo IPCA
+        cur.execute("SELECT ano, mes FROM ipca_mensal ORDER BY ano DESC, mes DESC LIMIT 1")
+        row = cur.fetchone()
+        stats["ipca_ultimo"] = f"{row[1]:02d}/{row[0]}" if row else None
+
+        # Editais por mes (ultimos 12 meses)
+        cur.execute("""
+            SELECT DATE_TRUNC('month', criado_em::timestamp) AS mes, COUNT(*)
+            FROM edital
+            WHERE criado_em IS NOT NULL
+            GROUP BY 1 ORDER BY 1 DESC LIMIT 12
+        """)
+        stats["editais_por_mes"] = cur.fetchall()
+
+        # Solicitacoes por status
+        cur.execute("SELECT status, COUNT(*) FROM solicitacoes_tema GROUP BY status")
+        stats["sol_por_status"] = dict(cur.fetchall())
+
+        # Historico de uploads
+        try:
+            cur.execute("""
+                SELECT tipo, qtd_registros, usuario, criado_em
+                FROM upload_historico
+                ORDER BY criado_em DESC LIMIT 10
+            """)
+            stats["uploads"] = cur.fetchall()
+        except Exception:
+            stats["uploads"] = []
+
+        # Defasagem IPCA
+        if row:
+            from datetime import datetime as _dt
+            now = _dt.now()
+            meses_def = (now.year - row[0]) * 12 + (now.month - row[1])
+            stats["ipca_defasagem_meses"] = meses_def
+        else:
+            stats["ipca_defasagem_meses"] = 999
+
+    except Exception as e:
+        logger.error("Erro ao carregar stats dashboard: %s", e)
+    finally:
+        conn.close()
+    return stats
+
+
+def pagina_dashboard():
+    header_principal()
+
+    if st.session_state.perfil not in ("ADMIN", "PMO"):
+        st.error("Acesso restrito a ADMIN e PMO.")
+        return
+
+    stats = carregar_stats_dashboard()
+
+    # ── Alerta IPCA desatualizado ──
+    def_meses = stats.get("ipca_defasagem_meses", 0)
+    if def_meses > 2:
+        st.markdown(f"""
+        <div style="background:#fef3c7;border:1px solid #fcd34d;border-left:4px solid #f59e0b;
+                    border-radius:10px;padding:12px 16px;margin-bottom:16px;
+                    display:flex;align-items:center;gap:12px;">
+            <div style="font-size:1.2rem;">⚠</div>
+            <div>
+                <div style="font-weight:700;color:#92400e;font-size:0.88rem;">
+                    IPCA desatualizado — {def_meses} meses de defasagem
+                </div>
+                <div style="color:#92400e;font-size:0.8rem;">
+                    Ultimo mes disponivel: {stats.get('ipca_ultimo','—')}.
+                    Atualize em Base de Dados > Atualizar IPCA.
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ── Métricas principais ──
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:16px;">Visao geral</div>', unsafe_allow_html=True)
+
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
+    m1.metric("Editais/Projetos", f"{stats.get('total_editais', 0):,}".replace(",","."))
+    m2.metric("Projetos concluidos", stats.get("total_projetos", 0))
+    m3.metric("Temas cadastrados", stats.get("total_temas", 0))
+    m4.metric("Estados cobertos", stats.get("total_estados", 0))
+    m5.metric("Solicitacoes pendentes", stats.get("sol_pendentes", 0),
+              delta=f"{stats.get('sol_total',0)} total",
+              delta_color="off")
+    ipca_label = stats.get("ipca_ultimo", "—")
+    m6.metric("IPCA ate", ipca_label,
+              delta="Desatualizado" if def_meses > 2 else "Atualizado",
+              delta_color="inverse" if def_meses > 2 else "normal")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Graficos ──
+    col_g1, col_g2 = st.columns([3, 2])
+
+    with col_g1:
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:12px;">Solicitacoes por status</div>', unsafe_allow_html=True)
+        sol_status = stats.get("sol_por_status", {})
+        if sol_status:
+            try:
+                import plotly.graph_objects as go
+                cores_status = {
+                    "PENDENTE": "#f59e0b", "EM ANÁLISE": "#3b82f6",
+                    "CONCLUÍDA": "#10b981", "RECUSADA": "#ef4444",
+                }
+                labels = list(sol_status.keys())
+                values = list(sol_status.values())
+                cores  = [cores_status.get(l, "#94a3b8") for l in labels]
+                fig = go.Figure(go.Pie(
+                    labels=labels, values=values,
+                    marker_colors=cores,
+                    hole=0.55,
+                    textinfo="label+value",
+                    hovertemplate="%{label}: %{value}<extra></extra>",
+                ))
+                fig.update_layout(
+                    height=260, margin=dict(t=10,b=10,l=10,r=10),
+                    showlegend=False, template="plotly_white",
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            except ImportError:
+                for s, n in sol_status.items():
+                    st.write(f"{s}: {n}")
+        else:
+            st.info("Nenhuma solicitacao registrada.")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with col_g2:
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:12px;">Acoes rapidas</div>', unsafe_allow_html=True)
+
+        acoes = [
+            ("Base de Prazos", "Consultar editais e projetos"),
+            ("Análise de Prazos", "Calcular estimativas Kerzner"),
+            ("Projetos Concluídos", "Ver projetos finalizados"),
+            ("Solicitações", "Gerenciar solicitacoes"),
+            ("Base de dados", "Importar planilha ou IPCA"),
+        ]
+        for menu_alvo, descricao in acoes:
+            col_a, col_b = st.columns([3, 1])
+            with col_a:
+                st.markdown(f'<div style="font-size:0.82rem;color:var(--ink-primary);padding:4px 0;">{descricao}</div>', unsafe_allow_html=True)
+            with col_b:
+                if st.button("Ir", key=f"acao_{menu_alvo}", use_container_width=True):
+                    st.session_state.menu = menu_alvo
+                    st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Historico de uploads ──
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:12px;">Historico de uploads</div>', unsafe_allow_html=True)
+
+    uploads = stats.get("uploads", [])
+    if not uploads:
+        st.caption("Nenhum upload registrado ainda. Os proximos uploads aparecerão aqui.")
+    else:
+        import html as _h_dash
+        for tipo, qtd, usuario, criado_em in uploads:
+            data_fmt = str(criado_em)[:16].replace("T"," ") if criado_em else "—"
+            tipo_cores = {
+                "base": ("#dbeafe","#1e40af"),
+                "projetos": ("#dcfce7","#166534"),
+                "ipca": ("#fef3c7","#92400e"),
+            }
+            bg_t, fg_t = tipo_cores.get(tipo, ("#f1f5f9","#475569"))
+            st.markdown(f"""
+            <div style="display:flex;align-items:center;gap:12px;
+                        padding:8px 12px;border-radius:8px;
+                        background:var(--surface-1);margin-bottom:4px;">
+                <span style="background:{bg_t};color:{fg_t};padding:2px 10px;
+                             border-radius:999px;font-size:11px;font-weight:700;
+                             white-space:nowrap;">{_h_dash.escape(tipo.upper())}</span>
+                <span style="flex:1;font-size:0.82rem;color:var(--ink-primary);">
+                    {qtd} registros</span>
+                <span style="font-size:0.75rem;color:var(--ink-secondary);">
+                    {_h_dash.escape(usuario)} &nbsp;·&nbsp; {data_fmt}</span>
+            </div>
+            """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+
 def pagina_consulta():
     header_principal()
     df = carregar_view()
@@ -2861,10 +3093,23 @@ def pagina_base():
                 except Exception:
                     arquivo.seek(0)
 
-                if st.button("Processar e atualizar base", type="primary", use_container_width=True):
+                st.markdown(f"""
+                <div style="background:#fff5f5;border:1px solid #fecaca;border-radius:10px;
+                            padding:12px 16px;margin:8px 0;font-size:0.84rem;color:#991b1b;">
+                    <strong>Atencao:</strong> Esta acao substituira <strong>todos os registros atuais</strong> da base.
+                    Esta operacao nao pode ser desfeita.
+                </div>
+                """, unsafe_allow_html=True)
+                confirmar_upload = st.checkbox("Confirmo que desejo substituir toda a base de dados", key="confirm_base_upload")
+                if st.button("Processar e atualizar base", type="primary",
+                             use_container_width=True, disabled=not confirmar_upload):
                     with st.spinner("Processando planilha e atualizando o banco..."):
                         try:
                             processar_upload_planilha(arquivo)
+                            try:
+                                registrar_upload_historico("base", len(pd.read_excel(arquivo)), st.session_state.usuario)
+                            except Exception:
+                                pass
                             st.success("Base atualizada com sucesso!")
                             st.cache_data.clear()
                             st.rerun()
@@ -2910,7 +3155,7 @@ def pagina_base():
             if arquivo_ipca is not None:
                 if st.button("Importar IPCA", type="primary",
                              use_container_width=True, key="ipca_importar"):
-                    with st.spinner("Importando série histórica do IPCA..."):
+                    with st.spinner("Importando IPCA — processando serie historica..."):
                         try:
                             import csv, io
                             conteudo = arquivo_ipca.read().decode("utf-8")
@@ -2939,6 +3184,10 @@ def pagina_base():
                                 inseridos += 1
                             conn_ipca.commit()
                             conn_ipca.close()
+                            try:
+                                registrar_upload_historico("ipca", inseridos, st.session_state.usuario)
+                            except Exception:
+                                pass
                             st.cache_data.clear()
                             st.success(f"IPCA atualizado! {inseridos} meses inseridos/atualizados.")
                         except Exception as e:
@@ -4088,8 +4337,41 @@ def pagina_projetos_concluidos():
                     "Custo da Execução corrigido pelo IPCA",
                     help="Corrige o custo inicial pelo IPCA acumulado desde a data do edital ate o mes atual. Formula: Valor x PI(1 + IPCA_mes/100) para cada mes entre a data base e hoje. Fonte: Banco Central do Brasil, serie SGS 433."
                 )
-            st.dataframe(df_show, use_container_width=True, hide_index=True,
-                         column_config=_col_cfg_proj)
+            # Paginacao
+            PAGE_SIZE_PC = 50
+            total_pc = len(df_show)
+            n_pages_pc = max(1, (total_pc + PAGE_SIZE_PC - 1) // PAGE_SIZE_PC)
+            if "pagina_proj" not in st.session_state:
+                st.session_state["pagina_proj"] = 1
+            if st.session_state["pagina_proj"] > n_pages_pc:
+                st.session_state["pagina_proj"] = 1
+            pg_pc = st.session_state["pagina_proj"]
+            ini_pc = (pg_pc - 1) * PAGE_SIZE_PC
+            fim_pc = min(ini_pc + PAGE_SIZE_PC, total_pc)
+
+            st.dataframe(df_show.iloc[ini_pc:fim_pc], use_container_width=True,
+                         hide_index=True, column_config=_col_cfg_proj)
+
+            if n_pages_pc > 1:
+                p1, p2, p3, p4, p5 = st.columns([1, 1, 3, 1, 1])
+                with p1:
+                    if st.button("Primeira", key="pc_pag_first", use_container_width=True, disabled=pg_pc==1):
+                        st.session_state["pagina_proj"] = 1; st.rerun()
+                with p2:
+                    if st.button("Anterior", key="pc_pag_prev", use_container_width=True, disabled=pg_pc==1):
+                        st.session_state["pagina_proj"] -= 1; st.rerun()
+                with p3:
+                    st.markdown(
+                        f"<div style='text-align:center;padding:8px 0;font-size:13px;"
+                        f"color:var(--ink-secondary);'>Pagina <b>{pg_pc}</b> de <b>{n_pages_pc}</b>"
+                        f" &nbsp;·&nbsp; <b>{ini_pc+1}</b>-<b>{fim_pc}</b> de <b>{total_pc}</b></div>",
+                        unsafe_allow_html=True)
+                with p4:
+                    if st.button("Proxima", key="pc_pag_next", use_container_width=True, disabled=pg_pc==n_pages_pc):
+                        st.session_state["pagina_proj"] += 1; st.rerun()
+                with p5:
+                    if st.button("Ultima", key="pc_pag_last", use_container_width=True, disabled=pg_pc==n_pages_pc):
+                        st.session_state["pagina_proj"] = n_pages_pc; st.rerun()
 
             # Legenda visual
             st.markdown("""
@@ -4320,9 +4602,13 @@ def pagina_projetos_concluidos():
                     st.success(f"Arquivo carregado: {arquivo_pc.name}")
                     if st.button("Importar projetos", type="primary",
                                  key="pc_importar", use_container_width=True):
-                        with st.spinner("Importando projetos..."):
+                        with st.spinner("Importando projetos — aguarde..."):
                             try:
                                 n = processar_upload_projetos_concluidos(arquivo_pc)
+                                try:
+                                    registrar_upload_historico("projetos", n, st.session_state.usuario)
+                                except Exception:
+                                    pass
                                 st.success(f"{n} projeto(s) importado(s) com sucesso!")
                                 st.cache_data.clear()
                                 st.rerun()
@@ -5622,7 +5908,9 @@ def main():
 
     menu_sidebar()
 
-    if st.session_state.menu == "Base de Prazos":
+    if st.session_state.menu == "Dashboard":
+        pagina_dashboard()
+    elif st.session_state.menu == "Base de Prazos":
         pagina_consulta()
     elif st.session_state.menu == "Análise de Prazos":
         pagina_analise_prazos()
