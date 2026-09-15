@@ -2294,18 +2294,59 @@ def pagina_dashboard():
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
     st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:16px;">Visao geral</div>', unsafe_allow_html=True)
 
-    m1, m2, m3, m4, m5, m6 = st.columns(6)
-    m1.metric("Editais/Projetos", f"{stats.get('total_editais', 0):,}".replace(",","."))
-    m2.metric("Projetos concluidos", stats.get("total_projetos", 0))
-    m3.metric("Temas cadastrados", stats.get("total_temas", 0))
-    m4.metric("Estados cobertos", stats.get("total_estados", 0))
-    m5.metric("Solicitacoes pendentes", stats.get("sol_pendentes", 0),
-              delta=f"{stats.get('sol_total',0)} total",
-              delta_color="off")
-    ipca_label = stats.get("ipca_ultimo", "—")
-    m6.metric("IPCA ate", ipca_label,
-              delta="Desatualizado" if def_meses > 2 else "Atualizado",
-              delta_color="inverse" if def_meses > 2 else "normal")
+    total_editais   = stats.get("total_editais", 0)
+    total_projetos  = stats.get("total_projetos", 0)
+    total_temas     = stats.get("total_temas", 0)
+    total_estados   = stats.get("total_estados", 0)
+    sol_pendentes   = stats.get("sol_pendentes", 0)
+    sol_total       = stats.get("sol_total", 0)
+    ipca_label      = stats.get("ipca_ultimo", "-")
+    ipca_ok         = def_meses <= 2
+    ipca_cor        = "#166534" if ipca_ok else "#92400e"
+    ipca_bg         = "#dcfce7" if ipca_ok else "#fef3c7"
+    ipca_status     = "Atualizado" if ipca_ok else f"{def_meses}m defasagem"
+
+    def dash_metric(label, value, sub=None, sub_color="#64748b"):
+        sub_html = f'<div style="font-size:0.72rem;color:{sub_color};margin-top:4px;">{sub}</div>' if sub else ""
+        return f"""
+        <div style="background:var(--surface-1);border:1px solid var(--border-subtle);
+                    border-radius:12px;padding:16px 18px;text-align:left;">
+            <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.08em;
+                        text-transform:uppercase;color:var(--ink-secondary);margin-bottom:8px;">
+                {label}
+            </div>
+            <div style="font-size:1.6rem;font-weight:700;color:var(--ink-primary);
+                        letter-spacing:-0.02em;line-height:1;">
+                {value}
+            </div>
+            {sub_html}
+        </div>"""
+
+    cards_html = f"""
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:4px;">
+        {dash_metric("Editais/Projetos", f"{total_editais:,}".replace(",","."))}
+        {dash_metric("Projetos Concluidos", total_projetos)}
+        {dash_metric("Temas", total_temas)}
+        {dash_metric("Estados", total_estados)}
+        {dash_metric("Solicitacoes Pendentes", sol_pendentes,
+                     sub=f"{sol_total} no total")}
+        <div style="background:{ipca_bg};border:1px solid var(--border-subtle);
+                    border-radius:12px;padding:16px 18px;text-align:left;">
+            <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.08em;
+                        text-transform:uppercase;color:{ipca_cor};margin-bottom:8px;">
+                IPCA ate
+            </div>
+            <div style="font-size:1.6rem;font-weight:700;color:{ipca_cor};
+                        letter-spacing:-0.02em;line-height:1;">
+                {ipca_label}
+            </div>
+            <div style="font-size:0.72rem;color:{ipca_cor};margin-top:4px;font-weight:600;">
+                {ipca_status}
+            </div>
+        </div>
+    </div>
+    """
+    st.markdown(cards_html, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
     # ── Graficos ──
