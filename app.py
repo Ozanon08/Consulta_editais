@@ -2190,7 +2190,7 @@ def registrar_upload_historico(tipo: str, qtd_registros: int, usuario: str):
         conn.close()
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def carregar_stats_dashboard():
     """Carrega estatisticas para o dashboard."""
     conn = get_conn()
@@ -2292,7 +2292,13 @@ def pagina_dashboard():
 
     # ── Métricas principais ──
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
-    st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:16px;">Visao geral</div>', unsafe_allow_html=True)
+    hv1, hv2 = st.columns([5, 1])
+    with hv1:
+        st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:16px;">Visao geral</div>', unsafe_allow_html=True)
+    with hv2:
+        if st.button("Atualizar", key="dash_refresh", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
 
     total_editais  = stats.get("total_editais", 0)
     total_projetos = stats.get("total_projetos", 0)
