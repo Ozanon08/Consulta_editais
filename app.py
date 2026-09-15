@@ -2537,29 +2537,33 @@ def pagina_solicitacoes():
         sol_s  = _h.escape(str(row.get("solicitante", "")))
         data_s = str(row.get("data_solicitacao", ""))[:10]
         status = str(row.get("status", ""))
-        badge  = badge_status(status)
         cores_borda = {
             "PENDENTE": "#f59e0b", "EM ANÁLISE": "#3b82f6",
             "CONCLUÍDA": "#10b981", "RECUSADA": "#ef4444",
         }
         cor = cores_borda.get(status, "#94a3b8")
-        desc_html = (f'<div style="color:#64748b;font-size:0.82rem;margin-bottom:4px;">{desc_s}</div>'
-                     if desc_s else "")
-        st.markdown(f"""
-        <div style="border:1px solid #e2e8f0;border-left:4px solid {cor};
-                    border-radius:10px;padding:14px 16px;background:#fff;margin-bottom:2px;">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
-                <div style="flex:1;min-width:0;">
-                    <div style="font-weight:700;color:#0f172a;font-size:0.92rem;margin-bottom:3px;">
-                        #{sid} &nbsp;·&nbsp; {tema_s}
-                    </div>
-                    {desc_html}
-                    <div style="color:#94a3b8;font-size:0.75rem;">{sol_s} &nbsp;·&nbsp; {data_s}</div>
+        cores_badge = {
+            "PENDENTE":    ("#fef3c7","#92400e"),
+            "EM ANÁLISE":  ("#dbeafe","#1e40af"),
+            "CONCLUÍDA":   ("#dcfce7","#166534"),
+            "RECUSADA":    ("#fee2e2","#991b1b"),
+        }
+        bg_b, fg_b = cores_badge.get(status, ("#f1f5f9","#475569"))
+
+        label = f"#{sid}  ·  {tema_s}"
+        with st.expander(label, expanded=False):
+            st.markdown(f"""
+            <div style="border-left:4px solid {cor};padding:10px 14px;
+                        border-radius:0 8px 8px 0;background:var(--surface-1);margin-bottom:6px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <span style="font-weight:700;font-size:0.9rem;color:var(--ink-primary);">{tema_s}</span>
+                    <span style="background:{bg_b};color:{fg_b};padding:2px 12px;border-radius:999px;
+                                 font-size:11px;font-weight:700;">{_h.escape(status)}</span>
                 </div>
-                <div style="flex-shrink:0;padding-top:2px;">{badge}</div>
+                {"" if not desc_s else f'<div style="color:var(--ink-secondary);font-size:0.84rem;margin-bottom:8px;">{desc_s}</div>'}
+                <div style="color:#94a3b8;font-size:0.75rem;">{sol_s} &nbsp;·&nbsp; {data_s}</div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
     # ── Nova solicitação ──
     if pode_solicitar(st.session_state.perfil):
