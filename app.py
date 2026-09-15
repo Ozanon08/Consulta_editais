@@ -1737,7 +1737,7 @@ def init_session():
     if "email" not in st.session_state:
         st.session_state.email = None
     if "menu" not in st.session_state:
-        st.session_state.menu = "Dashboard" if st.session_state.get("perfil") in ("ADMIN","PMO") else "Base de Prazos"
+        st.session_state.menu = "Base de Prazos"
     if "tema_visual" not in st.session_state:
         st.session_state.tema_visual = "Light"
 
@@ -1747,7 +1747,7 @@ def logout():
     st.session_state.usuario = None
     st.session_state.perfil = None
     st.session_state.email = None
-    st.session_state.menu = "Dashboard"
+    st.session_state.menu = "Dashboard" if st.session_state.get("perfil") in ("ADMIN", "PMO") else "Base de Prazos"
     st.rerun()
 
 
@@ -2051,6 +2051,9 @@ def tela_login():
             st.session_state.logado = True
             st.session_state.usuario = user["username"]
             st.session_state.perfil = user["perfil"]
+            st.session_state.email = user.get("email")
+            # Redireciona para Dashboard se ADMIN/PMO, Base de Prazos para demais
+            st.session_state.menu = "Dashboard" if user["perfil"] in ("ADMIN", "PMO") else "Base de Prazos"
             st.rerun()
         else:
             st.error("Usuário ou senha inválidos.")
