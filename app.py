@@ -4233,9 +4233,12 @@ def pagina_projetos_concluidos():
         tab_proj, tab_analise, tab_gerenciar = st.tabs([
             "Projetos", "Análise Kerzner", "Gerenciar"
         ])
+        tab_analise_visible = True
     else:
-        tab_proj, tab_analise = st.tabs(["Projetos", "Análise Kerzner"])
+        tab_proj, = st.tabs(["Projetos"])
+        tab_analise = None
         tab_gerenciar = None
+        tab_analise_visible = False
 
     # =========================================================
     # ABA: PROJETOS
@@ -4472,175 +4475,176 @@ def pagina_projetos_concluidos():
                                    mime="text/csv", use_container_width=True)
 
     # =========================================================
-    # ABA: ANÁLISE KERZNER
+    # ABA: ANÁLISE KERZNER (ADMIN / PMO)
     # =========================================================
-    with tab_analise:
-        if df_proj.empty:
-            st.info("Nenhum projeto registrado para análise.")
-        else:
-            subtemas_comp = sorted(df_proj["subtema"].dropna().unique().tolist())
-            if not subtemas_comp:
-                st.info("Nenhum projeto com subtema definido.")
-            else:
-                fa, fb = st.columns([1, 2])
-                with fa:
-                    subtema_comp = st.selectbox("Subtema", subtemas_comp,
-                                                key="pc_subtema_comp")
-                df_sub = df_proj[df_proj["subtema"] == subtema_comp].dropna(
-                    subset=["prazo_real_meses"])
-                with fb:
-                    opcoes_proj = df_sub["nome_projeto"].tolist()
-                    proj_sel = st.multiselect("Projetos para análise", opcoes_proj,
-                                              default=opcoes_proj, key="pc_proj_sel")
+    if tab_analise:
+      with tab_analise:
+          if df_proj.empty:
+              st.info("Nenhum projeto registrado para análise.")
+          else:
+              subtemas_comp = sorted(df_proj["subtema"].dropna().unique().tolist())
+              if not subtemas_comp:
+                  st.info("Nenhum projeto com subtema definido.")
+              else:
+                  fa, fb = st.columns([1, 2])
+                  with fa:
+                      subtema_comp = st.selectbox("Subtema", subtemas_comp,
+                                                  key="pc_subtema_comp")
+                  df_sub = df_proj[df_proj["subtema"] == subtema_comp].dropna(
+                      subset=["prazo_real_meses"])
+                  with fb:
+                      opcoes_proj = df_sub["nome_projeto"].tolist()
+                      proj_sel = st.multiselect("Projetos para análise", opcoes_proj,
+                                                default=opcoes_proj, key="pc_proj_sel")
 
-                if not proj_sel:
-                    st.info("Selecione ao menos um projeto.")
-                else:
-                    df_comp = df_sub[df_sub["nome_projeto"].isin(proj_sel)].copy()
+                  if not proj_sel:
+                      st.info("Selecione ao menos um projeto.")
+                  else:
+                      df_comp = df_sub[df_sub["nome_projeto"].isin(proj_sel)].copy()
 
-                    esforcos_sel = pd.to_numeric(df_comp["esforco"], errors="coerce").dropna()
-                    if not esforcos_sel.empty:
-                        media_esforco = esforcos_sel.mean()
-                        kz = kerzner_total_para_projeto(subtema_comp, media_esforco)
-                        unid = (df_comp["unidade"].dropna().iloc[0]
-                                if not df_comp["unidade"].dropna().empty else "")
-                        esforco_label = f"média {media_esforco:.1f} {unid}".strip()
-                    else:
-                        kz = kerzner_total_para_projeto(subtema_comp, None)
-                        esforco_label = "sem esforço - usando histórico"
+                      esforcos_sel = pd.to_numeric(df_comp["esforco"], errors="coerce").dropna()
+                      if not esforcos_sel.empty:
+                          media_esforco = esforcos_sel.mean()
+                          kz = kerzner_total_para_projeto(subtema_comp, media_esforco)
+                          unid = (df_comp["unidade"].dropna().iloc[0]
+                                  if not df_comp["unidade"].dropna().empty else "")
+                          esforco_label = f"média {media_esforco:.1f} {unid}".strip()
+                      else:
+                          kz = kerzner_total_para_projeto(subtema_comp, None)
+                          esforco_label = "sem esforço - usando histórico"
 
-                    if not kz:
-                        st.info("Dados insuficientes para calcular Kerzner neste subtema.")
-                    else:
-                        t_min  = kz["total_min"]
-                        t_max  = kz["total_max"]
-                        t_medio= (t_min + t_max) / 2
-                        prazo_real_medio = df_comp["prazo_real_meses"].mean()
-                        dentro = df_comp[(df_comp["prazo_real_meses"] >= t_min) &
-                                         (df_comp["prazo_real_meses"] <= t_max)]
+                      if not kz:
+                          st.info("Dados insuficientes para calcular Kerzner neste subtema.")
+                      else:
+                          t_min  = kz["total_min"]
+                          t_max  = kz["total_max"]
+                          t_medio= (t_min + t_max) / 2
+                          prazo_real_medio = df_comp["prazo_real_meses"].mean()
+                          dentro = df_comp[(df_comp["prazo_real_meses"] >= t_min) &
+                                           (df_comp["prazo_real_meses"] <= t_max)]
 
-                        # Métricas Kerzner
-                        ce1, ce2, ce3, ce4 = st.columns(4)
-                        ce1.metric("Kerzner mínimo", f"{t_min:.1f} m")
-                        ce2.metric("Kerzner máximo", f"{t_max:.1f} m")
-                        ce3.metric("Prazo real médio", f"{prazo_real_medio:.1f} m",
-                                   delta=f"{prazo_real_medio - t_medio:+.1f} m vs. Kerzner")
-                        ce4.metric("Dentro do intervalo", f"{len(dentro)}/{len(df_comp)}")
+                          # Métricas Kerzner
+                          ce1, ce2, ce3, ce4 = st.columns(4)
+                          ce1.metric("Kerzner mínimo", f"{t_min:.1f} m")
+                          ce2.metric("Kerzner máximo", f"{t_max:.1f} m")
+                          ce3.metric("Prazo real médio", f"{prazo_real_medio:.1f} m",
+                                     delta=f"{prazo_real_medio - t_medio:+.1f} m vs. Kerzner")
+                          ce4.metric("Dentro do intervalo", f"{len(dentro)}/{len(df_comp)}")
 
-                        # Info card
-                        metodo = "Regressão estatística" if kz.get("corr_forte") else "Mín/máx histórico"
-                        st.markdown(f"""
-                        <div style="background:var(--surface-2);border:1px solid var(--border-subtle);
-                                    border-radius:10px;padding:12px 16px;font-size:0.82rem;
-                                    color:var(--ink-secondary);margin-bottom:12px;">
-                            <strong>Subtema:</strong> {subtema_comp} &nbsp;·&nbsp;
-                            <strong>Esforço:</strong> {esforco_label} &nbsp;·&nbsp;
-                            <strong>Método:</strong> {metodo}
-                        </div>
-                        """, unsafe_allow_html=True)
+                          # Info card
+                          metodo = "Regressão estatística" if kz.get("corr_forte") else "Mín/máx histórico"
+                          st.markdown(f"""
+                          <div style="background:var(--surface-2);border:1px solid var(--border-subtle);
+                                      border-radius:10px;padding:12px 16px;font-size:0.82rem;
+                                      color:var(--ink-secondary);margin-bottom:12px;">
+                              <strong>Subtema:</strong> {subtema_comp} &nbsp;·&nbsp;
+                              <strong>Esforço:</strong> {esforco_label} &nbsp;·&nbsp;
+                              <strong>Método:</strong> {metodo}
+                          </div>
+                          """, unsafe_allow_html=True)
 
-                        if HAS_PLOTLY:
-                            projetos_nomes = df_comp["nome_projeto"].tolist()
-                            prazos_reais   = df_comp["prazo_real_meses"].tolist()
+                          if HAS_PLOTLY:
+                              projetos_nomes = df_comp["nome_projeto"].tolist()
+                              prazos_reais   = df_comp["prazo_real_meses"].tolist()
 
-                            # Gráfico 1: Barras
-                            fig1 = go.Figure()
-                            fig1.add_trace(go.Bar(
-                                x=projetos_nomes, y=prazos_reais, name="Prazo real",
-                                marker_color=["#10b981" if t_min<=p<=t_max else "#ef4444"
-                                              for p in prazos_reais],
-                                hovertemplate="<b>%{x}</b><br>Prazo real: %{y:.1f} m<extra></extra>"
-                            ))
-                            for y_val, dash, cor, label in [
-                                (t_min,   "dash", "#3b82f6", f"Kerzner mín.: {t_min:.1f}m"),
-                                (t_max,   "dash", "#f59e0b", f"Kerzner máx.: {t_max:.1f}m"),
-                                (t_medio, "dot",  "#8b5cf6", f"Kerzner médio: {t_medio:.1f}m"),
-                            ]:
-                                fig1.add_hline(y=y_val, line_dash=dash, line_color=cor,
-                                               annotation_text=label,
-                                               annotation_position="top right")
-                            fig1.update_layout(
-                                title=f"Prazo real por projeto - {subtema_comp}",
-                                xaxis_title="Projeto", yaxis_title="Meses",
-                                height=380, template="plotly_white", showlegend=False)
-                            st.plotly_chart(fig1, use_container_width=True)
-                            _figs_export = [fig1]
+                              # Gráfico 1: Barras
+                              fig1 = go.Figure()
+                              fig1.add_trace(go.Bar(
+                                  x=projetos_nomes, y=prazos_reais, name="Prazo real",
+                                  marker_color=["#10b981" if t_min<=p<=t_max else "#ef4444"
+                                                for p in prazos_reais],
+                                  hovertemplate="<b>%{x}</b><br>Prazo real: %{y:.1f} m<extra></extra>"
+                              ))
+                              for y_val, dash, cor, label in [
+                                  (t_min,   "dash", "#3b82f6", f"Kerzner mín.: {t_min:.1f}m"),
+                                  (t_max,   "dash", "#f59e0b", f"Kerzner máx.: {t_max:.1f}m"),
+                                  (t_medio, "dot",  "#8b5cf6", f"Kerzner médio: {t_medio:.1f}m"),
+                              ]:
+                                  fig1.add_hline(y=y_val, line_dash=dash, line_color=cor,
+                                                 annotation_text=label,
+                                                 annotation_position="top right")
+                              fig1.update_layout(
+                                  title=f"Prazo real por projeto - {subtema_comp}",
+                                  xaxis_title="Projeto", yaxis_title="Meses",
+                                  height=380, template="plotly_white", showlegend=False)
+                              st.plotly_chart(fig1, use_container_width=True)
+                              _figs_export = [fig1]
 
-                            # Gráfico 2: Temporal
-                            df_comp_ord = df_comp.sort_values("data_conclusao")
-                            if not df_comp_ord["data_conclusao"].isna().all():
-                                fig2 = go.Figure()
-                                fig2.add_trace(go.Scatter(
-                                    x=df_comp_ord["data_conclusao"].astype(str).tolist(),
-                                    y=df_comp_ord["prazo_real_meses"].tolist(),
-                                    mode="markers+lines",
-                                    marker=dict(size=10, color="#2563eb"),
-                                    line=dict(color="#93c5fd", width=1, dash="dot"),
-                                    text=df_comp_ord["nome_projeto"].tolist(),
-                                    hovertemplate="<b>%{text}</b><br>Conclusão: %{x}<br>Prazo: %{y:.1f} m<extra></extra>",
-                                    name="Prazo real"
-                                ))
-                                fig2.add_hrect(y0=t_min, y1=t_max, fillcolor="#3b82f6",
-                                               opacity=0.08,
-                                               annotation_text=f"Intervalo Kerzner ({t_min:.1f}-{t_max:.1f}m)",
-                                               annotation_position="top right")
-                                fig2.update_layout(
-                                    title="Evolução do prazo ao longo do tempo",
-                                    xaxis_title="Data de conclusão", yaxis_title="Meses",
-                                    height=320, template="plotly_white")
-                                st.plotly_chart(fig2, use_container_width=True)
-                                _figs_export.append(fig2)
-                            else:
-                                _figs_export.append(None)
+                              # Gráfico 2: Temporal
+                              df_comp_ord = df_comp.sort_values("data_conclusao")
+                              if not df_comp_ord["data_conclusao"].isna().all():
+                                  fig2 = go.Figure()
+                                  fig2.add_trace(go.Scatter(
+                                      x=df_comp_ord["data_conclusao"].astype(str).tolist(),
+                                      y=df_comp_ord["prazo_real_meses"].tolist(),
+                                      mode="markers+lines",
+                                      marker=dict(size=10, color="#2563eb"),
+                                      line=dict(color="#93c5fd", width=1, dash="dot"),
+                                      text=df_comp_ord["nome_projeto"].tolist(),
+                                      hovertemplate="<b>%{text}</b><br>Conclusão: %{x}<br>Prazo: %{y:.1f} m<extra></extra>",
+                                      name="Prazo real"
+                                  ))
+                                  fig2.add_hrect(y0=t_min, y1=t_max, fillcolor="#3b82f6",
+                                                 opacity=0.08,
+                                                 annotation_text=f"Intervalo Kerzner ({t_min:.1f}-{t_max:.1f}m)",
+                                                 annotation_position="top right")
+                                  fig2.update_layout(
+                                      title="Evolução do prazo ao longo do tempo",
+                                      xaxis_title="Data de conclusão", yaxis_title="Meses",
+                                      height=320, template="plotly_white")
+                                  st.plotly_chart(fig2, use_container_width=True)
+                                  _figs_export.append(fig2)
+                              else:
+                                  _figs_export.append(None)
 
-                            # Gráfico 3: Custo
-                            df_custo = df_comp.dropna(subset=["custo_contratado","custo_final"])
-                            if not df_custo.empty:
-                                fig3 = go.Figure()
-                                fig3.add_trace(go.Bar(name="Contratado",
-                                    x=df_custo["nome_projeto"].tolist(),
-                                    y=df_custo["custo_contratado"].tolist(),
-                                    marker_color="#3b82f6"))
-                                fig3.add_trace(go.Bar(name="Realizado",
-                                    x=df_custo["nome_projeto"].tolist(),
-                                    y=df_custo["custo_final"].tolist(),
-                                    marker_color="#ef4444"))
-                                fig3.update_layout(
-                                    title="Custo contratado vs. realizado",
-                                    xaxis_title="Projeto", yaxis_title="R$",
-                                    barmode="group", height=340, template="plotly_white")
-                                st.plotly_chart(fig3, use_container_width=True)
-                                _figs_export.append(fig3)
-                            else:
-                                _figs_export.append(None)
+                              # Gráfico 3: Custo
+                              df_custo = df_comp.dropna(subset=["custo_contratado","custo_final"])
+                              if not df_custo.empty:
+                                  fig3 = go.Figure()
+                                  fig3.add_trace(go.Bar(name="Contratado",
+                                      x=df_custo["nome_projeto"].tolist(),
+                                      y=df_custo["custo_contratado"].tolist(),
+                                      marker_color="#3b82f6"))
+                                  fig3.add_trace(go.Bar(name="Realizado",
+                                      x=df_custo["nome_projeto"].tolist(),
+                                      y=df_custo["custo_final"].tolist(),
+                                      marker_color="#ef4444"))
+                                  fig3.update_layout(
+                                      title="Custo contratado vs. realizado",
+                                      xaxis_title="Projeto", yaxis_title="R$",
+                                      barmode="group", height=340, template="plotly_white")
+                                  st.plotly_chart(fig3, use_container_width=True)
+                                  _figs_export.append(fig3)
+                              else:
+                                  _figs_export.append(None)
 
-                            # Exportação ZIP
-                            st.markdown("---")
-                            from datetime import datetime as _dt_exp
-                            try:
-                                zip_bytes, xlsx_only = exportar_projetos_excel(
-                                    df_tabela=df_show if 'df_show' in dir() else df_comp,
-                                    df_comp=df_comp, figs=_figs_export,
-                                    subtema_comp=subtema_comp,
-                                    t_min=t_min, t_max=t_max,
-                                    esforco_label=esforco_label)
-                                ex1, ex2 = st.columns(2)
-                                with ex1:
-                                    st.download_button(
-                                        "Exportar Excel + Gráficos (ZIP)", data=zip_bytes,
-                                        file_name=f"analise_kerzner_{_dt_exp.now().strftime('%Y-%m-%d')}.zip",
-                                        mime="application/zip", use_container_width=True)
-                                with ex2:
-                                    st.download_button(
-                                        "Exportar Excel (somente dados)", data=xlsx_only,
-                                        file_name=f"analise_kerzner_{_dt_exp.now().strftime('%Y-%m-%d')}.xlsx",
-                                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                        use_container_width=True)
-                            except Exception as _ex:
-                                logger.error("Erro ao exportar: %s", _ex)
+                              # Exportação ZIP
+                              st.markdown("---")
+                              from datetime import datetime as _dt_exp
+                              try:
+                                  zip_bytes, xlsx_only = exportar_projetos_excel(
+                                      df_tabela=df_show if 'df_show' in dir() else df_comp,
+                                      df_comp=df_comp, figs=_figs_export,
+                                      subtema_comp=subtema_comp,
+                                      t_min=t_min, t_max=t_max,
+                                      esforco_label=esforco_label)
+                                  ex1, ex2 = st.columns(2)
+                                  with ex1:
+                                      st.download_button(
+                                          "Exportar Excel + Gráficos (ZIP)", data=zip_bytes,
+                                          file_name=f"analise_kerzner_{_dt_exp.now().strftime('%Y-%m-%d')}.zip",
+                                          mime="application/zip", use_container_width=True)
+                                  with ex2:
+                                      st.download_button(
+                                          "Exportar Excel (somente dados)", data=xlsx_only,
+                                          file_name=f"analise_kerzner_{_dt_exp.now().strftime('%Y-%m-%d')}.xlsx",
+                                          mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                          use_container_width=True)
+                              except Exception as _ex:
+                                  logger.error("Erro ao exportar: %s", _ex)
 
-    # =========================================================
-    # ABA: GERENCIAR (ADMIN / PMO)
+      # =========================================================
+      # ABA: GERENCIAR (ADMIN / PMO)
     # =========================================================
     if tab_gerenciar:
         with tab_gerenciar:
