@@ -2365,7 +2365,6 @@ def pagina_dashboard():
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
         st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:12px;">Solicitacoes por status</div>', unsafe_allow_html=True)
         sol_status = stats.get("sol_por_status", {})
-        st.caption(f"DEBUG: sol_status={sol_status} | tipo={type(sol_status)} | len={len(sol_status)}")
         if sol_status:
             try:
                 import plotly.graph_objects as go
