@@ -2190,7 +2190,6 @@ def registrar_upload_historico(tipo: str, qtd_registros: int, usuario: str):
         conn.close()
 
 
-@st.cache_data(ttl=60, show_spinner=False)
 def carregar_stats_dashboard():
     """Carrega estatisticas para o dashboard."""
     conn = get_conn()
@@ -2374,8 +2373,10 @@ def pagina_dashboard():
             try:
                 import plotly.graph_objects as go
                 cores_status = {
-                    "PENDENTE": "#f59e0b", "EM ANÁLISE": "#3b82f6",
-                    "CONCLUÍDA": "#10b981", "RECUSADA": "#ef4444",
+                    "PENDENTE": "#f59e0b",
+                    "EM ANÁLISE": "#3b82f6",
+                    "CONCLUÍDA": "#10b981",
+                    "RECUSADA": "#ef4444",
                 }
                 labels = list(sol_status.keys())
                 values = list(sol_status.values())
