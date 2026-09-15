@@ -2294,59 +2294,66 @@ def pagina_dashboard():
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
     st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:16px;">Visao geral</div>', unsafe_allow_html=True)
 
-    total_editais   = stats.get("total_editais", 0)
-    total_projetos  = stats.get("total_projetos", 0)
-    total_temas     = stats.get("total_temas", 0)
-    total_estados   = stats.get("total_estados", 0)
-    sol_pendentes   = stats.get("sol_pendentes", 0)
-    sol_total       = stats.get("sol_total", 0)
-    ipca_label      = stats.get("ipca_ultimo", "-")
-    ipca_ok         = def_meses <= 2
-    ipca_cor        = "#166534" if ipca_ok else "#92400e"
-    ipca_bg         = "#dcfce7" if ipca_ok else "#fef3c7"
-    ipca_status     = "Atualizado" if ipca_ok else f"{def_meses}m defasagem"
+    total_editais  = stats.get("total_editais", 0)
+    total_projetos = stats.get("total_projetos", 0)
+    total_temas    = stats.get("total_temas", 0)
+    total_estados  = stats.get("total_estados", 0)
+    sol_pendentes  = stats.get("sol_pendentes", 0)
+    sol_total      = stats.get("sol_total", 0)
+    ipca_label     = stats.get("ipca_ultimo", "-")
+    ipca_ok        = def_meses <= 2
+    ipca_cor       = "#166534" if ipca_ok else "#92400e"
+    ipca_bg        = "#dcfce7" if ipca_ok else "#fef3c7"
+    ipca_status    = "Atualizado" if ipca_ok else str(def_meses) + "m defasagem"
+    editais_fmt    = str(total_editais).replace(",",".")
 
-    def dash_metric(label, value, sub=None, sub_color="#64748b"):
-        sub_html = f'<div style="font-size:0.72rem;color:{sub_color};margin-top:4px;">{sub}</div>' if sub else ""
-        return f"""
-        <div style="background:var(--surface-1);border:1px solid var(--border-subtle);
-                    border-radius:12px;padding:16px 18px;text-align:left;">
-            <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.08em;
-                        text-transform:uppercase;color:var(--ink-secondary);margin-bottom:8px;">
-                {label}
-            </div>
-            <div style="font-size:1.6rem;font-weight:700;color:var(--ink-primary);
-                        letter-spacing:-0.02em;line-height:1;">
-                {value}
-            </div>
-            {sub_html}
-        </div>"""
+    # Renderiza cada card individualmente em colunas
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    card_style = ("background:var(--surface-1);border:1px solid var(--border-subtle);"
+                  "border-radius:12px;padding:16px 18px;text-align:left;height:90px;")
+    lbl_style  = ("font-size:0.65rem;font-weight:700;letter-spacing:0.08em;"
+                  "text-transform:uppercase;color:var(--ink-secondary);margin-bottom:8px;")
+    val_style  = "font-size:1.6rem;font-weight:700;color:var(--ink-primary);letter-spacing:-0.02em;line-height:1;"
+    sub_style  = "font-size:0.72rem;color:#64748b;margin-top:4px;"
 
-    cards_html = f"""
-    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:4px;">
-        {dash_metric("Editais/Projetos", f"{total_editais:,}".replace(",","."))}
-        {dash_metric("Projetos Concluidos", total_projetos)}
-        {dash_metric("Temas", total_temas)}
-        {dash_metric("Estados", total_estados)}
-        {dash_metric("Solicitacoes Pendentes", sol_pendentes,
-                     sub=f"{sol_total} no total")}
-        <div style="background:{ipca_bg};border:1px solid var(--border-subtle);
-                    border-radius:12px;padding:16px 18px;text-align:left;">
-            <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.08em;
-                        text-transform:uppercase;color:{ipca_cor};margin-bottom:8px;">
-                IPCA ate
-            </div>
-            <div style="font-size:1.6rem;font-weight:700;color:{ipca_cor};
-                        letter-spacing:-0.02em;line-height:1;">
-                {ipca_label}
-            </div>
-            <div style="font-size:0.72rem;color:{ipca_cor};margin-top:4px;font-weight:600;">
-                {ipca_status}
-            </div>
-        </div>
-    </div>
-    """
-    st.markdown(cards_html, unsafe_allow_html=True)
+    with c1:
+        st.markdown(
+            f'<div style="{card_style}"><div style="{lbl_style}">Editais/Projetos</div>' +
+            f'<div style="{val_style}">{total_editais}</div></div>',
+            unsafe_allow_html=True)
+    with c2:
+        st.markdown(
+            f'<div style="{card_style}"><div style="{lbl_style}">Projetos Concluidos</div>' +
+            f'<div style="{val_style}">{total_projetos}</div></div>',
+            unsafe_allow_html=True)
+    with c3:
+        st.markdown(
+            f'<div style="{card_style}"><div style="{lbl_style}">Temas</div>' +
+            f'<div style="{val_style}">{total_temas}</div></div>',
+            unsafe_allow_html=True)
+    with c4:
+        st.markdown(
+            f'<div style="{card_style}"><div style="{lbl_style}">Estados</div>' +
+            f'<div style="{val_style}">{total_estados}</div></div>',
+            unsafe_allow_html=True)
+    with c5:
+        st.markdown(
+            f'<div style="{card_style}"><div style="{lbl_style}">Solicitacoes Pendentes</div>' +
+            f'<div style="{val_style}">{sol_pendentes}</div>' +
+            f'<div style="{sub_style}">{sol_total} no total</div></div>',
+            unsafe_allow_html=True)
+    with c6:
+        ipca_card = ("background:" + ipca_bg + ";border:1px solid var(--border-subtle);"
+                     "border-radius:12px;padding:16px 18px;text-align:left;height:90px;")
+        ipca_lbl  = ("font-size:0.65rem;font-weight:700;letter-spacing:0.08em;"
+                     "text-transform:uppercase;color:" + ipca_cor + ";margin-bottom:8px;")
+        ipca_val  = "font-size:1.4rem;font-weight:700;color:" + ipca_cor + ";letter-spacing:-0.02em;line-height:1;"
+        ipca_sub  = "font-size:0.72rem;color:" + ipca_cor + ";margin-top:4px;font-weight:600;"
+        st.markdown(
+            f'<div style="{ipca_card}"><div style="{ipca_lbl}">IPCA ate</div>' +
+            f'<div style="{ipca_val}">{ipca_label}</div>' +
+            f'<div style="{ipca_sub}">{ipca_status}</div></div>',
+            unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
     # ── Graficos ──
