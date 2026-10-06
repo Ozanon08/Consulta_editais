@@ -4769,15 +4769,49 @@ def pagina_projetos_concluidos():
           if df_proj.empty:
               st.info("Nenhum projeto registrado para análise.")
           else:
-              subtemas_comp = sorted(df_proj["subtema"].dropna().unique().tolist())
+              # Só considera projetos com tema E subtema preenchidos
+              df_kz = df_proj[
+                  df_proj["tema"].notna() & (df_proj["tema"].astype(str).str.strip() != "") &
+                  df_proj["subtema"].notna() & (df_proj["subtema"].astype(str).str.strip() != "")
+              ].copy()
+              n_excluidos = len(df_proj) - len(df_kz)
+              if n_excluidos > 0:
+                  st.caption(
+                      f"ℹ️ {n_excluidos} projeto(s) sem tema/subtema foram excluídos desta análise."
+                  )
+              # Subtemas que existem na base de editais (com ao menos 3 registros para regressão)
+              try:
+                  _conn_kz = get_conn()
+                  df_subtemas_editais = pd.read_sql_query("""
+                      SELECT subtema, COUNT(*) as n
+                      FROM vw_consulta_editais
+                      WHERE subtema IS NOT NULL AND prazo_meses IS NOT NULL AND prazo_meses > 0
+                      GROUP BY subtema
+                  """, _conn_kz)
+                  _conn_kz.close()
+                  subtemas_editais = set(df_subtemas_editais["subtema"].tolist())
+              except Exception:
+                  subtemas_editais = set()
+
+              subtemas_proj = set(df_kz["subtema"].dropna().unique().tolist())
+              subtemas_cruzados = subtemas_proj & subtemas_editais
+
+              n_sem_cruzamento = len(df_kz[~df_kz["subtema"].isin(subtemas_cruzados)])
+              if n_sem_cruzamento > 0:
+                  n_excluidos += n_sem_cruzamento
+                  st.caption(
+                      f"ℹ️ {n_excluidos} projeto(s) excluídos: sem tema/subtema ou subtema ausente na base de editais."
+                  )
+
+              subtemas_comp = sorted(subtemas_cruzados)
               if not subtemas_comp:
-                  st.info("Nenhum projeto com subtema definido.")
+                  st.info("Nenhum subtema em comum entre projetos concluídos e base de editais para análise.")
               else:
                   fa, fb = st.columns([1, 2])
                   with fa:
                       subtema_comp = st.selectbox("Subtema", subtemas_comp,
                                                   key="pc_subtema_comp")
-                  df_sub = df_proj[df_proj["subtema"] == subtema_comp].dropna(
+                  df_sub = df_kz[df_kz["subtema"] == subtema_comp].dropna(
                       subset=["prazo_real_meses"])
                   with fb:
                       opcoes_proj = df_sub["nome_projeto"].tolist()
