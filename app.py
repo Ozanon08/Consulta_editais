@@ -3723,15 +3723,20 @@ def processar_upload_projetos_concluidos(arquivo):
         "Prazo de execução\n(meses)": "prazo_meses",
         "Prazo de execução (meses)": "prazo_meses",
         "Custo de Execução": "custo_contratado",
+        "Custo final realizado": "custo_final",
         "Data edital/projeto (mês/ano)": "data_edital",
         "Data de Início do Projeto (Caso concluído)": "data_inicio",
         "Data de Término do Projeto (Caso concluído)": "data_conclusao",
         "Serviços": "servicos",
+        "Observações": "observacoes",
+        "Observacoes": "observacoes",
     }
 
     xl = pd.ExcelFile(arquivo)
-    sheet = "Planilha Modelo" if "Planilha Modelo" in xl.sheet_names else (
-            "Base" if "Base" in xl.sheet_names else xl.sheet_names[0])
+    sheet = next(
+        (s for s in ["Planilha Modelo", "Projetos", "Base"] if s in xl.sheet_names),
+        xl.sheet_names[0]
+    )
     df = pd.read_excel(arquivo, sheet_name=sheet)
     df = df.rename(columns=COLUMN_MAP_PC)
 
@@ -4413,10 +4418,12 @@ def gerar_modelo_projetos() -> bytes:
         ("Unidade de medida do 2º Parâmetro", 18),
         ("Prazo de execução (meses)", 14),
         ("Custo de Execução", 18),
+        ("Custo final realizado", 18),
         ("Data edital/projeto (mês/ano)", 16),
         ("Data de Início do Projeto (Caso concluído)", 20),
         ("Data de Término do Projeto (Caso concluído)", 20),
         ("Serviços", 22),
+        ("Observações", 36),
     ]
 
     for col_idx, (nome, largura) in enumerate(colunas, start=1):
@@ -4431,16 +4438,16 @@ def gerar_modelo_projetos() -> bytes:
     exemplos = [
         ["Infraestrutura", "Saneamento Básico", "Brasil", "MG", "Contagem",
          "Ampliar saneamento", "Implantação de ETE", "ETE Contagem",
-         "Capacidade (m³/dia)", "m³/dia", "", "", "30", "8000000",
-         "03/2021", "01/04/2021", "30/09/2023", "Engenharia Civil"],
+         "Capacidade (m³/dia)", "m³/dia", "", "", "30", "8000000", "7800000",
+         "03/2021", "01/04/2021", "30/09/2023", "Engenharia Civil", ""],
         ["Mobilidade", "Transporte Público", "Brasil", "SP", "Campinas",
          "Modernizar frota de ônibus", "Aquisição de 50 ônibus elétricos", "Frota Elétrica Campinas",
-         "Número de veículos", "unid", "", "", "18", "15000000",
-         "07/2022", "01/08/2022", "31/01/2024", "Logística;Engenharia"],
+         "Número de veículos", "unid", "", "", "18", "15000000", "14500000",
+         "07/2022", "01/08/2022", "31/01/2024", "Logística;Engenharia", ""],
         ["Habitação", "Habitação Social", "Brasil", "RJ", "Nova Iguaçu",
          "Construir unidades habitacionais", "Edificação de 200 UH", "Residencial Nova Esperança",
-         "Unidades habitacionais", "UH", "", "", "24", "22000000",
-         "11/2020", "01/12/2020", "30/11/2022", "Construção Civil"],
+         "Unidades habitacionais", "UH", "", "", "24", "22000000", "23100000",
+         "11/2020", "01/12/2020", "30/11/2022", "Construção Civil", "Projeto entregue com aditivo de prazo"],
     ]
     for row_idx, row_data in enumerate(exemplos, start=4):
         for col_idx, val in enumerate(row_data, start=1):
@@ -4467,11 +4474,13 @@ def gerar_modelo_projetos() -> bytes:
         ("2º Parâmetro", "Métrica secundária (opcional)", ""),
         ("Unidade 2º Parâmetro", "Unidade da métrica secundária", ""),
         ("Prazo de execução (meses)", "Duração em meses", "30"),
-        ("Custo de Execução", "Valor contratado em R$", "8000000"),
+        ("Custo de Execução", "Valor contratado/orçado em R$ (sem símbolo)", "8000000"),
+        ("Custo final realizado", "Valor efetivamente gasto em R$ (pode diferir do contratado)", "7800000"),
         ("Data edital/projeto (mês/ano)", "Formato: MM/AAAA", "03/2021"),
         ("Data de Início (Caso concluído)", "Formato: DD/MM/AAAA", "01/04/2021"),
         ("Data de Término (Caso concluído)", "Formato: DD/MM/AAAA", "30/09/2023"),
         ("Serviços", "Serviços separados por ponto-e-vírgula", "Engenharia Civil"),
+        ("Observações", "Notas adicionais sobre o projeto (opcional)", "Entregue com aditivo de prazo"),
     ]
     for r_idx, row in enumerate(instrucoes, 1):
         for c_idx, val in enumerate(row, 1):
