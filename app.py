@@ -3737,7 +3737,13 @@ def processar_upload_projetos_concluidos(arquivo):
         (s for s in ["Planilha Modelo", "Projetos", "Base"] if s in xl.sheet_names),
         xl.sheet_names[0]
     )
-    df = pd.read_excel(arquivo, sheet_name=sheet)
+    # O modelo tem título na linha 1 e instrução na linha 2; cabeçalho real na linha 3 (índice 2).
+    # Para arquivos sem essas linhas extras, tentamos header=2 primeiro; se não achar
+    # nenhuma coluna conhecida, tentamos header=0.
+    df = pd.read_excel(arquivo, sheet_name=sheet, header=2)
+    colunas_conhecidas = set(COLUMN_MAP_PC.keys())
+    if not colunas_conhecidas.intersection(set(df.columns.astype(str))):
+        df = pd.read_excel(arquivo, sheet_name=sheet, header=0)
     df = df.rename(columns=COLUMN_MAP_PC)
 
     for col in df.columns:
