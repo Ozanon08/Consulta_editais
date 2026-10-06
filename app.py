@@ -2177,156 +2177,239 @@ def _inserir_edital_individual(tema, subtema, pais, estado, municipio,
 
 def pagina_base():
     header_principal()
-    df = carregar_view()
 
-    st.markdown('<div class="section-card">', unsafe_allow_html=True)
-    st.subheader("Visualização da base")
-    if df.empty:
-        st.warning("A view 'vw_consulta_editais' não foi encontrada ou não possui dados.")
+    # ── Definir abas conforme perfil ──
+    perfil = st.session_state.perfil
+    if pode_substituir_base(perfil):
+        abas = st.tabs(["Visualizar", "Importar planilha", "Atualizar IPCA", "Incluir edital"])
+        tab_viz, tab_imp, tab_ipca, tab_add = abas
     else:
-        st.dataframe(df.head(500), use_container_width=True, hide_index=True)
-        st.caption("Exibindo até 500 linhas para visualização.")
-    st.markdown('</div>', unsafe_allow_html=True)
+        abas = st.tabs(["Visualizar"])
+        tab_viz = abas[0]
+        tab_imp = tab_ipca = tab_add = None
 
-    if pode_substituir_base(st.session_state.perfil):
+    # ── ABA: Visualizar ──
+    with tab_viz:
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.subheader("Importar planilha de editais/projetos")
-
-        # ── Download da planilha modelo ──
-        col_dl, _ = st.columns([1, 3])
-        with col_dl:
-            try:
-                modelo_bytes = gerar_modelo_base()
-                st.download_button(
-                    label="Baixar planilha modelo",
-                    data=modelo_bytes,
-                    file_name="Modelo_Base_Editais_Projetos.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="dl_modelo_base",
-                )
-            except Exception as e:
-                logger.error("Erro ao gerar modelo base: %s", e)
-
-        st.markdown("---")
-
-        # ── Modo de importacao ──
-        modo_import = st.radio(
-            "Modo de importacao",
-            options=["Substituir toda a base", "Incrementar (adicionar registros)"],
-            index=0,
-            help=(
-                "**Substituir**: remove todos os editais atuais e carrega apenas os da nova planilha.\n\n"
-                "**Incrementar**: adiciona os registros da planilha sem apagar os existentes."
-            ),
-            key="radio_modo_import",
-        )
-        modo_val = "substituir" if "Substituir" in modo_import else "incrementar"
-
-        if modo_val == "substituir":
-            st.warning("Atencao: o modo Substituir apaga toda a base de editais antes de importar a nova planilha. Usuarios e solicitacoes nao sao afetados.")
+        df = carregar_view()
+        if df.empty:
+            st.warning("A view 'vw_consulta_editais' não foi encontrada ou não possui dados.")
         else:
-            st.info("Modo Incrementar: os registros da planilha serao adicionados sem apagar os editais ja existentes.")
+            st.dataframe(df.head(500), use_container_width=True, hide_index=True)
+            st.caption("Exibindo até 500 linhas para visualização.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        arquivo = st.file_uploader("Selecione uma planilha", type=["xlsx", "xls", "csv"], key="base_uploader")
-        if arquivo is not None:
-            st.success(f"Arquivo carregado: {arquivo.name}")
-            label_btn = "Substituir base" if modo_val == "substituir" else "Incrementar base"
-            if st.button(label_btn, type="primary", key="btn_processar_base"):
-                with st.spinner("Processando planilha e atualizando o banco..."):
+    # ── ABA: Importar planilha ──
+    if tab_imp is not None:
+        with tab_imp:
+            st.markdown('<div class="section-card">', unsafe_allow_html=True)
+            st.markdown("#### Importar planilha de editais/projetos")
+            st.caption("Área reservada para ADMIN e PMO. Usuários e solicitações não são afetados pelo upload.")
+
+            # Download do modelo
+            col_dl, _ = st.columns([1, 3])
+            with col_dl:
+                try:
+                    modelo_bytes = gerar_modelo_base()
+                    st.download_button(
+                        label="Baixar planilha modelo",
+                        data=modelo_bytes,
+                        file_name="Modelo_Base_Editais_Projetos.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key="dl_modelo_base",
+                    )
+                except Exception as e:
+                    logger.error("Erro ao gerar modelo base: %s", e)
+
+            st.markdown("---")
+
+            # Modo de importacao
+            modo_import = st.radio(
+                "Modo de importacao",
+                options=["Substituir toda a base", "Incrementar (adicionar registros)"],
+                index=0,
+                help=(
+                    "**Substituir**: remove todos os editais atuais e carrega apenas os da nova planilha.\n\n"
+                    "**Incrementar**: adiciona os registros da planilha sem apagar os existentes."
+                ),
+                key="radio_modo_import",
+            )
+            modo_val = "substituir" if "Substituir" in modo_import else "incrementar"
+
+            if modo_val == "substituir":
+                st.warning("Atenção: o modo Substituir apaga toda a base de editais antes de importar a nova planilha.")
+            else:
+                st.info("Modo Incrementar: os registros da planilha serão adicionados sem apagar os editais já existentes.")
+
+            arquivo = st.file_uploader("Selecione uma planilha", type=["xlsx", "xls", "csv"], key="base_uploader")
+            if arquivo is not None:
+                st.success(f"Arquivo carregado: {arquivo.name}")
+                label_btn = "Substituir base" if modo_val == "substituir" else "Incrementar base"
+                if st.button(label_btn, type="primary", key="btn_processar_base"):
+                    with st.spinner("Processando planilha e atualizando o banco..."):
+                        try:
+                            processar_upload_planilha(arquivo, modo=modo_val)
+                            if modo_val == "substituir":
+                                st.success("Base substituída com sucesso! Recarregue a página para ver os novos dados.")
+                            else:
+                                st.success("Registros adicionados com sucesso! Recarregue a página para ver os novos dados.")
+                            st.cache_data.clear()
+                        except Exception as e:
+                            logger.error("Erro ao processar planilha: %s", e)
+                            st.error("Erro ao processar a planilha. Verifique o formato do arquivo e tente novamente.")
+            st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── ABA: Atualizar IPCA ──
+    if tab_ipca is not None:
+        with tab_ipca:
+            st.markdown('<div class="section-card">', unsafe_allow_html=True)
+            st.markdown("#### Atualizar IPCA")
+            st.caption("Faça o upload do arquivo CSV do SGS/IBGE (série 433) para atualizar os índices IPCA utilizados na correção de custos.")
+
+            _ultimo_mes = None
+            try:
+                conn_ipca = get_conn()
+                row_ipca = conn_ipca.cursor()
+                row_ipca.execute("SELECT MAX(mes_ano) FROM ipca")
+                res = row_ipca.fetchone()
+                _ultimo_mes = res[0] if res else None
+                row_ipca.close()
+                conn_ipca.close()
+            except Exception:
+                pass
+
+            if _ultimo_mes:
+                st.info(f"Último mês carregado no banco: **{_ultimo_mes}**")
+            else:
+                st.warning("Nenhum dado de IPCA carregado ainda.")
+
+            arq_ipca = st.file_uploader(
+                "Selecione o arquivo CSV do SGS (bcdata_sgs_433.csv)",
+                type=["csv"],
+                key="ipca_uploader",
+            )
+            if arq_ipca is not None:
+                st.success(f"Arquivo carregado: {arq_ipca.name}")
+                if st.button("Atualizar IPCA", type="primary", key="btn_atualizar_ipca"):
+                    with st.spinner("Atualizando índices IPCA..."):
+                        try:
+                            import io as _io
+                            conteudo = arq_ipca.read().decode("utf-8", errors="replace")
+                            linhas = [l for l in conteudo.splitlines() if l.strip()]
+                            conn_ipca2 = get_conn()
+                            cur_ipca = conn_ipca2.cursor()
+                            inseridos_ipca = 0
+                            for linha in linhas[1:]:
+                                partes = linha.replace('"', '').split(";")
+                                if len(partes) < 2:
+                                    continue
+                                data_raw = partes[0].strip()
+                                valor_raw = partes[1].strip().replace(",", ".")
+                                try:
+                                    dt_ipca = datetime.strptime(data_raw, "%d/%m/%Y")
+                                    mes_ano_str = dt_ipca.strftime("%Y-%m")
+                                    valor_ipca = float(valor_raw)
+                                    cur_ipca.execute(
+                                        "INSERT INTO ipca (mes_ano, valor) VALUES (%s, %s) "
+                                        "ON CONFLICT (mes_ano) DO UPDATE SET valor = EXCLUDED.valor",
+                                        (mes_ano_str, valor_ipca)
+                                    )
+                                    inseridos_ipca += 1
+                                except Exception:
+                                    continue
+                            conn_ipca2.commit()
+                            cur_ipca.close()
+                            conn_ipca2.close()
+                            st.success(f"IPCA atualizado com sucesso! {inseridos_ipca} registros processados.")
+                            st.cache_data.clear()
+                        except Exception as e:
+                            logger.error("Erro ao atualizar IPCA: %s", e)
+                            st.error("Erro ao processar o arquivo IPCA. Verifique o formato e tente novamente.")
+            st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── ABA: Incluir edital ──
+    if tab_add is not None:
+        with tab_add:
+            st.markdown('<div class="section-card">', unsafe_allow_html=True)
+            st.markdown("#### Incluir novo edital individualmente")
+            st.caption("Adicione um edital diretamente na base sem precisar substituir a planilha inteira.")
+
+            conn_ref = get_conn()
+            try:
+                temas_ref = pd.read_sql_query("SELECT DISTINCT nome FROM tema ORDER BY nome", conn_ref)["nome"].tolist()
+                estados_ref = pd.read_sql_query("SELECT DISTINCT nome FROM estado ORDER BY nome", conn_ref)["nome"].tolist()
+            except Exception:
+                temas_ref, estados_ref = [], []
+            finally:
+                conn_ref.close()
+
+            with st.form("form_novo_edital", clear_on_submit=True):
+                st.markdown("**Identificação**")
+                c1, c2 = st.columns(2)
+                with c1:
+                    ne_tema = st.selectbox("Tema *", [""] + temas_ref)
+                    ne_subtema = st.text_input("Subtema *")
+                    ne_nome_edital = st.text_input("Nome do edital *")
+                with c2:
+                    ne_pais = st.text_input("País", value="Brasil")
+                    ne_estado = st.selectbox("Estado", [""] + estados_ref)
+                    ne_municipio = st.text_input("Município")
+
+                st.markdown("**Descrição**")
+                ne_descricao = st.text_area("Descrição / Objetivo do edital", height=100)
+                ne_servicos = st.text_input("Serviços (separados por vírgula)")
+
+                st.markdown("**Dados técnicos**")
+                c3, c4, c5 = st.columns(3)
+                with c3:
+                    ne_esforco = st.number_input("Esforço", min_value=0.0, step=0.1, format="%.2f")
+                    ne_unidade = st.text_input("Unidade de medida", placeholder="Ex: km, m², unid...")
+                with c4:
+                    ne_prazo = st.number_input("Prazo (meses)", min_value=0.0, step=0.5, format="%.1f")
+                    ne_custo = st.number_input("Custo de execução (R$)", min_value=0.0, step=1000.0, format="%.2f")
+                with c5:
+                    ne_valor_min = st.number_input("Valor mínimo (R$)", min_value=0.0, step=1000.0, format="%.2f")
+                    ne_valor_max = st.number_input("Valor máximo (R$)", min_value=0.0, step=1000.0, format="%.2f")
+
+                st.markdown("**Outros**")
+                c6, c7 = st.columns(2)
+                with c6:
+                    ne_data = st.text_input("Data do edital (AAAA-MM)", placeholder="Ex: 2024-03")
+                    ne_codigo = st.text_input("Código planilha")
+                with c7:
+                    ne_obs = st.text_area("Observações", height=80)
+
+                salvar_edital = st.form_submit_button("Salvar edital", type="primary")
+
+            if salvar_edital:
+                if not ne_tema or not ne_subtema.strip() or not ne_nome_edital.strip():
+                    st.warning("Preencha ao menos Tema, Subtema e Nome do edital.")
+                else:
                     try:
-                        processar_upload_planilha(arquivo, modo=modo_val)
-                        if modo_val == "substituir":
-                            st.success("Base substituida com sucesso! Recarregue a pagina para ver os novos dados.")
-                        else:
-                            st.success("Registros adicionados com sucesso! Recarregue a pagina para ver os novos dados.")
+                        _inserir_edital_individual(
+                            tema=ne_tema, subtema=ne_subtema.strip(),
+                            pais=ne_pais.strip() or "Brasil", estado=ne_estado or None,
+                            municipio=ne_municipio.strip() or None,
+                            nome_edital=ne_nome_edital.strip(),
+                            descricao=ne_descricao.strip() or None,
+                            servicos=ne_servicos.strip() or None,
+                            esforco=str(ne_esforco) if ne_esforco > 0 else None,
+                            unidade=ne_unidade or None,
+                            prazo_meses=ne_prazo if ne_prazo > 0 else None,
+                            custo_execucao=ne_custo if ne_custo > 0 else None,
+                            valor_min=ne_valor_min if ne_valor_min > 0 else None,
+                            valor_max=ne_valor_max if ne_valor_max > 0 else None,
+                            data_edital=ne_data.strip() or None,
+                            codigo_planilha=ne_codigo.strip() or None,
+                            observacao=ne_obs.strip() or None,
+                        )
+                        st.success(f"Edital '{ne_nome_edital}' incluído com sucesso!")
                         st.cache_data.clear()
                     except Exception as e:
-                        logger.error("Erro ao processar planilha: %s", e)
-                        st.error("Erro ao processar a planilha. Verifique o formato do arquivo e tente novamente.")
-        st.markdown('</div>', unsafe_allow_html=True)
+                        logger.error("Erro ao incluir edital: %s", e)
+                        st.error("Erro ao salvar o edital. Tente novamente ou contate o administrador.")
 
-    # ── Inclusão de edital individual ──
-    if pode_substituir_base(st.session_state.perfil):
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.subheader("Incluir novo edital individualmente")
-        st.info("Adicione um edital diretamente na base sem precisar substituir a planilha inteira.")
-
-        conn_ref = get_conn()
-        try:
-            temas_ref = pd.read_sql_query("SELECT DISTINCT nome FROM tema ORDER BY nome", conn_ref)["nome"].tolist()
-            estados_ref = pd.read_sql_query("SELECT DISTINCT nome FROM estado ORDER BY nome", conn_ref)["nome"].tolist()
-        except Exception:
-            temas_ref, estados_ref = [], []
-        finally:
-            conn_ref.close()
-
-        with st.form("form_novo_edital", clear_on_submit=True):
-            st.markdown("**Identificação**")
-            c1, c2 = st.columns(2)
-            with c1:
-                ne_tema = st.selectbox("Tema *", [""] + temas_ref)
-                ne_subtema = st.text_input("Subtema *")
-                ne_nome_edital = st.text_input("Nome do edital *")
-            with c2:
-                ne_pais = st.text_input("País", value="Brasil")
-                ne_estado = st.selectbox("Estado", [""] + estados_ref)
-                ne_municipio = st.text_input("Município")
-
-            st.markdown("**Descrição**")
-            ne_descricao = st.text_area("Descrição / Objetivo do edital", height=100)
-            ne_servicos = st.text_input("Serviços (separados por vírgula)")
-
-            st.markdown("**Dados técnicos**")
-            c3, c4, c5 = st.columns(3)
-            with c3:
-                ne_esforco = st.number_input("Esforço", min_value=0.0, step=0.1, format="%.2f")
-                ne_unidade = st.text_input("Unidade de medida", placeholder="Ex: km, m², unid...")
-            with c4:
-                ne_prazo = st.number_input("Prazo (meses)", min_value=0.0, step=0.5, format="%.1f")
-                ne_custo = st.number_input("Custo de execução (R$)", min_value=0.0, step=1000.0, format="%.2f")
-            with c5:
-                ne_valor_min = st.number_input("Valor mínimo (R$)", min_value=0.0, step=1000.0, format="%.2f")
-                ne_valor_max = st.number_input("Valor máximo (R$)", min_value=0.0, step=1000.0, format="%.2f")
-
-            st.markdown("**Outros**")
-            c6, c7 = st.columns(2)
-            with c6:
-                ne_data = st.text_input("Data do edital (AAAA-MM)", placeholder="Ex: 2024-03")
-                ne_codigo = st.text_input("Código planilha")
-            with c7:
-                ne_obs = st.text_area("Observações", height=80)
-
-            salvar_edital = st.form_submit_button("Salvar edital", type="primary")
-
-        if salvar_edital:
-            if not ne_tema or not ne_subtema.strip() or not ne_nome_edital.strip():
-                st.warning("Preencha ao menos Tema, Subtema e Nome do edital.")
-            else:
-                try:
-                    _inserir_edital_individual(
-                        tema=ne_tema, subtema=ne_subtema.strip(),
-                        pais=ne_pais.strip() or "Brasil", estado=ne_estado or None,
-                        municipio=ne_municipio.strip() or None,
-                        nome_edital=ne_nome_edital.strip(),
-                        descricao=ne_descricao.strip() or None,
-                        servicos=ne_servicos.strip() or None,
-                        esforco=str(ne_esforco) if ne_esforco > 0 else None,
-                        unidade=ne_unidade or None,
-                        prazo_meses=ne_prazo if ne_prazo > 0 else None,
-                        custo_execucao=ne_custo if ne_custo > 0 else None,
-                        valor_min=ne_valor_min if ne_valor_min > 0 else None,
-                        valor_max=ne_valor_max if ne_valor_max > 0 else None,
-                        data_edital=ne_data.strip() or None,
-                        codigo_planilha=ne_codigo.strip() or None,
-                        observacao=ne_obs.strip() or None,
-                    )
-                    st.success(f"Edital '{ne_nome_edital}' incluído com sucesso!")
-                    st.cache_data.clear()
-                except Exception as e:
-                    logger.error("Erro ao incluir edital: %s", e)
-                    st.error("Erro ao salvar o edital. Tente novamente ou contate o administrador.")
-
-        st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
 
 # =========================================================
