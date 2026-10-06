@@ -3803,9 +3803,10 @@ def processar_upload_projetos_concluidos(arquivo):
                 nome_projeto, tema, subtema, pais, estado, municipio,
                 descricao, objetivo, servicos, esforco, unidade,
                 esforco2, unidade2, data_inicio, data_conclusao,
-                prazo_real_meses, custo_contratado, data_edital,
+                prazo_real_meses, custo_contratado, custo_final,
+                data_edital, observacoes,
                 criado_por, criado_em, atualizado_em
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
             nome,
             limpar_pc(row.get("tema")), limpar_pc(row.get("subtema")),
@@ -3818,7 +3819,9 @@ def processar_upload_projetos_concluidos(arquivo):
             limpar_pc(row.get("esforco2")), limpar_pc(row.get("unidade2")),
             data_inicio, data_conclusao, prazo_real,
             safe_float_pc(row.get("custo_contratado")),
+            safe_float_pc(row.get("custo_final")),
             limpar_pc(row.get("data_edital")),
+            limpar_pc(row.get("observacoes")),
             "upload", agora_str(), agora_str()
         ))
         inseridos += 1
