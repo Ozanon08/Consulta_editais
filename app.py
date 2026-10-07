@@ -3473,7 +3473,7 @@ def pagina_base():
             # Modo de importação
             modo_import = st.radio(
                 "Modo de importação",
-                options=["➕ Incrementar (adicionar novos registros)", "🔄 Substituir (apagar e reimportar tudo)"],
+                options=["Incrementar (adicionar novos registros)", "Substituir (apagar e reimportar tudo)"],
                 index=0,
                 key="modo_import_base",
                 horizontal=True,
@@ -4091,7 +4091,7 @@ def pagina_oportunidades():
     st.markdown('</div>', unsafe_allow_html=True)
 
     # ── Abas ──
-    tab_base, tab_import = st.tabs(["📋 Base de Editais", "⬆️ Importação"])
+    tab_base, tab_import = st.tabs(["Base de Editais", "Importação"])
 
     # ═══════════════════════════════════════════
     # ABA BASE DE EDITAIS
@@ -4142,13 +4142,17 @@ def pagina_oportunidades():
 
             st.caption(f"{len(df_view)} edital(is) exibido(s)")
 
-            # Cores por status
+            # Cores por status (badges)
             COR_STATUS = {
                 "novo":        ("#dcfce7","#166534"),
                 "atualização": ("#dbeafe","#1e40af"),
-                "encerrado":   ("#f1f5f9","#64748b"),
+                "encerrado":   ("#e2e8f0","#64748b"),
             }
             COR_PERF = {"A": ("#fef3c7","#92400e"), "B": ("#ede9fe","#5b21b6"), "C": ("#f0f9ff","#0369a1")}
+
+            from datetime import date as _today_date, timedelta as _td
+            _hoje = _today_date.today()
+            _PRAZO_AVISO_DIAS = 7  # dias restantes para considerar "prazo próximo"
 
             for _, row in df_view.iterrows():
                 tema_opp   = str(row.get("tema","") or "—")
@@ -4168,13 +4172,53 @@ def pagina_oportunidades():
                 bg_s, fg_s = COR_STATUS.get(st_key, ("#f8fafc","#475569"))
                 bg_pr, fg_pr = COR_PERF.get(perf_opp.upper(), ("#f8fafc","#64748b"))
 
+                # ── Cor de fundo do card ──────────────────────────────────────────
+                # 1. Encerrado → cinza suave
+                # 2. Prazo próximo (≤ 7 dias, não encerrado) → vermelho pastel
+                # 3. Demais → padrão (surface-1)
+                _encerrado = "encerrado" in st_key
+                _prazo_proximo = False
+                _prazo_label_extra = ""
+                if not _encerrado and prazo_opp not in ("—", "None", "nan", "NaT", ""):
+                    try:
+                        _prazo_date = _today_date.fromisoformat(prazo_opp[:10])
+                        _dias_rest = (_prazo_date - _hoje).days
+                        if _dias_rest < 0:
+                            # prazo já passou mas não está marcado como encerrado
+                            _prazo_proximo = True
+                            _prazo_label_extra = f" ({abs(_dias_rest)}d atraso)"
+                        elif _dias_rest <= _PRAZO_AVISO_DIAS:
+                            _prazo_proximo = True
+                            _prazo_label_extra = f" ({_dias_rest}d restantes)"
+                    except Exception:
+                        pass
+
+                if _encerrado:
+                    card_bg      = "#f1f5f9"
+                    card_border  = "#cbd5e1"
+                    card_opacity = "opacity:0.72;"
+                elif _prazo_proximo:
+                    card_bg      = "#fee2e2"
+                    card_border  = "#fca5a5"
+                    card_opacity = ""
+                else:
+                    card_bg      = "var(--surface-1)"
+                    card_border  = "var(--border-subtle)"
+                    card_opacity = ""
+
                 link_html = (f'<a href="{_h_opp.escape(link_opp)}" target="_blank" '
                              f'style="color:var(--accent-primary);font-size:0.78rem;">🔗 Ver edital</a>'
                              if link_opp.startswith("http") else "")
 
+                prazo_style = (
+                    'style="font-size:0.78rem;color:#b91c1c;font-weight:600;"'
+                    if _prazo_proximo else
+                    'style="font-size:0.78rem;color:var(--ink-secondary);"'
+                )
+
                 st.markdown(f"""
-                <div style="border:1px solid var(--border-subtle);border-radius:10px;
-                            padding:14px 16px;background:var(--surface-1);margin-bottom:8px;">
+                <div style="border:1px solid {card_border};border-radius:10px;
+                            padding:14px 16px;background:{card_bg};margin-bottom:8px;{card_opacity}">
                   <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;">
                     <div style="flex:1;min-width:200px;">
                       <div style="font-weight:700;font-size:0.92rem;color:var(--ink-primary);
@@ -4204,8 +4248,8 @@ def pagina_oportunidades():
                       <div style="font-size:0.78rem;color:var(--ink-secondary);">
                         💰 {_h_opp.escape(valor_opp)}
                       </div>
-                      <div style="font-size:0.78rem;color:var(--ink-secondary);">
-                        📅 Prazo: {_h_opp.escape(prazo_opp)} &nbsp;|&nbsp; Identificado: {_h_opp.escape(data_id)}
+                      <div {prazo_style}>
+                        📅 Prazo: {_h_opp.escape(prazo_opp + _prazo_label_extra)} &nbsp;|&nbsp; Identificado: {_h_opp.escape(data_id)}
                       </div>
                       <div>{link_html}</div>
                     </div>
@@ -4690,6 +4734,7 @@ def excluir_projeto_concluido(proj_id: int):
     conn.close()
 
 
+@st.cache_data(ttl=300, show_spinner=False)
 def kerzner_total_para_projeto(subtema: str, esforco) -> dict | None:
     """
     Calcula o prazo TOTAL Kerzner (min e max) para um projeto,
@@ -4830,6 +4875,7 @@ def calcular_estatisticas_subtema(subtema: str):
 # =========================================================
 # IPCA - CORREÇÃO MONETÁRIA
 # =========================================================
+@st.cache_data(ttl=3600, show_spinner=False)
 @st.cache_data(ttl=3600, show_spinner=False)
 def carregar_ipca() -> dict:
     """Retorna dict {(ano, mes): variacao_pct} com toda a série histórica."""
@@ -5409,13 +5455,24 @@ def pagina_projetos_concluidos():
             # ── Tabela ──
             df_tabela = df_exib.copy()
 
+            # Pré-calcula Kerzner para cada par (subtema, esforco) único —
+            # evita N queries ao banco por linha; o cache do decorator absorve
+            # chamadas repetidas entre reruns.
+            _pares_unicos = df_tabela[["subtema", "esforco"]].drop_duplicates()
+            _kz_cache = {}
+            for _, _r in _pares_unicos.iterrows():
+                _sub = _r.get("subtema")
+                _esf = _r.get("esforco")
+                if _sub:
+                    _kz_cache[(_sub, _esf)] = kerzner_total_para_projeto(_sub, _esf)
+
             def badge_prazo(row):
                 sub    = row.get("subtema")
                 prazo  = row.get("prazo_real_meses")
                 esforco= row.get("esforco")
                 if not sub or pd.isna(prazo):
                     return "-"
-                kz = kerzner_total_para_projeto(sub, esforco)
+                kz = _kz_cache.get((sub, esforco))
                 if not kz:
                     return f"{prazo:.1f} m"
                 t_min, t_max = kz["total_min"], kz["total_max"]
@@ -5429,8 +5486,7 @@ def pagina_projetos_concluidos():
             df_tabela["Prazo"] = df_tabela.apply(badge_prazo, axis=1)
             df_tabela["Estimativa Kerzner"] = df_tabela.apply(
                 lambda r: (lambda kz: f"{kz['total_min']:.1f}-{kz['total_max']:.1f} m"
-                           if kz else "-")(kerzner_total_para_projeto(
-                               r.get("subtema"), r.get("esforco"))), axis=1)
+                           if kz else "-")(_kz_cache.get((r.get("subtema"), r.get("esforco")))), axis=1)
 
             def custo_corrigido(row):
                 if not tem_ipca: return None
