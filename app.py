@@ -14,9 +14,12 @@ logger = logging.getLogger(__name__)
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+import warnings
 import pandas as pd
 import psycopg2
 import streamlit as st
+
+warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy connectable")
 
 # =========================================================
 # CONFIG
@@ -3902,6 +3905,12 @@ def listar_oportunidades(area: str = None, perfil_usuario: str = None):
                 "SELECT * FROM editais_oportunidades WHERE area = %s ORDER BY data_identificacao DESC, id DESC",
                 conn, params=(area,)
             )
+        # Normaliza colunas de data para string ISO para evitar erros de serialização Arrow
+        for col in ("prazo_submissao", "data_identificacao", "semana_referencia"):
+            if col in df.columns:
+                df[col] = df[col].apply(
+                    lambda v: str(v) if v is not None and str(v) not in ("None", "NaT", "nan", "") else None
+                )
     except Exception:
         df = pd.DataFrame()
     finally:
@@ -3910,19 +3919,51 @@ def listar_oportunidades(area: str = None, perfil_usuario: str = None):
 
 
 def _parse_data_oportunidade(val):
-    """Converte número serial Excel ou string para date (ou None)."""
+    """Converte número serial Excel, datetime, date ou string para date ISO (ou None)."""
     import math
-    from datetime import date as _date, timedelta as _timedelta
+    from datetime import date as _date, datetime as _datetime, timedelta as _timedelta
     if val is None:
         return None
+    # Verifica pd.NaT e outros valores nulos do pandas ANTES de qualquer str()
     try:
-        if isinstance(val, (int, float)) and not math.isnan(float(val)):
-            # Serial date Excel: dias desde 1899-12-30
-            return (_date(1899, 12, 30) + _timedelta(days=int(val))).isoformat()
-        s = str(val).strip()
-        if s in ("", "nan", "None", "NaT"):
+        if pd.isnull(val):
             return None
-        return pd.to_datetime(s, dayfirst=True, errors="coerce").date().isoformat()
+    except Exception:
+        pass
+    # Tipos nativos Python
+    if isinstance(val, _datetime):
+        return val.date().isoformat()
+    if isinstance(val, _date):
+        return val.isoformat()
+    # String: verifica marcadores nulos e faz parse
+    if isinstance(val, str):
+        s = val.strip()
+        if s in ("", "nan", "None", "NaT", "NaN", "NAT", "N/A", "NA", "-"):
+            return None
+        try:
+            parsed = pd.to_datetime(s, dayfirst=False, errors="coerce")
+            if pd.isnull(parsed):
+                return None
+            return parsed.date().isoformat()
+        except Exception:
+            return None
+    # Número serial Excel (int ou float)
+    try:
+        fval = float(val)
+        if math.isnan(fval):
+            return None
+        return (_date(1899, 12, 30) + _timedelta(days=int(fval))).isoformat()
+    except Exception:
+        pass
+    # Fallback: tenta converter como string
+    try:
+        s = str(val).strip()
+        if s in ("", "nan", "None", "NaT", "NaN", "NAT", "N/A", "NA", "-"):
+            return None
+        parsed = pd.to_datetime(s, dayfirst=False, errors="coerce")
+        if pd.isnull(parsed):
+            return None
+        return parsed.date().isoformat()
     except Exception:
         return None
 
