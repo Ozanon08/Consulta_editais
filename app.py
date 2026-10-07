@@ -1,9 +1,9 @@
 import os
+import re
 import hashlib
 import hmac
 import logging
 import threading
-import warnings
 import bcrypt
 import smtplib
 import base64
@@ -18,15 +18,12 @@ import pandas as pd
 import psycopg2
 import streamlit as st
 
-# Suprime aviso do pandas sobre conexoes psycopg2 diretas (comportamento funcional, nao critico)
-warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy connectable")
-
 # =========================================================
 # CONFIG
 # =========================================================
 st.set_page_config(
     page_title="FGV PMO - Portal de Consulta de Editais",
-    page_icon=None,
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -48,7 +45,7 @@ def aplicar_estilo_dark():
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-    /* ── TOKENS ── */
+    /*  TOKENS  */
     :root {
         --fgv-navy:      #0b1f3a;
         --fgv-blue:      #1a3f6f;
@@ -73,7 +70,7 @@ def aplicar_estilo_dark():
         --font: 'Inter', system-ui, sans-serif;
     }
 
-    /* ── BASE ── */
+    /*  BASE  */
     .stApp { background: var(--surface-0) !important; color: var(--ink-primary) !important; font-family: var(--font) !important; }
     .block-container { padding: 0 !important; max-width: 100% !important; color: var(--ink-primary) !important; }
     header[data-testid="stHeader"] { background: transparent !important; height: 0 !important; }
@@ -82,30 +79,10 @@ def aplicar_estilo_dark():
     * { font-family: var(--font) !important; }
     p, li { color: var(--ink-primary) !important; }
 
-    /* Esconde botão de colapso da sidebar — todas as variações */
-    button[data-testid="collapsedControl"],
-    div[data-testid="collapsedControl"],
-    [data-testid="stSidebarCollapsedControl"],
-    button[data-testid="baseButton-headerNoPadding"],
-    div[class*="collapsedControl"],
-    span[class*="collapsedControl"],
-    [class*="keyboard_double_arrow"],
-    .st-emotion-cache-dvne4q,
-    .st-emotion-cache-1lna01g { display: none !important; }
+    /* Esconde apenas o texto "keyboard_double_arrow" dentro do botão de colapso */
+    [class*="keyboard_double_arrow"] { display: none !important; }
 
-    /* Botão que fica flutuando no topo esquerdo da página */
-    div[data-testid="stSidebar"] ~ div > button:first-child,
-    div[data-testid="stDecoration"] { display: none !important; }
-
-    /* Esconde qualquer botão posicionado absolutamente no canto superior esquerdo */
-    section[data-testid="stSidebar"] + div > button { display: none !important; }
-    .main > div > button { display: none !important; }
-
-    /* Esconde via atributo de posição — o botão tem position fixed no topo */
-    button[style*="top: 0"] { display: none !important; }
-    button[style*="top:0"] { display: none !important; }
-
-    /* ── SIDEBAR ── */
+    /*  SIDEBAR  */
     section[data-testid="stSidebar"] {
         background: linear-gradient(170deg, var(--fgv-navy) 0%, var(--fgv-blue) 100%) !important;
         border-right: 1px solid var(--border-strong) !important;
@@ -114,17 +91,59 @@ def aplicar_estilo_dark():
     section[data-testid="stSidebar"] .block-container { padding: 0 0.75rem !important; }
     section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] > div:first-child { margin-top: -14px !important; }
     .theme-toggle-mini { margin: -6px 4px 2px !important; }
-    .sidebar-logo-wrap { display: flex; justify-content: center; padding: 2px 0 10px; }
-    .sidebar-logo-img { width: 220px; max-width: 100%; object-fit: contain; }
-    section[data-testid="stSidebar"] .stButton > button {
-        height: 24px !important; padding: 0 !important; font-size: 12px !important;
-        border-radius: var(--radius-sm) !important; background: var(--fgv-accent) !important;
-        color: #fff !important; border: none !important; font-weight: 600 !important; box-shadow: none !important;
+
+    /* Theme toggle buttons */
+    .theme-toggle-mini .stButton > button {
+        font-size: 0.7rem !important;
+        padding: 2px 6px !important;
+        height: 26px !important;
+        letter-spacing: 0.08em !important;
+        font-weight: 600 !important;
+        color: rgba(255,255,255,0.7) !important;
+        -webkit-text-fill-color: rgba(255,255,255,0.7) !important;
+        background: transparent !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        border-radius: 4px !important;
+        box-shadow: none !important;
+        transform: none !important;
+        min-height: 26px !important;
     }
-    section[data-testid="stSidebar"] .stButton > button:hover { background: var(--fgv-mid) !important; }
-
-
-    /* ── NAV MENU (light) ── */
+    .theme-toggle-mini .stButton > button:hover {
+        background: rgba(255,255,255,0.12) !important;
+        color: #fff !important;
+        -webkit-text-fill-color: #fff !important;
+        transform: none !important;
+    }
+    .sidebar-logo-wrap { display: flex; justify-content: center; padding: 2px 0 10px; }
+    .sidebar-logo-wrap img,
+    .sidebar-logo-wrap .sidebar-logo-img {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 0.92 !important;
+        max-height: none !important;
+        max-width: 100% !important;
+    }
+    .sidebar-logo-img {
+        width: 220px; max-width: 100%; object-fit: contain;
+        filter: brightness(0) invert(1) !important;
+        opacity: 0.92 !important;
+        display: block !important;
+        visibility: visible !important;
+    }
+    /* Remove padding do st.image na sidebar */
+    section[data-testid="stSidebar"] [data-testid="stImage"] {
+        padding: 0 !important;
+        margin: 0 !important;
+        line-height: 0 !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stImage"] > div {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stImage"] img {
+        display: block !important;
+        margin: 0 auto !important;
+    }
     section[data-testid="stSidebar"] .stButton > button {
         background: rgba(255,255,255,0.06) !important;
         color: rgba(255,255,255,0.85) !important;
@@ -153,7 +172,71 @@ def aplicar_estilo_dark():
         transform: none !important;
     }
 
-    /* ── NAV ITEM ATIVO ── */
+
+    /* ── SIDEBAR NAV MODERNO ── */
+    .sb-divider {
+        height: 1px; background: rgba(255,255,255,.1);
+        margin: 4px 0 10px;
+    }
+    .sb-group-label {
+        font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em;
+        text-transform: uppercase; color: rgba(255,255,255,.3);
+        padding: 0 2px 4px; margin-top: 6px;
+    }
+    /* Caixa visual para containers de grupo na sidebar */
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] > [data-testid="stVerticalBlockBorderWrapper"] {
+        background: rgba(0,0,0,.18) !important;
+        border: 1px solid rgba(255,255,255,.08) !important;
+        border-radius: 10px !important;
+        padding: 4px !important;
+        margin-bottom: 4px !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] > div {
+        border-radius: 8px !important;
+        overflow: hidden !important;
+    }
+
+    /* Botões de nav menores e alinhados à esquerda */
+
+    /* Botão ativo */
+    .sb-btn-active .stButton > button {
+        background: rgba(255,255,255,.12) !important;
+        color: #fff !important;
+        -webkit-text-fill-color: #fff !important;
+        font-weight: 600 !important;
+        border-left: 2px solid var(--fgv-bright) !important;
+        border-radius: 0 7px 7px 0 !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+    /* Tema e sair ficam menores */
+    .sb-footer-sep {
+        height: 1px; background: rgba(255,255,255,.08);
+        margin: 10px 0 6px;
+    }
+    /* Remove espaços extras entre botões */
+    section[data-testid="stSidebar"] .stButton {
+        margin: 3px 0 !important;
+        padding: 0 !important;
+    }
+    /* Espaçamento uniforme entre botões da sidebar */
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+        gap: 3px !important;
+    }
+    /* O div vazio do sb-btn-active não deve ocupar espaço */
+    section[data-testid="stSidebar"] .sb-btn-active {
+        display: contents !important;
+    }
+    /* Paragraphs vazios gerados pelo st.markdown não ocupam espaço */
+    section[data-testid="stSidebar"] p:empty,
+    section[data-testid="stSidebar"] div.stMarkdown:empty,
+    section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"]:has(div:empty) {
+        display: none !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    /*  NAV ITEM ATIVO  */
     .nav-ativo {
         background: rgba(255,255,255,0.15) !important;
         border: none !important;
@@ -171,7 +254,85 @@ def aplicar_estilo_dark():
         line-height: 1.5 !important;
     }
 
-    /* ── SIDEBAR NAV RADIO ── */
+
+    /* ── SIDEBAR NAV MODERNO ── */
+    .sb-divider {
+        height: 1px; background: rgba(255,255,255,.1);
+        margin: 4px 0 10px;
+    }
+    section[data-testid="stSidebar"] .stButton > button {
+        background: rgba(255,255,255,0.06) !important;
+        color: rgba(255,255,255,0.85) !important;
+        -webkit-text-fill-color: rgba(255,255,255,0.85) !important;
+        border: 1px solid rgba(255,255,255,0.08) !important;
+        border-radius: var(--radius-md) !important;
+        text-align: center !important;
+        justify-content: center !important;
+        padding: 9px 14px !important;
+        font-size: 0.88rem !important;
+        font-weight: 400 !important;
+        box-shadow: none !important;
+        transform: none !important;
+        transition: background .12s, color .12s, border-color .12s !important;
+        letter-spacing: 0.01em !important;
+        width: 100% !important;
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
+    section[data-testid="stSidebar"] .stButton > button:hover {
+        background: rgba(255,255,255,0.14) !important;
+        color: #fff !important;
+        -webkit-text-fill-color: #fff !important;
+        border-color: rgba(255,255,255,0.2) !important;
+        transform: none !important;
+    }
+    .sb-group-label {
+        font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em;
+        text-transform: uppercase; color: rgba(255,255,255,.3);
+        padding: 0 2px 4px; margin-top: 6px;
+    }
+    /* Botões de nav menores e alinhados à esquerda */
+
+    /* Botão ativo */
+    .sb-btn-active .stButton > button {
+        background: rgba(255,255,255,.12) !important;
+        color: #fff !important;
+        -webkit-text-fill-color: #fff !important;
+        font-weight: 600 !important;
+        border-left: 2px solid var(--fgv-bright) !important;
+        border-radius: 0 7px 7px 0 !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+    /* Tema e sair ficam menores */
+    .sb-footer-sep {
+        height: 1px; background: rgba(255,255,255,.08);
+        margin: 10px 0 6px;
+    }
+    /* Remove espaços extras entre botões */
+    section[data-testid="stSidebar"] .stButton {
+        margin: 3px 0 !important;
+        padding: 0 !important;
+    }
+    /* Espaçamento uniforme entre botões da sidebar */
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+        gap: 3px !important;
+    }
+    /* O div vazio do sb-btn-active não deve ocupar espaço */
+    section[data-testid="stSidebar"] .sb-btn-active {
+        display: contents !important;
+    }
+    /* Paragraphs vazios gerados pelo st.markdown não ocupam espaço */
+    section[data-testid="stSidebar"] p:empty,
+    section[data-testid="stSidebar"] div.stMarkdown:empty,
+    section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"]:has(div:empty) {
+        display: none !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    /*  SIDEBAR NAV RADIO  */
     section[data-testid="stSidebar"] div[role="radiogroup"] { gap: 2px !important; }
     section[data-testid="stSidebar"] label[data-testid="stWidgetLabel"] { display: none !important; }
     section[data-testid="stSidebar"] div[data-testid="stRadio"] > div { gap: 2px !important; }
@@ -202,35 +363,10 @@ def aplicar_estilo_dark():
     }
 
 
-    /* ── NAV MENU (dark) ── */
-    section[data-testid="stSidebar"] .stButton > button {
-        background: transparent !important;
-        color: rgba(255,255,255,0.75) !important;
-        -webkit-text-fill-color: rgba(255,255,255,0.75) !important;
-        border: none !important;
-        border-radius: var(--radius-md) !important;
-        text-align: center !important;
-        justify-content: center !important;
-        padding: 9px 14px !important;
-        font-size: 0.88rem !important;
-        font-weight: 400 !important;
-        box-shadow: none !important;
-        transform: none !important;
-        transition: background .12s, color .12s !important;
-        letter-spacing: 0.01em !important;
-        width: 100% !important;
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-    }
-    section[data-testid="stSidebar"] .stButton > button:hover {
-        background: rgba(255,255,255,0.1) !important;
-        color: #fff !important;
-        -webkit-text-fill-color: #fff !important;
-        transform: none !important;
-    }
+    /*  NAV MENU (dark)  */
 
-    /* ── NAV ITEM ATIVO ── */
+
+    /*  NAV ITEM ATIVO  */
     .nav-ativo {
         background: rgba(255,255,255,0.15) !important;
         border: none !important;
@@ -248,7 +384,7 @@ def aplicar_estilo_dark():
         line-height: 1.5 !important;
     }
 
-    /* ── SIDEBAR NAV RADIO (dark) ── */
+    /*  SIDEBAR NAV RADIO (dark)  */
     section[data-testid="stSidebar"] div[data-testid="stRadio"] > div { gap: 2px !important; }
     section[data-testid="stSidebar"] div[data-testid="stRadio"] label {
         display: flex !important; align-items: center !important;
@@ -270,25 +406,54 @@ def aplicar_estilo_dark():
     }
     section[data-testid="stSidebar"] div[data-testid="stRadio"] input[type="radio"] { display: none !important; }
 
-        /* ── HEADER ── */
+        /*  HEADER  */
     .header-full-width {
-        background: linear-gradient(100deg, var(--fgv-navy) 0%, var(--fgv-blue) 50%, var(--fgv-mid) 100%);
-        padding: 28px 36px 24px; color: #fff; min-height: 128px;
-        border-bottom: 1px solid var(--border-strong);
+        background: linear-gradient(135deg, var(--fgv-navy) 0%, #112a50 60%, var(--fgv-blue) 100%);
+        padding: 0 36px; color: #fff; height: 68px;
+        border-bottom: 1px solid rgba(255,255,255,.07);
+        box-shadow: 0 1px 0 rgba(41,121,212,.25), 0 4px 24px rgba(0,0,0,.2);
+        position: relative; overflow: hidden;
     }
-    .header-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-    .header-text-block { flex: 1; min-width: 0; }
-    .header-logo-block { flex-shrink: 0; display: flex; align-items: center; }
-    .header-logo-full { height: 64px; max-width: 240px; object-fit: contain; opacity: .95; }
-    .header-title { font-size: 1.75rem; font-weight: 700; color: #fff; margin-bottom: 6px; letter-spacing: -0.02em; line-height: 1.2; }
-    .header-subtitle { font-size: 0.9rem; color: rgba(255,255,255,.75); margin-bottom: 12px; }
+    .header-full-width::before {
+        content: "";
+        position: absolute; inset: 0;
+        background: radial-gradient(ellipse at 72% 50%, rgba(41,121,212,.2) 0%, transparent 62%);
+        pointer-events: none;
+    }
+    .header-inner {
+        display: flex; align-items: center;
+        justify-content: space-between; height: 100%;
+        position: relative; z-index: 1;
+    }
+    .header-left { display: flex; align-items: center; gap: 20px; }
+    .header-text-block { display: flex; flex-direction: column; gap: 1px; }
+    .header-logo-block { display: flex; align-items: center; }
+    .header-logo-full { height: 34px; width: auto; object-fit: contain; opacity: .9; display: block; }
+    .header-divider { width: 1px; height: 26px; background: rgba(255,255,255,.18); flex-shrink: 0; }
+    .header-title { font-size: 0.92rem; font-weight: 600; color: #fff; letter-spacing: -0.01em; line-height: 1.3; white-space: nowrap; }
+    .header-subtitle { font-size: 0.68rem; color: rgba(255,255,255,.45); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500; }
+    .header-right { display: flex; align-items: center; gap: 12px; }
     .header-profile {
-        display: inline-flex; align-items: center; gap: 6px;
-        background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.15);
-        padding: 5px 12px; border-radius: 999px; font-size: 0.85rem; color: #fff;
+        display: inline-flex; align-items: center; gap: 8px;
+        background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12);
+        padding: 6px 14px 6px 8px; border-radius: 999px;
+        font-size: 0.78rem; color: rgba(255,255,255,.85);
+        transition: background 160ms ease, border-color 160ms ease;
+        cursor: default;
+    }
+    .header-profile:hover { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.22); }
+    .header-avatar {
+        width: 22px; height: 22px; border-radius: 50%;
+        background: linear-gradient(135deg, var(--fgv-accent), var(--fgv-bright));
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 0.6rem; font-weight: 700; color: #fff; flex-shrink: 0; text-transform: uppercase;
+    }
+    .header-page-name {
+        font-size: 0.68rem; font-weight: 600; color: rgba(255,255,255,.38);
+        letter-spacing: 0.07em; text-transform: uppercase;
     }
 
-    /* ── SECTION CARDS ── */
+    /*  SECTION CARDS  */
     .section-card {
         background: var(--surface-1); border: 1px solid var(--border);
         border-radius: var(--radius-lg); padding: 20px;
@@ -302,7 +467,7 @@ def aplicar_estilo_dark():
     .metric-value { color: var(--fgv-bright) !important; font-weight: 800; font-size: 1.7rem; line-height: 1.1; }
     .metric-sub { color: var(--ink-muted) !important; font-size: 0.8rem; margin-top: 2px; }
 
-    /* ── INPUTS ── */
+    /*  INPUTS  */
     .stTextInput input, .stNumberInput input, .stTextArea textarea,
     input[type="text"], input[type="number"], textarea {
         background: var(--surface-2) !important; color: var(--ink-primary) !important;
@@ -329,7 +494,7 @@ def aplicar_estilo_dark():
     label { color: var(--ink-secondary) !important; font-size: 0.85rem !important; font-weight: 500 !important; }
     .stNumberInput button { background: var(--surface-2) !important; color: var(--ink-primary) !important; border: 1px solid var(--border-strong) !important; }
 
-    /* ── BUTTONS ── */
+    /*  BUTTONS  */
     .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {
         background: var(--fgv-accent) !important; color: #fff !important;
         -webkit-text-fill-color: #fff !important; border: none !important;
@@ -342,7 +507,7 @@ def aplicar_estilo_dark():
     .stButton > button:disabled { background: var(--surface-3) !important; color: var(--ink-muted) !important; -webkit-text-fill-color: var(--ink-muted) !important; box-shadow: none !important; transform: none !important; }
 
 
-    /* ── SELECTBOX MODERNO (dark) ── */
+    /*  SELECTBOX MODERNO (dark)  */
     div[data-baseweb="select"] {
         border-radius: var(--radius-md) !important;
     }
@@ -380,7 +545,94 @@ def aplicar_estilo_dark():
     div[data-baseweb="option"][aria-selected="true"] {
         background: rgba(41,121,212,.25) !important;
     }
-    /* ── TABLE ── */
+
+    /* =========================================================
+       MOTION SYSTEM - corporativo-premium, ease-out-quart
+       Reduced-motion: crossfade simples, sem transform
+    ========================================================= */
+    @keyframes fgv-fade-up {
+        from { opacity: 0; transform: translateY(14px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fgv-fade-in {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+    }
+    @keyframes fgv-slide-right {
+        from { opacity: 0; transform: translateX(-10px); }
+        to   { opacity: 1; transform: translateX(0); }
+    }
+    :root {
+        --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+        --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
+        --dur-fast: 160ms;
+        --dur-base: 260ms;
+        --dur-slow: 400ms;
+    }
+    section.main .block-container > div {
+        animation: fgv-fade-up var(--dur-slow) var(--ease-out-expo) both;
+    }
+    section.main .block-container > div:nth-child(1) { animation-delay: 0ms; }
+    section.main .block-container > div:nth-child(2) { animation-delay: 40ms; }
+    section.main .block-container > div:nth-child(3) { animation-delay: 80ms; }
+    section.main .block-container > div:nth-child(4) { animation-delay: 120ms; }
+    section.main .block-container > div:nth-child(5) { animation-delay: 160ms; }
+    section.main .block-container > div:nth-child(6) { animation-delay: 200ms; }
+    section.main .block-container > div:nth-child(7) { animation-delay: 240ms; }
+    section.main .block-container > div:nth-child(8) { animation-delay: 280ms; }
+    section[data-testid="stSidebar"] > div:first-child {
+        animation: fgv-slide-right var(--dur-slow) var(--ease-out-expo) both;
+    }
+    .section-card {
+        animation: fgv-fade-up var(--dur-base) var(--ease-out-quart) both;
+        transition: box-shadow var(--dur-fast) var(--ease-out-quart), border-color var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    .section-card:hover {
+        box-shadow: 0 4px 20px rgba(11,31,58,.12) !important;
+        border-color: var(--border-strong) !important;
+    }
+    div[data-testid="stMetric"] {
+        animation: fgv-fade-up var(--dur-base) var(--ease-out-quart) both;
+        transition: box-shadow var(--dur-fast) var(--ease-out-quart), transform var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    div[data-testid="stMetric"]:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(11,31,58,.1) !important;
+    }
+    .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {
+        transition: background var(--dur-fast) var(--ease-out-quart), box-shadow var(--dur-fast) var(--ease-out-quart), transform var(--dur-fast) var(--ease-out-quart), border-color var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    section[data-testid="stSidebar"] .stButton > button {
+        transition: background var(--dur-fast) var(--ease-out-quart), color var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    div[data-testid="stDataFrame"] {
+        animation: fgv-fade-in var(--dur-base) var(--ease-out-quart) both;
+    }
+    div[data-testid="stExpander"] {
+        transition: box-shadow var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    div[data-testid="stExpander"]:hover {
+        box-shadow: 0 2px 12px rgba(11,31,58,.08) !important;
+    }
+    div[data-baseweb="select"] > div {
+        transition: border-color var(--dur-fast) var(--ease-out-quart), box-shadow var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    .header-full-width {
+        animation: fgv-fade-in var(--dur-slow) var(--ease-out-expo) both;
+    }
+    div[data-testid="stAlert"] {
+        animation: fgv-fade-up var(--dur-base) var(--ease-out-quart) both;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        @keyframes fgv-fade-up    { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fgv-fade-in    { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fgv-slide-right { from { opacity: 0; } to { opacity: 1; } }
+        :root { --dur-fast: 80ms; --dur-base: 120ms; --dur-slow: 160ms; }
+        div[data-testid="stMetric"]:hover { transform: none !important; }
+        .stButton > button:hover { transform: none !important; }
+    }
+
+    /*  TABLE  */
     div[data-testid="stDataFrame"] { background: var(--surface-1) !important; border: 1px solid var(--border) !important; border-radius: var(--radius-md) !important; }
     div[data-testid="stDataFrame"] div[role="grid"] { background: var(--surface-1) !important; }
     div[data-testid="stDataFrame"] div[role="row"] { background: var(--surface-1) !important; }
@@ -389,18 +641,18 @@ def aplicar_estilo_dark():
     div[data-testid="stDataFrame"] div[role="gridcell"] { color: var(--ink-primary) !important; border-bottom: 1px solid var(--border) !important; }
     div[data-testid="stDataFrame"] div[role="columnheader"] { background: var(--surface-3) !important; color: var(--fgv-bright) !important; font-weight: 600 !important; font-size: 0.8rem !important; text-transform: uppercase !important; letter-spacing: .04em !important; border-bottom: 1px solid var(--border-strong) !important; }
 
-    /* ── LOGIN ── */
+    /*  LOGIN  */
     .login-card { background: var(--surface-1) !important; border: 1px solid var(--border-strong) !important; border-radius: var(--radius-lg) !important; box-shadow: var(--shadow-lg) !important; padding: 10px !important; }
     .login-title { color: var(--fgv-bright) !important; font-size: 1.6rem !important; font-weight: 700 !important; letter-spacing: -0.02em !important; }
     .login-subtitle, .small-muted { color: var(--ink-secondary) !important; }
 
-    /* ── ALERTS ── */
+    /*  ALERTS  */
     div[data-testid="stAlert"] { border-radius: var(--radius-md) !important; border-left-width: 3px !important; }
 
-    /* ── EXPANDER ── */
+    /*  EXPANDER  */
     div[data-testid="stExpander"] { background: var(--surface-2) !important; border: 1px solid var(--border) !important; border-radius: var(--radius-md) !important; }
 
-    /* ── METRICS ── */
+    /*  METRICS  */
     div[data-testid="stMetric"] { background: var(--surface-2) !important; border: 1px solid var(--border) !important; border-radius: var(--radius-md) !important; padding: 12px 16px !important; }
     div[data-testid="stMetric"] label { color: var(--ink-secondary) !important; }
     div[data-testid="stMetric"] [data-testid="stMetricValue"] { color: var(--fgv-bright) !important; }
@@ -414,7 +666,7 @@ def aplicar_estilo_light():
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-    /* ── TOKENS ── */
+    /*  TOKENS  */
     :root {
         --fgv-navy:      #0b1f3a;
         --fgv-blue:      #1a3f6f;
@@ -439,7 +691,7 @@ def aplicar_estilo_light():
         --font: 'Inter', system-ui, sans-serif;
     }
 
-    /* ── BASE ── */
+    /*  BASE  */
     .stApp { background: var(--surface-0) !important; color: var(--ink-primary) !important; font-family: var(--font) !important; }
     .block-container { padding: 0 !important; max-width: 100% !important; color: var(--ink-primary) !important; }
     header[data-testid="stHeader"] { background: transparent !important; height: 0 !important; }
@@ -448,30 +700,10 @@ def aplicar_estilo_light():
     * { font-family: var(--font) !important; }
     p, li { color: var(--ink-primary) !important; }
 
-    /* Esconde botão de colapso da sidebar — todas as variações */
-    button[data-testid="collapsedControl"],
-    div[data-testid="collapsedControl"],
-    [data-testid="stSidebarCollapsedControl"],
-    button[data-testid="baseButton-headerNoPadding"],
-    div[class*="collapsedControl"],
-    span[class*="collapsedControl"],
-    [class*="keyboard_double_arrow"],
-    .st-emotion-cache-dvne4q,
-    .st-emotion-cache-1lna01g { display: none !important; }
+    /* Esconde apenas o texto "keyboard_double_arrow" dentro do botão de colapso */
+    [class*="keyboard_double_arrow"] { display: none !important; }
 
-    /* Botão que fica flutuando no topo esquerdo da página */
-    div[data-testid="stSidebar"] ~ div > button:first-child,
-    div[data-testid="stDecoration"] { display: none !important; }
-
-    /* Esconde qualquer botão posicionado absolutamente no canto superior esquerdo */
-    section[data-testid="stSidebar"] + div > button { display: none !important; }
-    .main > div > button { display: none !important; }
-
-    /* Esconde via atributo de posição — o botão tem position fixed no topo */
-    button[style*="top: 0"] { display: none !important; }
-    button[style*="top:0"] { display: none !important; }
-
-    /* ── SIDEBAR ── */
+    /*  SIDEBAR  */
     section[data-testid="stSidebar"] {
         background: linear-gradient(170deg, var(--fgv-navy) 0%, var(--fgv-blue) 100%) !important;
         border-right: 1px solid var(--border-strong) !important;
@@ -480,35 +712,85 @@ def aplicar_estilo_light():
     section[data-testid="stSidebar"] .block-container { padding: 0 0.75rem !important; }
     section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] > div:first-child { margin-top: -14px !important; }
     .theme-toggle-mini { margin: -6px 4px 2px !important; }
+
+    /* Theme toggle buttons */
+    .theme-toggle-mini .stButton > button {
+        font-size: 0.7rem !important;
+        padding: 2px 6px !important;
+        height: 26px !important;
+        letter-spacing: 0.08em !important;
+        font-weight: 600 !important;
+        color: rgba(255,255,255,0.7) !important;
+        -webkit-text-fill-color: rgba(255,255,255,0.7) !important;
+        background: transparent !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        border-radius: 4px !important;
+        box-shadow: none !important;
+        transform: none !important;
+        min-height: 26px !important;
+    }
+    .theme-toggle-mini .stButton > button:hover {
+        background: rgba(255,255,255,0.12) !important;
+        color: #fff !important;
+        -webkit-text-fill-color: #fff !important;
+        transform: none !important;
+    }
     .sidebar-logo-wrap { display: flex; justify-content: center; padding: 2px 0 10px; }
-    .sidebar-logo-img { width: 220px; max-width: 100%; object-fit: contain; filter: brightness(1.3); }
-    section[data-testid="stSidebar"] .stButton > button {
-        height: 24px !important; padding: 0 !important; font-size: 12px !important;
-        border-radius: var(--radius-sm) !important; background: var(--fgv-accent) !important;
-        color: #fff !important; -webkit-text-fill-color: #fff !important;
-        border: none !important; font-weight: 600 !important; box-shadow: none !important;
+    .sidebar-logo-img {
+        width: 220px; max-width: 100%; object-fit: contain;
+        filter: brightness(0) invert(1) !important;
+        opacity: 0.92 !important;
+        display: block !important;
+        visibility: visible !important;
     }
-    section[data-testid="stSidebar"] .stButton > button:hover { background: var(--fgv-mid) !important; }
-
-    /* ── HEADER ── */
+        /*  HEADER  */
     .header-full-width {
-        background: linear-gradient(100deg, var(--fgv-navy) 0%, var(--fgv-blue) 50%, var(--fgv-mid) 100%);
-        padding: 28px 36px 24px; color: #fff; min-height: 128px;
-        border-bottom: 2px solid rgba(255,255,255,.08);
+        background: linear-gradient(135deg, var(--fgv-navy) 0%, #112a50 60%, var(--fgv-blue) 100%);
+        padding: 0 36px; color: #fff; height: 68px;
+        border-bottom: 1px solid rgba(255,255,255,.07);
+        box-shadow: 0 1px 0 rgba(41,121,212,.25), 0 4px 24px rgba(0,0,0,.2);
+        position: relative; overflow: hidden;
     }
-    .header-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-    .header-text-block { flex: 1; min-width: 0; }
-    .header-logo-block { flex-shrink: 0; display: flex; align-items: center; }
-    .header-logo-full { height: 64px; max-width: 240px; object-fit: contain; opacity: .95; }
-    .header-title { font-size: 1.75rem; font-weight: 700; color: #fff; margin-bottom: 6px; letter-spacing: -0.02em; line-height: 1.2; }
-    .header-subtitle { font-size: 0.9rem; color: rgba(255,255,255,.78); margin-bottom: 12px; }
+    .header-full-width::before {
+        content: "";
+        position: absolute; inset: 0;
+        background: radial-gradient(ellipse at 72% 50%, rgba(41,121,212,.2) 0%, transparent 62%);
+        pointer-events: none;
+    }
+    .header-inner {
+        display: flex; align-items: center;
+        justify-content: space-between; height: 100%;
+        position: relative; z-index: 1;
+    }
+    .header-left { display: flex; align-items: center; gap: 20px; }
+    .header-text-block { display: flex; flex-direction: column; gap: 1px; }
+    .header-logo-block { display: flex; align-items: center; }
+    .header-logo-full { height: 34px; width: auto; object-fit: contain; opacity: .9; display: block; }
+    .header-divider { width: 1px; height: 26px; background: rgba(255,255,255,.18); flex-shrink: 0; }
+    .header-title { font-size: 0.92rem; font-weight: 600; color: #fff; letter-spacing: -0.01em; line-height: 1.3; white-space: nowrap; }
+    .header-subtitle { font-size: 0.68rem; color: rgba(255,255,255,.45); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 500; }
+    .header-right { display: flex; align-items: center; gap: 12px; }
     .header-profile {
-        display: inline-flex; align-items: center; gap: 6px;
-        background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.18);
-        padding: 5px 12px; border-radius: 999px; font-size: 0.85rem; color: #fff;
+        display: inline-flex; align-items: center; gap: 8px;
+        background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12);
+        padding: 6px 14px 6px 8px; border-radius: 999px;
+        font-size: 0.78rem; color: rgba(255,255,255,.85);
+        transition: background 160ms ease, border-color 160ms ease;
+        cursor: default;
+    }
+    .header-profile:hover { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.22); }
+    .header-avatar {
+        width: 22px; height: 22px; border-radius: 50%;
+        background: linear-gradient(135deg, var(--fgv-accent), var(--fgv-bright));
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 0.6rem; font-weight: 700; color: #fff; flex-shrink: 0; text-transform: uppercase;
+    }
+    .header-page-name {
+        font-size: 0.68rem; font-weight: 600; color: rgba(255,255,255,.38);
+        letter-spacing: 0.07em; text-transform: uppercase;
     }
 
-    /* ── SECTION CARDS ── */
+    /*  SECTION CARDS  */
     .section-card {
         background: var(--surface-1); border: 1px solid var(--border);
         border-radius: var(--radius-lg); padding: 20px;
@@ -522,7 +804,7 @@ def aplicar_estilo_light():
     .metric-value { color: var(--fgv-blue) !important; font-weight: 800; font-size: 1.7rem; line-height: 1.1; }
     .metric-sub { color: var(--ink-muted) !important; font-size: 0.8rem; margin-top: 2px; }
 
-    /* ── INPUTS ── */
+    /*  INPUTS  */
     .stTextInput input, .stNumberInput input, .stTextArea textarea,
     input[type="text"], input[type="number"], textarea {
         background: #f5f8fd !important; color: var(--ink-primary) !important;
@@ -573,7 +855,7 @@ def aplicar_estilo_light():
     .stMarkdown p, .stMarkdown li, .stMarkdown span { color: var(--ink-primary) !important; }
     .stNumberInput button { background: #f5f8fd !important; color: var(--ink-primary) !important; border: 1px solid var(--border-strong) !important; }
 
-    /* ── BUTTONS ── */
+    /*  BUTTONS  */
     .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {
         background: var(--fgv-accent) !important; color: #fff !important;
         -webkit-text-fill-color: #fff !important; border: none !important;
@@ -586,7 +868,7 @@ def aplicar_estilo_light():
     .stButton > button:disabled { background: var(--surface-2) !important; color: var(--ink-muted) !important; -webkit-text-fill-color: var(--ink-muted) !important; box-shadow: none !important; transform: none !important; }
 
 
-    /* ── SELECTBOX MODERNO (light) ── */
+    /*  SELECTBOX MODERNO (light)  */
     div[data-baseweb="select"] {
         border-radius: var(--radius-md) !important;
     }
@@ -627,7 +909,94 @@ def aplicar_estilo_light():
         color: var(--fgv-blue) !important;
         font-weight: 600 !important;
     }
-    /* ── TABLE ── */
+
+    /* =========================================================
+       MOTION SYSTEM - corporativo-premium, ease-out-quart
+       Reduced-motion: crossfade simples, sem transform
+    ========================================================= */
+    @keyframes fgv-fade-up {
+        from { opacity: 0; transform: translateY(14px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fgv-fade-in {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+    }
+    @keyframes fgv-slide-right {
+        from { opacity: 0; transform: translateX(-10px); }
+        to   { opacity: 1; transform: translateX(0); }
+    }
+    :root {
+        --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+        --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
+        --dur-fast: 160ms;
+        --dur-base: 260ms;
+        --dur-slow: 400ms;
+    }
+    section.main .block-container > div {
+        animation: fgv-fade-up var(--dur-slow) var(--ease-out-expo) both;
+    }
+    section.main .block-container > div:nth-child(1) { animation-delay: 0ms; }
+    section.main .block-container > div:nth-child(2) { animation-delay: 40ms; }
+    section.main .block-container > div:nth-child(3) { animation-delay: 80ms; }
+    section.main .block-container > div:nth-child(4) { animation-delay: 120ms; }
+    section.main .block-container > div:nth-child(5) { animation-delay: 160ms; }
+    section.main .block-container > div:nth-child(6) { animation-delay: 200ms; }
+    section.main .block-container > div:nth-child(7) { animation-delay: 240ms; }
+    section.main .block-container > div:nth-child(8) { animation-delay: 280ms; }
+    section[data-testid="stSidebar"] > div:first-child {
+        animation: fgv-slide-right var(--dur-slow) var(--ease-out-expo) both;
+    }
+    .section-card {
+        animation: fgv-fade-up var(--dur-base) var(--ease-out-quart) both;
+        transition: box-shadow var(--dur-fast) var(--ease-out-quart), border-color var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    .section-card:hover {
+        box-shadow: 0 4px 20px rgba(11,31,58,.12) !important;
+        border-color: var(--border-strong) !important;
+    }
+    div[data-testid="stMetric"] {
+        animation: fgv-fade-up var(--dur-base) var(--ease-out-quart) both;
+        transition: box-shadow var(--dur-fast) var(--ease-out-quart), transform var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    div[data-testid="stMetric"]:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(11,31,58,.1) !important;
+    }
+    .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {
+        transition: background var(--dur-fast) var(--ease-out-quart), box-shadow var(--dur-fast) var(--ease-out-quart), transform var(--dur-fast) var(--ease-out-quart), border-color var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    section[data-testid="stSidebar"] .stButton > button {
+        transition: background var(--dur-fast) var(--ease-out-quart), color var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    div[data-testid="stDataFrame"] {
+        animation: fgv-fade-in var(--dur-base) var(--ease-out-quart) both;
+    }
+    div[data-testid="stExpander"] {
+        transition: box-shadow var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    div[data-testid="stExpander"]:hover {
+        box-shadow: 0 2px 12px rgba(11,31,58,.08) !important;
+    }
+    div[data-baseweb="select"] > div {
+        transition: border-color var(--dur-fast) var(--ease-out-quart), box-shadow var(--dur-fast) var(--ease-out-quart) !important;
+    }
+    .header-full-width {
+        animation: fgv-fade-in var(--dur-slow) var(--ease-out-expo) both;
+    }
+    div[data-testid="stAlert"] {
+        animation: fgv-fade-up var(--dur-base) var(--ease-out-quart) both;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        @keyframes fgv-fade-up    { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fgv-fade-in    { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fgv-slide-right { from { opacity: 0; } to { opacity: 1; } }
+        :root { --dur-fast: 80ms; --dur-base: 120ms; --dur-slow: 160ms; }
+        div[data-testid="stMetric"]:hover { transform: none !important; }
+        .stButton > button:hover { transform: none !important; }
+    }
+
+    /*  TABLE  */
     div[data-testid="stDataFrame"] { background: #fff !important; border: 1px solid var(--border) !important; border-radius: var(--radius-md) !important; }
     div[data-testid="stDataFrame"] div[role="grid"] { background: #fff !important; }
     div[data-testid="stDataFrame"] div[role="row"] { background: #fff !important; }
@@ -638,19 +1007,19 @@ def aplicar_estilo_light():
     div[data-testid="stDataFrame"] div[role="columnheader"] { background: var(--surface-2) !important; color: var(--fgv-blue) !important; -webkit-text-fill-color: var(--fgv-blue) !important; font-weight: 700 !important; font-size: 0.8rem !important; text-transform: uppercase !important; letter-spacing: .04em !important; border-bottom: 2px solid var(--border-strong) !important; }
     div[data-testid="stDataFrame"] div[role="columnheader"] * { color: var(--fgv-blue) !important; -webkit-text-fill-color: var(--fgv-blue) !important; }
 
-    /* ── LOGIN ── */
+    /*  LOGIN  */
     .login-card { background: #fff !important; border: 1px solid var(--border) !important; border-radius: var(--radius-lg) !important; box-shadow: var(--shadow-lg) !important; padding: 10px !important; }
     .login-title { color: var(--fgv-blue) !important; font-size: 1.6rem !important; font-weight: 700 !important; letter-spacing: -0.02em !important; }
     .login-subtitle, .small-muted, .login-footer { color: var(--ink-secondary) !important; }
     .login-card .stTextInput input { background: #f5f8fd !important; border: 1px solid var(--border-strong) !important; }
 
-    /* ── ALERTS ── */
+    /*  ALERTS  */
     div[data-testid="stAlert"] { border-radius: var(--radius-md) !important; border-left-width: 3px !important; }
 
-    /* ── EXPANDER ── */
+    /*  EXPANDER  */
     div[data-testid="stExpander"] { background: var(--surface-1) !important; border: 1px solid var(--border) !important; border-radius: var(--radius-md) !important; }
 
-    /* ── METRICS ── */
+    /*  METRICS  */
     div[data-testid="stMetric"] { background: var(--surface-1) !important; border: 1px solid var(--border) !important; border-radius: var(--radius-md) !important; padding: 12px 16px !important; }
     div[data-testid="stMetric"] label { color: var(--ink-secondary) !important; }
     div[data-testid="stMetric"] [data-testid="stMetricValue"] { color: var(--fgv-blue) !important; }
@@ -673,8 +1042,6 @@ def get_conn():
     return psycopg2.connect(DATABASE_URL)
 
 
-
-
 def hash_senha(senha: str) -> str:
     """Retorna o hash bcrypt da senha."""
     return bcrypt.hashpw(senha.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -689,7 +1056,7 @@ def verificar_senha(senha: str, hash_armazenado: str) -> bool:
         return hmac.compare_digest(calculado, hash_armazenado or "")
 
 
-# ── Rate limiting em memória ──────────────────────────────
+#  Rate limiting em memória
 _DUMMY_BCRYPT_HASH = "$2b$12$KIXdR5v2FJjBi3vkHxBnL.aBGz8zVkxRZl1GQoqsJZJw5c5gVkIUC"
 _login_lock = threading.Lock()
 _login_attempts: dict = {}
@@ -726,39 +1093,49 @@ def agora_str() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
+AREAS_DISPONIVEIS = ["Celog", "ECMI", "PMO", "Outra"]
+
+
 def init_db():
-    """Garante schema atualizado: migra colunas e tabelas necessárias, e cria usuário ADMIN se ausente."""
+    """Garante que o usuário ADMIN existe e que as colunas/tabelas extras estão criadas."""
     if not DATABASE_URL:
         st.error("Variável DATABASE_URL não configurada. Defina-a nas configurações do Streamlit Cloud.")
         st.stop()
     conn = get_conn()
     cur = conn.cursor()
-    # Migração: adiciona coluna area em usuarios se não existir
-    cur.execute("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS area VARCHAR(100)")
-    # Migração: cria tabela editais_oportunidades se não existir
+
+    # Migração: adiciona coluna 'area' em usuarios se não existir
+    cur.execute("""
+        ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS area TEXT
+    """)
+
+    # Cria tabela de oportunidades se não existir
     cur.execute("""
         CREATE TABLE IF NOT EXISTS editais_oportunidades (
-            id SERIAL PRIMARY KEY,
-            area VARCHAR(100),
-            perfil_aderencia VARCHAR(10),
-            tema TEXT,
-            orgao TEXT,
-            macro_escopo TEXT,
+            id              SERIAL PRIMARY KEY,
+            area            TEXT,
+            perfil_aderencia TEXT,
+            tema            TEXT,
+            orgao           TEXT,
+            macro_escopo    TEXT,
             prazo_submissao DATE,
             valor_financiamento TEXT,
-            status VARCHAR(50),
-            link TEXT,
+            status          TEXT,
+            link            TEXT,
             data_identificacao DATE,
-            semana_referencia DATE,
-            criado_em TEXT,
-            importado_por TEXT
+            semana_referencia  DATE,
+            criado_em       TEXT,
+            importado_por   TEXT
         )
     """)
+
+    # Garante ADMIN
     cur.execute("SELECT COUNT(*) FROM usuarios WHERE username = 'ADMIN'")
     exists = cur.fetchone()[0]
     if exists == 0:
         senha_inicial = os.environ.get("ADMIN_INITIAL_PASSWORD", "")
         if not senha_inicial:
+            conn.commit()
             conn.close()
             st.error("Defina ADMIN_INITIAL_PASSWORD nas variáveis de ambiente do Streamlit Cloud.")
             st.stop()
@@ -791,14 +1168,14 @@ def autenticar(username: str, senha: str):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
-        SELECT username, perfil, ativo, email, senha_hash, COALESCE(area, '')
+        SELECT username, perfil, ativo, email, senha_hash, COALESCE(area, '') AS area
         FROM usuarios
         WHERE UPPER(username) = UPPER(%s)
     """, (username,))
     row = cur.fetchone()
 
     if not row:
-        # Usuário não existe — dummy bcrypt para nivelar tempo (evita username enumeration)
+        # Usuário não existe - dummy bcrypt para nivelar tempo (evita username enumeration)
         _dummy_bcrypt(senha)
         conn.close()
         return None
@@ -812,7 +1189,8 @@ def autenticar(username: str, senha: str):
                        (novo_hash, row[0]))
             conn.commit()
         conn.close()
-        return {"username": row[0], "perfil": row[1], "email": row[3] if len(row) > 3 else "", "area": row[5] if len(row) > 5 else ""}
+        return {"username": row[0], "perfil": row[1], "email": row[3] if len(row) > 3 else "",
+                "area": row[5] if len(row) > 5 else ""}
 
     conn.close()
     return None
@@ -821,8 +1199,8 @@ def autenticar(username: str, senha: str):
 def listar_usuarios():
     conn = get_conn()
     df = pd.read_sql_query("""
-        SELECT id, username, COALESCE(email, '') AS email, perfil, ativo,
-               COALESCE(area, '') AS area, criado_em
+        SELECT id, username, COALESCE(email, '') AS email, perfil,
+               COALESCE(area, '') AS area, ativo, criado_em
         FROM usuarios
         ORDER BY username
     """, conn)
@@ -846,21 +1224,18 @@ def criar_usuario(username: str, email: str, senha: str, perfil: str, area: str 
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
-        INSERT INTO usuarios (username, email, senha_hash, perfil, ativo, area, criado_em, atualizado_em)
+        INSERT INTO usuarios (username, email, senha_hash, perfil, area, ativo, criado_em, atualizado_em)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-    """, (username.strip(), email.strip(), hash_senha(senha), perfil, 1,
-          area.strip() if area else None, agora_str(), agora_str()))
+    """, (username.strip(), email.strip(), hash_senha(senha), perfil, area or None, 1, agora_str(), agora_str()))
     conn.commit()
     conn.close()
 
 
-def atualizar_area_usuario(user_id: int, nova_area: str):
+def atualizar_area_usuario(user_id: int, area: str):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute(
-        "UPDATE usuarios SET area = %s, atualizado_em = %s WHERE id = %s",
-        (nova_area.strip() if nova_area and nova_area.strip() else None, agora_str(), user_id)
-    )
+    cur.execute("UPDATE usuarios SET area = %s, atualizado_em = %s WHERE id = %s",
+                (area or None, agora_str(), user_id))
     conn.commit()
     conn.close()
 
@@ -1006,9 +1381,13 @@ def processar_upload_planilha(arquivo):
         "Min": "valor_min", "Máx": "valor_max",
         "Metodo de Calculo": "metodo_calculo",
         "Método de Cálculo": "metodo_calculo",
-        # Colunas da Planilha Modelo das áreas
+        # Colunas da Planilha Modelo das áreas (com asterisco de obrigatoriedade)
+        "Tema *": "tema", "Subtema *": "subtema",
         "Objetivo do Projeto": "descricao",
         "Nome Edital/Projeto": "nome_edital",
+        "Nome Edital/Projeto *": "nome_edital",
+        "URL / Fonte": "fonte_dado",
+        "Custo de Execução (R$)": "custo_execucao",
         "1º Parâmetro para verificação do prazo": "esforco",
         "Unidade de medida do 1º Parâmetro ": "unidade",
         "Unidade de medida do 1º Parâmetro": "unidade",
@@ -1018,14 +1397,23 @@ def processar_upload_planilha(arquivo):
         "Prazo de execução\n(meses)": "prazo_meses",
         "Prazo de execução (meses)": "prazo_meses",
         "Data edital/projeto (mês/ano)": "data_edital",
+        "Data de Início do Projeto": "data_inicio",
         "Data de Início do Projeto (Caso concluído)": "data_inicio",
+        "Data de Término do Projeto": "data_conclusao",
         "Data de Término do Projeto (Caso concluído)": "data_conclusao",
     }
 
     # Aceita aba "Base" ou usa a primeira aba disponível
     xl = pd.ExcelFile(arquivo)
     sheet = "Base" if "Base" in xl.sheet_names else xl.sheet_names[0]
-    df = pd.read_excel(arquivo, sheet_name=sheet)
+    # Planilha modelo tem: linha 1=título, linha 2=instrução, linha 3=cabeçalhos (índice 2)
+    df = pd.read_excel(arquivo, sheet_name=sheet, header=2)
+    colunas_conhecidas = set(COLUMN_MAP.keys())
+    if not colunas_conhecidas.intersection(set(df.columns.astype(str))):
+        # Fallback: tenta sem pular linhas (header=0)
+        df = pd.read_excel(arquivo, sheet_name=sheet, header=0)
+    # Remove colunas sem nome (Unnamed: X) geradas por células vazias
+    df = df[[c for c in df.columns if not str(c).startswith("Unnamed:")]]
     df = df.rename(columns=COLUMN_MAP)
     for col in df.columns:
         if df[col].dtype == object:
@@ -1069,6 +1457,12 @@ def processar_upload_planilha(arquivo):
         return None if s in ("", "-", "nan", "None", "NaN", "<NA>") else s
 
     def upsert(table, nome):
+        _TABELAS_PERMITIDAS = {
+            "tema", "subtema", "pais", "estado", "municipio",
+            "tipo_edital", "unidade", "fonte_dado", "servico"
+        }
+        if table not in _TABELAS_PERMITIDAS:
+            raise ValueError(f"Tabela não permitida: {table}")
         nome = limpar(nome)
         if not nome:
             return None
@@ -1214,6 +1608,251 @@ def processar_upload_planilha(arquivo):
     conn.close()
 
 
+def processar_upload_planilha_incremental(arquivo):
+    """Adiciona registros da planilha à base sem apagar os existentes.
+    Usa os mesmos mapeamentos de colunas de processar_upload_planilha.
+    Registros com mesmo nome_edital + data_edital + tema são ignorados (ON CONFLICT).
+    Retorna (inseridos, ignorados).
+    """
+    import pandas as pd
+
+    COLUMN_MAP = {
+        "Tema": "tema", "Subtema": "subtema", "Serviços": "servicos",
+        "País": "pais", "Estado": "estado", "Município": "municipio",
+        "Nome Edital": "nome_edital", "Descrição": "descricao", "Esforço": "esforco",
+        "Unidade": "unidade", "Prazo (meses)": "prazo_meses",
+        "Tipo de Edital": "tipo_edital", "Código Planilha": "codigo_planilha",
+        "Fonte de Dados": "fonte_dado", "OBS": "observacao",
+        "Custo de Execução": "custo_execucao", "Data edital (mês/ano)": "data_edital",
+        "Valor Mínimo": "valor_min", "Valor Máximo": "valor_max",
+        "Esforço 2": "esforco2", "Método de Cálculo": "metodo_calculo",
+        # Colunas com asterisco de obrigatoriedade
+        "Tema *": "tema", "Subtema *": "subtema",
+        "Objetivo do Projeto": "descricao",
+        "Nome Edital/Projeto": "nome_edital",
+        "Nome Edital/Projeto *": "nome_edital",
+        "URL / Fonte": "fonte_dado",
+        "Custo de Execução (R$)": "custo_execucao",
+        "1º Parâmetro para verificação do prazo": "esforco",
+        "Unidade de medida do 1º Parâmetro ": "unidade",
+        "Unidade de medida do 1º Parâmetro": "unidade",
+        "2º Parâmetro para verificação do prazo": "esforco2",
+        "Unidade de medida do 2º Parâmetro ": "unidade2",
+        "Unidade de medida do 2º Parâmetro": "unidade2",
+        "Prazo de execução\n(meses)": "prazo_meses",
+        "Prazo de execução (meses)": "prazo_meses",
+        "Data edital/projeto (mês/ano)": "data_edital",
+        "Data de Início do Projeto": "data_inicio",
+        "Data de Início do Projeto (Caso concluído)": "data_inicio",
+        "Data de Término do Projeto": "data_conclusao",
+        "Data de Término do Projeto (Caso concluído)": "data_conclusao",
+    }
+
+    xl = pd.ExcelFile(arquivo)
+    sheet = "Base" if "Base" in xl.sheet_names else xl.sheet_names[0]
+    # Planilha modelo tem: linha 1=título, linha 2=instrução, linha 3=cabeçalhos (índice 2)
+    df = pd.read_excel(arquivo, sheet_name=sheet, header=2)
+    colunas_conhecidas = set(COLUMN_MAP.keys())
+    if not colunas_conhecidas.intersection(set(df.columns.astype(str))):
+        df = pd.read_excel(arquivo, sheet_name=sheet, header=0)
+    # Remove colunas sem nome (Unnamed: X)
+    df = df[[c for c in df.columns if not str(c).startswith("Unnamed:")]]
+    df = df.rename(columns=COLUMN_MAP)
+    for col in df.columns:
+        if df[col].dtype == object:
+            df[col] = df[col].astype(str).str.strip().replace({"nan": None, "None": None, "": None})
+    for col in ["prazo_meses", "custo_execucao", "valor_min", "valor_max"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    if "data_edital" in df.columns:
+        dt = pd.to_datetime(df["data_edital"], errors="coerce", dayfirst=True)
+        mask = dt.notna()
+        df.loc[mask, "data_edital"] = dt.loc[mask].dt.strftime("%Y-%m")
+
+    conn = get_conn()
+    conn.autocommit = False
+    cur = conn.cursor()
+
+    def limpar(val):
+        if val is None:
+            return None
+        import math
+        try:
+            if isinstance(val, float) and math.isnan(val):
+                return None
+        except Exception:
+            pass
+        s = str(val).strip()
+        return None if s in ("", "-", "nan", "None", "NaN", "<NA>") else s
+
+    def upsert_lookup(table, nome):
+        _TABELAS_PERMITIDAS = {
+            "tema", "subtema", "pais", "estado", "municipio",
+            "tipo_edital", "unidade", "fonte_dado", "servico"
+        }
+        if table not in _TABELAS_PERMITIDAS:
+            raise ValueError(f"Tabela não permitida: {table}")
+        nome = limpar(nome)
+        if not nome:
+            return None
+        cur.execute(f"SELECT id FROM {table} WHERE nome = %s", (nome,))
+        row = cur.fetchone()
+        if row:
+            return row[0]
+        cur.execute(f"INSERT INTO {table} (nome) VALUES (%s) RETURNING id", (nome,))
+        return cur.fetchone()[0]
+
+    def safe_float(v):
+        if v is None:
+            return None
+        try:
+            if pd.isna(v):
+                return None
+        except Exception:
+            pass
+        s = str(v).strip()
+        if s in ("", "-", "nan", "None", "NaN"):
+            return None
+        if "," in s and "." in s:
+            s = s.replace(".", "").replace(",", ".")
+        elif "," in s:
+            s = s.replace(",", ".")
+        s = s.replace(" ", "")
+        try:
+            return float(s)
+        except Exception:
+            return None
+
+    tema_map, subtema_map, pais_map, estado_map = {}, {}, {}, {}
+    municipio_map, tipo_map, unidade_map, fonte_map, servico_map = {}, {}, {}, {}, {}
+
+    inseridos = 0
+    ignorados = 0
+
+    for _, row in df.iterrows():
+        tema_id = None
+        v = limpar(row.get("tema"))
+        if v:
+            tema_id = tema_map.get(v) or upsert_lookup("tema", v)
+            tema_map[v] = tema_id
+
+        subtema_id = None
+        v = limpar(row.get("subtema"))
+        if v:
+            key = (tema_id, v)
+            if key not in subtema_map:
+                cur.execute("SELECT id FROM subtema WHERE tema_id IS NOT DISTINCT FROM %s AND nome = %s", (tema_id, v))
+                found = cur.fetchone()
+                subtema_map[key] = found[0] if found else None
+                if not found:
+                    cur.execute("INSERT INTO subtema (tema_id, nome) VALUES (%s, %s) RETURNING id", (tema_id, v))
+                    subtema_map[key] = cur.fetchone()[0]
+            subtema_id = subtema_map[key]
+
+        pais_id = None
+        v = limpar(row.get("pais"))
+        if v:
+            pais_id = pais_map.get(v) or upsert_lookup("pais", v)
+            pais_map[v] = pais_id
+
+        estado_id = None
+        v = limpar(row.get("estado"))
+        if v:
+            if v not in estado_map:
+                cur.execute("SELECT id FROM estado WHERE nome = %s", (v,))
+                found = cur.fetchone()
+                if found:
+                    estado_map[v] = found[0]
+                else:
+                    cur.execute("INSERT INTO estado (pais_id, nome) VALUES (%s, %s) RETURNING id", (pais_id, v))
+                    estado_map[v] = cur.fetchone()[0]
+            estado_id = estado_map[v]
+
+        municipio_id = None
+        v = limpar(row.get("municipio"))
+        if v:
+            key = (estado_id, v)
+            if key not in municipio_map:
+                cur.execute("SELECT id FROM municipio WHERE estado_id IS NOT DISTINCT FROM %s AND nome = %s", (estado_id, v))
+                found = cur.fetchone()
+                if found:
+                    municipio_map[key] = found[0]
+                else:
+                    cur.execute("INSERT INTO municipio (estado_id, nome) VALUES (%s, %s) RETURNING id", (estado_id, v))
+                    municipio_map[key] = cur.fetchone()[0]
+            municipio_id = municipio_map[key]
+
+        tipo_id = None
+        v = limpar(row.get("tipo_edital"))
+        if v:
+            tipo_id = tipo_map.get(v) or upsert_lookup("tipo_edital", v)
+            tipo_map[v] = tipo_id
+
+        unidade_id = None
+        v = limpar(row.get("unidade"))
+        if v:
+            unidade_id = unidade_map.get(v) or upsert_lookup("unidade", v)
+            unidade_map[v] = unidade_id
+
+        fonte_id = None
+        v = limpar(row.get("fonte_dado"))
+        if v:
+            fonte_id = fonte_map.get(v) or upsert_lookup("fonte_dado", v)
+            fonte_map[v] = fonte_id
+
+        unidade2_id = None
+        v_u2 = limpar(row.get("unidade2"))
+        if v_u2:
+            unidade2_id = unidade_map.get(v_u2) or upsert_lookup("unidade", v_u2)
+            unidade_map[v_u2] = unidade2_id
+
+        # Checa duplicata: mesmo nome_edital + data_edital + tema_id
+        nome_edital_val = limpar(row.get("nome_edital"))
+        data_edital_val = limpar(row.get("data_edital"))
+        cur.execute("""
+            SELECT id FROM edital
+            WHERE nome_edital IS NOT DISTINCT FROM %s
+              AND data_edital IS NOT DISTINCT FROM %s
+              AND tema_id IS NOT DISTINCT FROM %s
+        """, (nome_edital_val, data_edital_val, tema_id))
+        if cur.fetchone():
+            ignorados += 1
+            continue
+
+        cur.execute("""
+            INSERT INTO edital (
+                tema_id, subtema_id, pais_id, estado_id, municipio_id, nome_edital,
+                descricao, esforco, unidade_id, esforco2, unidade2_id, prazo_meses,
+                tipo_edital_id, codigo_planilha, fonte_dado_id, observacao,
+                custo_execucao, data_edital, metodo_calculo, valor_min, valor_max
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            RETURNING id
+        """, (
+            tema_id, subtema_id, pais_id, estado_id, municipio_id,
+            nome_edital_val, limpar(row.get("descricao")),
+            limpar(row.get("esforco")), unidade_id,
+            limpar(row.get("esforco2")), unidade2_id,
+            safe_float(row.get("prazo_meses")), tipo_id,
+            limpar(row.get("codigo_planilha")), fonte_id,
+            limpar(row.get("observacao")), safe_float(row.get("custo_execucao")),
+            data_edital_val, limpar(row.get("metodo_calculo")),
+            safe_float(row.get("valor_min")), safe_float(row.get("valor_max")),
+        ))
+        edital_id = cur.fetchone()[0]
+        inseridos += 1
+
+        for serv in normalizar_servicos(row.get("servicos")):
+            servico_id = servico_map.get(serv) or upsert_lookup("servico", serv)
+            servico_map[serv] = servico_id
+            cur.execute(
+                "INSERT INTO edital_servico (edital_id, servico_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                (edital_id, servico_id)
+            )
+
+    conn.commit()
+    conn.close()
+    return inseridos, ignorados
+
 
 def enviar_email(destinatarios, assunto: str, corpo_html: str):
     if not destinatarios:
@@ -1302,7 +1941,7 @@ def enviar_email_nova_solicitacao_para_admins(tema: str, descricao: str, solicit
     if not emails_admin:
         return False, "Nenhum ADMIN com e-mail cadastrado."
 
-    assunto = f"[FGV PMO] Nova solicitação de busca de edital — #{solicitacao_id}"
+    assunto = f"[FGV PMO] Nova solicitação de busca de edital - #{solicitacao_id}"
     conteudo = f"""
         <h2 style="margin:0 0 8px;color:#1e3a8a;font-size:20px;">Nova solicitação recebida</h2>
         <p style="margin:0 0 24px;color:#64748b;font-size:14px;">
@@ -1315,7 +1954,7 @@ def enviar_email_nova_solicitacao_para_admins(tema: str, descricao: str, solicit
           {_linha_info("Solicitante", _html.escape(solicitante))}
           {_linha_info("Perfil", perfil)}
           {_linha_info("Tema solicitado", _html.escape(tema))}
-          {_linha_info("Descrição", _html.escape(descricao) if descricao else "—")}
+          {_linha_info("Descrição", _html.escape(descricao) if descricao else "-")}
           {_linha_info("Status atual", _badge_status("PENDENTE"))}
         </table>
         <p style="margin:0;font-size:14px;color:#475569;">
@@ -1331,7 +1970,7 @@ def enviar_email_atualizacao_status_para_admins(solicitacao_id: int, tema: str, 
     if not emails_admin:
         return False, "Nenhum ADMIN com e-mail cadastrado."
 
-    assunto = f"[FGV PMO] Atualização de status — Solicitação #{solicitacao_id}"
+    assunto = f"[FGV PMO] Atualização de status - Solicitação #{solicitacao_id}"
     conteudo = f"""
         <h2 style="margin:0 0 8px;color:#1e3a8a;font-size:20px;">Status de solicitação atualizado</h2>
         <p style="margin:0 0 24px;color:#64748b;font-size:14px;">
@@ -1398,8 +2037,6 @@ def init_session():
         st.session_state.perfil = None
     if "email" not in st.session_state:
         st.session_state.email = None
-    if "area" not in st.session_state:
-        st.session_state.area = None
     if "menu" not in st.session_state:
         st.session_state.menu = "Base de Prazos"
     if "tema_visual" not in st.session_state:
@@ -1411,7 +2048,7 @@ def logout():
     st.session_state.usuario = None
     st.session_state.perfil = None
     st.session_state.email = None
-    st.session_state.menu = "Base de Prazos"
+    st.session_state.menu = "Dashboard" if st.session_state.get("perfil") in ("ADMIN", "PMO") else "Base de Prazos"
     st.rerun()
 
 
@@ -1423,7 +2060,7 @@ def get_base64_logo():
         return ""
     with open(LOGO_PATH, "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
-    
+
 def get_base64_logo_completo():
     with open("assets/FGV_PMO_LOGO_COMPLETO.png", "rb") as img_file:
         return base64.b64encode(img_file.read()).decode()
@@ -1434,26 +2071,64 @@ def esconder_elementos_streamlit():
     <script>
     (function() {
         function removeUnwanted() {
-            // Remove pelo conteúdo de texto
-            var allElements = document.querySelectorAll('button, span, div');
-            allElements.forEach(function(el) {
-                var txt = el.textContent || '';
-                if (txt.includes('keyboard_double_arrow')) {
-                    el.style.setProperty('display', 'none', 'important');
-                    if (el.parentElement) {
-                        el.parentElement.style.setProperty('display', 'none', 'important');
+            // Sem remoção de botões - botão de colapso da sidebar é mantido
+
+            // Destaca botão ativo na sidebar
+            function highlightNav() {
+                var sidebar = document.querySelector('[data-testid="stSidebar"]');
+                if (!sidebar) { setTimeout(highlightNav, 150); return; }
+                var activeText = '';
+                sidebar.querySelectorAll('button').forEach(function(btn) {
+                    var txt = (btn.innerText || '').trim();
+                    if (txt === activeText) {
+                        btn.style.setProperty('background', 'rgba(255,255,255,0.12)', 'important');
+                        btn.style.setProperty('color', '#fff', 'important');
+                        btn.style.setProperty('-webkit-text-fill-color', '#fff', 'important');
+                        btn.style.setProperty('font-weight', '600', 'important');
+                        btn.style.setProperty('border-left', '2px solid var(--fgv-bright)', 'important');
+                        btn.style.setProperty('border-radius', '0 7px 7px 0', 'important');
                     }
-                }
-            });
-            // Remove botões no canto superior da página (fora da sidebar)
-            var buttons = document.querySelectorAll('button');
-            buttons.forEach(function(btn) {
-                var rect = btn.getBoundingClientRect();
-                // Botão no canto superior esquerdo absoluto (colapso da sidebar)
-                if (rect.top < 60 && rect.left < 60 && rect.width < 60) {
-                    btn.style.setProperty('display', 'none', 'important');
-                }
-            });
+                });
+            }
+            setTimeout(highlightNav, 200);
+            setTimeout(highlightNav, 600);
+
+            // Agrupa botões de nav em caixas visuais
+            function groupNavButtons() {
+                var sidebar = document.querySelector('[data-testid="stSidebar"]');
+                if (!sidebar) return;
+                // Remove caixas anteriores para não duplicar
+                sidebar.querySelectorAll('.sb-group-box-js').forEach(function(el) {
+                    var parent = el.parentNode;
+                    while (el.firstChild) parent.insertBefore(el.firstChild, el);
+                    parent.removeChild(el);
+                });
+                // Encontra todos os rótulos de grupo
+                var labels = sidebar.querySelectorAll('.sb-group-label');
+                labels.forEach(function(label) {
+                    var box = document.createElement('div');
+                    box.className = 'sb-group-box-js';
+                    box.style.cssText = 'background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:4px;margin-bottom:10px;';
+                    label.parentNode.insertBefore(box, label.nextSibling);
+                    // Move próximos irmãos (botões) para dentro da caixa até o próximo rótulo ou separador
+                    var next = box.nextSibling;
+                    while (next && !next.classList?.contains('sb-group-label') && !next.classList?.contains('sb-footer-sep')) {
+                        var toMove = next;
+                        next = next.nextSibling;
+                        // Só move se contiver um botão
+                        if (toMove.querySelector && toMove.querySelector('button')) {
+                            box.appendChild(toMove);
+                        }
+                    }
+                });
+            }
+            setTimeout(groupNavButtons, 300);
+            setTimeout(groupNavButtons, 800);
+            var navObserver = new MutationObserver(function() { groupNavButtons(); });
+            setTimeout(function() {
+                var sidebar = document.querySelector('[data-testid="stSidebar"]');
+                if (sidebar) navObserver.observe(sidebar, { childList: true, subtree: false });
+            }, 500);
         }
         removeUnwanted();
         setTimeout(removeUnwanted, 500);
@@ -1486,17 +2161,32 @@ def header_principal():
     esconder_elementos_streamlit()
     logo_b64 = get_base64_logo_completo()
 
+    import html as _html_esc
+    usuario_safe = _html_esc.escape(str(st.session_state.get("usuario", "")))
+    perfil_safe  = _html_esc.escape(str(st.session_state.get("perfil", "")))
+    menu_safe    = _html_esc.escape(str(st.session_state.get("menu", "Portal")))
+    inicial = usuario_safe[0].upper() if usuario_safe else "U"
+
     st.markdown(
         f"""
         <div class="header-full-width">
             <div class="header-inner">
-                <div class="header-text-block">
-                    <div class="header-title">Consulta e busca de novos editais</div>
-                    <div class="header-subtitle">Para calculo de prazo completo, entrar em contato com FGV PMO</div>
-                    <div class="header-profile"><b>Perfil ativo:</b> {st.session_state.usuario}</div>
+                <div class="header-left">
+                    <div class="header-logo-block">
+                        <img src="data:image/png;base64,{logo_b64}" class="header-logo-full"/>
+                    </div>
+                    <div class="header-divider"></div>
+                    <div class="header-text-block">
+                        <div class="header-title">Portal de Editais/Projetos</div>
+                        <div class="header-subtitle">FGV &middot; Project Management Office</div>
+                    </div>
                 </div>
-                <div class="header-logo-block">
-                    <img src="data:image/png;base64,{logo_b64}" class="header-logo-full"/>
+                <div class="header-right">
+                    <div class="header-page-name">{menu_safe}</div>
+                    <div class="header-profile">
+                        <div class="header-avatar">{inicial}</div>
+                        {usuario_safe}
+                    </div>
                 </div>
             </div>
         </div>
@@ -1519,89 +2209,138 @@ def metric_card(titulo, valor, subtitulo=""):
 # LOGIN
 # =========================================================
 def tela_login():
-    st.markdown("""
+    logo_b64 = get_base64_logo()
+    st.markdown(f"""
     <style>
-    .login-page-wrap {
-        min-height: 0vh;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        padding: 0px;
-    }
+    /* Login - fundo azul claro institucional */
+    .stApp {{ background: #e8eef6 !important; }}
+    section.main .block-container {{ padding: 0 !important; max-width: 100% !important; }}
 
-    .login-panel {
-        width: 100%;
-        max-width: 420px;
-    }
+    /* Área superior com gradiente navy */
+    .lp-top {{
+        background: linear-gradient(135deg, #0b1f3a 0%, #112a50 55%, #1a3f6f 100%);
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        padding: 40px 24px 40px;
+    }}
+    .lp-logo {{ text-align: center; margin-bottom: 0; }}
+    .lp-logo img {{ height: 68px; width: auto; object-fit: contain; }}
 
-    .login-brand {
-        text-align: center;
-        margin-bottom: 18px;
-    }
 
-    .login-brand img {
-        width: 220px;
-        max-width: 100%;
-        object-fit: contain;
-        margin-bottom: 10px;
-    }
+    /* Wrapper que centraliza card+form como bloco único */
+    .lp-card-wrap {{
+        background: #e8eef6;
+        display: flex; justify-content: center;
+        padding: 0 24px 0;
+        margin-top: -1px;
+    }}
+    /* Card do título - faz parte do mesmo bloco visual do form */
+    .lp-card {{
+        width: 100%; max-width: 400px;
+        background: #ffffff;
+        border-radius: 16px 16px 0 0;
+        padding: 28px 28px 20px;
+        margin-top: -24px;
+        box-shadow: none;
+        position: relative; z-index: 1;
+        box-sizing: border-box;
+    }}
+    /* Form alinhado com o card */
+    .stForm {{
+        background: #ffffff !important;
+        width: 100% !important;
+        max-width: 400px !important;
+        margin: -8px auto 0 !important;
+        padding: 0 28px 24px !important;
+        border: none !important;
+        border-radius: 0 0 16px 16px !important;
+        box-shadow: 0 8px 32px rgba(11,31,58,0.12) !important;
+        box-sizing: border-box !important;
+    }}
+    .lp-title {{
+        color: #0b1f3a; font-size: 1.25rem; font-weight: 700;
+        letter-spacing: -0.02em; text-align: center;
+        margin-bottom: 3px; font-family: 'Inter', sans-serif;
+    }}
+    .lp-sub {{
+        color: #3d5575; font-size: 0.72rem; text-align: center;
+        letter-spacing: 0.07em; text-transform: uppercase; font-weight: 500;
+        margin-bottom: 20px; font-family: 'Inter', sans-serif;
+    }}
+    .lp-divider {{
+        height: 1px; background: #e2e8f0; margin-bottom: 20px;
+    }}
 
-    .login-card {
-        padding: 5px;
-    }
+    /* Labels em azul claro */
+    .lp-card label,
+    .lp-card .stTextInput label,
+    .lp-card [data-testid="stWidgetLabel"] p {{
+        color: #4d9fff !important;
+        -webkit-text-fill-color: #4d9fff !important;
+        font-size: 0.82rem !important;
+        font-weight: 600 !important;
+    }}
+    .lp-card .stTextInput input {{
+        background: #f5f8fd !important;
+        border: 1.5px solid #d0dff0 !important;
+        border-radius: 8px !important;
+        color: #0d1b2e !important;
+        -webkit-text-fill-color: #0d1b2e !important;
+    }}
+    .lp-card .stTextInput input:focus {{
+        border-color: #2979d4 !important;
+        box-shadow: 0 0 0 3px rgba(41,121,212,0.15) !important;
+    }}
+    .lp-card .stTextInput input::placeholder {{ color: #94a8c2 !important; }}
+    .lp-card .stFormSubmitButton > button {{
+        background: linear-gradient(135deg, #1d6fc4, #2979d4) !important;
+        color: #fff !important; font-weight: 600 !important;
+        border: none !important; border-radius: 8px !important;
+        height: 44px !important; font-size: 0.9rem !important;
+        box-shadow: 0 4px 16px rgba(41,121,212,0.3) !important;
+        margin-top: 6px !important; transform: none !important;
+    }}
+    .lp-card .stFormSubmitButton > button:hover {{
+        opacity: 0.9 !important; transform: none !important;
+    }}
 
-    .login-title {
-        text-align: center;
-        font-size: 1.9rem;
-        font-weight: 800;
-        margin-bottom: 8px;
-    }
-
-    .login-subtitle {
-        text-align: center;
-        font-size: 0.98rem;
-        margin-bottom: 22px;
-        opacity: 0.9;
-    }
-
-    .login-footer {
-        margin-top: 16px;
-        text-align: center;
-        font-size: 0.88rem;
-        opacity: 0.85;
-    }
+    /* Rodapé em azul escuro (fundo claro) */
+    section.main .block-container > div > div > div {{
+        background: transparent !important;
+    }}
+    .stForm > div {{ border: none !important; }}
+    .lp-footer {{
+        color: #1a3f6f;
+        font-size: 0.75rem; text-align: center;
+        padding: 16px 0 32px;
+        background: #e8eef6;
+        font-family: 'Inter', sans-serif;
+        letter-spacing: 0.02em;
+    }}
     </style>
-    """, unsafe_allow_html=True)
 
-    st.markdown('<div class="login-page-wrap">', unsafe_allow_html=True)
-    st.markdown('<div class="login-panel">', unsafe_allow_html=True)
-
-    st.markdown("""
-    <div class="login-brand">
-        <img src="data:image/png;base64,{}" />
+    <div class="lp-top">
+        <div class="lp-logo">
+            <img src="data:image/png;base64,{logo_b64}" />
+        </div>
     </div>
-    """.format(get_base64_logo()), unsafe_allow_html=True)
-
-    st.markdown("""
-    <div class="login-card">
-        <div class="login-title">Portal de Consulta de Editais</div>
-        <div class="login-subtitle">FGV PMO</div>
-    """, unsafe_allow_html=True)
-
-    with st.form("form_login", clear_on_submit=False):
-        usuario = st.text_input("Usuário")
-        senha = st.text_input("Senha", type="password")
-        entrar = st.form_submit_button("Entrar", use_container_width=True)
-
-    st.markdown("""
-        <div class="login-footer">
-            Acesso restrito a usuários autorizados
+    <div class="lp-card-wrap">
+        <div class="lp-card">
+            <div class="lp-title">Portal de Editais/Projetos</div>
+            <div class="lp-sub">FGV &middot; Project Management Office</div>
+            <div class="lp-divider"></div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.form("form_login", clear_on_submit=False):
+        usuario = st.text_input("Usuário", placeholder="seu.usuario")
+        senha = st.text_input("Senha", type="password", placeholder="••••••••")
+        entrar = st.form_submit_button("Entrar", use_container_width=True)
+
+    st.markdown("""
+    <div class="lp-footer">Acesso restrito a usuários autorizados</div>
+    """, unsafe_allow_html=True)
 
     if entrar:
         try:
@@ -1613,7 +2352,10 @@ def tela_login():
             st.session_state.logado = True
             st.session_state.usuario = user["username"]
             st.session_state.perfil = user["perfil"]
+            st.session_state.email = user.get("email")
             st.session_state.area = user.get("area", "")
+            # Redireciona para Dashboard se ADMIN/PMO, Base de Prazos para demais
+            st.session_state.menu = "Dashboard" if user["perfil"] in ("ADMIN", "PMO") else "Base de Prazos"
             st.rerun()
         else:
             st.error("Usuário ou senha inválidos.")
@@ -1625,118 +2367,394 @@ def tela_login():
 def menu_sidebar():
     with st.sidebar:
         tema_atual = st.session_state.get("tema_visual", "Light")
-
-        st.markdown('<div class="theme-toggle-mini">', unsafe_allow_html=True)
-
-        col1, col2, col3 = st.columns([1, 1, 2])
-
-        with col1:
-            if st.button("Claro", key="btn_light", use_container_width=True):
-                if tema_atual != "Light":
-                    st.session_state.tema_visual = "Light"
-                    st.rerun()
-
-        with col2:
-            if st.button("Escuro", key="btn_dark", use_container_width=True):
-                if tema_atual != "Dark":
-                    st.session_state.tema_visual = "Dark"
-                    st.rerun()
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        st.markdown("""
-        <div class="sidebar-logo-wrap">
-            <img src="data:image/png;base64,{}" class="sidebar-logo-img"/>
-        </div>
-        """.format(get_base64_logo()), unsafe_allow_html=True)
-
-        st.markdown("## Portal de Editais")
-        st.markdown(f"**Usuário:** {st.session_state.usuario}")
-
         perfil = st.session_state.perfil
-        opcoes = ["Base de Prazos"]
+        menu_atual = st.session_state.menu
 
+        # Logo via st.logo() — funciona em todos os temas nativamente
+        import os as _os
+        _paths = ["assets/FGV_PMO_LOGO_COMPLETO.png", "assets/fgv pmo logo.png"]
+        _img_path = next((p for p in _paths if _os.path.exists(p)), None)
+        if _img_path:
+            st.logo(_img_path, size="large")
+        st.markdown('<div class="sb-divider" style="margin-top:4px;"></div>', unsafe_allow_html=True)
+
+        # Monta grupos
+        grupo_consulta = []
         if perfil in ("ADMIN", "PMO"):
-            opcoes.append("Análise de Prazos")
-
-        opcoes.append("Projetos Concluídos")
-
+            grupo_consulta.append("Dashboard")
+        grupo_consulta.append("Base de Prazos")
+        if perfil in ("ADMIN", "PMO"):
+            grupo_consulta += ["Análise de Prazos"]
+        grupo_consulta.append("Projetos Concluídos")
         if perfil in ("ADMIN", "PMO", "COORDENADOR"):
-            opcoes.append("Oportunidades")
+            grupo_consulta.append("Oportunidades")
 
+        grupo_operacional = []
         if perfil in ("ADMIN", "PMO", "COORDENADOR"):
-            # Badge de pendentes para ADMIN/PMO
             if perfil in ("ADMIN", "PMO"):
                 try:
                     df_pend = listar_solicitacoes()
                     n_pend = len(df_pend[df_pend["status"] == "PENDENTE"])
-                    opcoes.append(f"Solicitações ({n_pend})" if n_pend > 0 else "Solicitações")
+                    grupo_operacional.append(f"Solicitações ({n_pend})" if n_pend > 0 else "Solicitações")
                 except Exception:
-                    opcoes.append("Solicitações")
+                    grupo_operacional.append("Solicitações")
             else:
-                opcoes.append("Solicitações")
-
+                grupo_operacional.append("Solicitações")
         if perfil in ("ADMIN", "PMO"):
-            opcoes.append("Base de dados")
+            grupo_operacional.append("Base de dados")
 
-        opcoes.append("Minha conta")
-
+        grupo_conta = ["Minha conta"]
         if perfil == "ADMIN":
-            opcoes.append("Usuários")
+            grupo_conta.append("Usuários")
 
+        grupos = [
+            ("Consulta", grupo_consulta),
+            ("Gestão", grupo_operacional),
+            ("Configurações", grupo_conta),
+        ]
 
-        menu_atual = st.session_state.menu
-        # Injeta JS para estilizar botão ativo
-        st.markdown(f"""
-        <script>
-        (function applyActiveNav() {{
-            var activeText = {repr(menu_atual)};
-            var sidebar = document.querySelector('[data-testid="stSidebar"]');
-            if (!sidebar) {{ setTimeout(applyActiveNav, 100); return; }}
-            sidebar.querySelectorAll('button').forEach(function(btn) {{
-                var txt = (btn.innerText || '').trim();
-                if (txt === activeText) {{
-                    btn.style.setProperty('background', 'rgba(255,255,255,0.18)', 'important');
-                    btn.style.setProperty('color', '#ffffff', 'important');
-                    btn.style.setProperty('-webkit-text-fill-color', '#ffffff', 'important');
-                    btn.style.setProperty('font-weight', '700', 'important');
-                    btn.style.setProperty('border', '1px solid rgba(255,255,255,0.3)', 'important');
-                }} else {{
-                    btn.style.removeProperty('border');
-                }}
-            }});
-        }})();
-        setTimeout(function() {{
-            var activeText = {repr(menu_atual)};
-            var sidebar = document.querySelector('[data-testid="stSidebar"]');
-            if (!sidebar) return;
-            sidebar.querySelectorAll('button').forEach(function(btn) {{
-                var txt = (btn.innerText || '').trim();
-                if (txt === activeText) {{
-                    btn.style.setProperty('background', 'rgba(255,255,255,0.18)', 'important');
-                    btn.style.setProperty('color', '#ffffff', 'important');
-                    btn.style.setProperty('-webkit-text-fill-color', '#ffffff', 'important');
-                    btn.style.setProperty('font-weight', '700', 'important');
-                    btn.style.setProperty('border', '1px solid rgba(255,255,255,0.3)', 'important');
-                }}
-            }});
-        }}, 400);
-        </script>
-        """, unsafe_allow_html=True)
-        for opcao in opcoes:
+        all_opcoes = []
+        for _, grupo_itens in grupos:
+            all_opcoes.extend(grupo_itens)
+
+        for opcao in all_opcoes:
             if st.button(opcao, key=f"nav_{opcao}", use_container_width=True):
                 if st.session_state.menu != opcao:
                     st.session_state.menu = opcao
                     st.rerun()
 
-        st.markdown("---")
-        if st.button("Sair", use_container_width=True, key="btn_sair_sidebar"):
-            logout()
+        # JS para destacar botão ativo (injeta menu_atual como valor real)
+        import html as _h_sb
+        menu_safe = _h_sb.escape(repr(menu_atual))
+        st.markdown(f"""
+        <script>
+        (function(){{
+            var active = {menu_safe};
+            function hi(){{
+                var sb = document.querySelector('[data-testid="stSidebar"]');
+                if(!sb){{setTimeout(hi,150);return;}}
+                sb.querySelectorAll('button').forEach(function(b){{
+                    var t=(b.innerText||'').trim();
+                    if(t===active){{
+                        b.style.setProperty('background','rgba(255,255,255,0.12)','important');
+                        b.style.setProperty('color','#fff','important');
+                        b.style.setProperty('-webkit-text-fill-color','#fff','important');
+                        b.style.setProperty('font-weight','600','important');
+                        b.style.setProperty('border-left','2px solid #4d9fff','important');
+                        b.style.setProperty('border-radius','0 7px 7px 0','important');
+                    }} else {{
+                        b.style.removeProperty('border-left');
+                        b.style.removeProperty('border-radius');
+                        b.style.removeProperty('font-weight');
+                    }}
+                }});
+            }}
+            hi();setTimeout(hi,400);
+        }})();
+        </script>
+        """, unsafe_allow_html=True)
 
+        # Rodapé
+        st.markdown('<div class="sb-footer-sep"></div>', unsafe_allow_html=True)
+        fc1, fc2, fc3 = st.columns([1, 1, 2])
+        with fc1:
+            if st.button("●" if tema_atual == "Light" else "○", key="btn_light", use_container_width=True):
+                if tema_atual != "Light":
+                    st.session_state.tema_visual = "Light"
+                    st.rerun()
+        with fc2:
+            if st.button("●" if tema_atual == "Dark" else "○", key="btn_dark", use_container_width=True):
+                if tema_atual != "Dark":
+                    st.session_state.tema_visual = "Dark"
+                    st.rerun()
+        with fc3:
+            if st.button("Sair", use_container_width=True, key="btn_sair_sidebar"):
+                logout()
 
 # =========================================================
 # CONSULTA
 # =========================================================
+
+# =========================================================
+# DASHBOARD (ADMIN / PMO)
+# =========================================================
+def registrar_upload_historico(tipo: str, qtd_registros: int, usuario: str):
+    """Registra um upload no historico."""
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO upload_historico (tipo, qtd_registros, usuario, criado_em)
+            VALUES (%s, %s, %s, %s)
+        """, (tipo, qtd_registros, usuario, agora_str()))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
+
+
+def carregar_stats_dashboard():
+    """Carrega estatisticas para o dashboard."""
+    conn = get_conn()
+    stats = {
+        "total_editais": 0, "total_projetos": 0,
+        "sol_pendentes": 0, "sol_total": 0,
+        "total_temas": 0, "total_estados": 0,
+        "ipca_ultimo": None, "ipca_defasagem_meses": 999,
+        "sol_por_status": {}, "uploads": [], "editais_por_mes": []
+    }
+    try:
+        cur = conn.cursor()
+
+        def q(sql, params=None):
+            try:
+                cur.execute(sql, params)
+                return cur.fetchall()
+            except Exception as _e:
+                logger.error("Dashboard query error: %s — %s", sql[:60], _e)
+                conn.rollback()
+                return []
+
+        def q1(sql, params=None):
+            rows = q(sql, params)
+            return rows[0][0] if rows else 0
+
+        stats["total_editais"]  = q1("SELECT COUNT(*) FROM edital")
+        stats["total_projetos"] = q1("SELECT COUNT(*) FROM projetos_concluidos")
+        stats["sol_pendentes"]  = q1("SELECT COUNT(*) FROM solicitacoes_tema WHERE status = 'PENDENTE'")
+        stats["sol_total"]      = q1("SELECT COUNT(*) FROM solicitacoes_tema")
+        stats["total_temas"]    = q1("SELECT COUNT(DISTINCT tema_id) FROM edital")
+        stats["total_estados"]  = q1("SELECT COUNT(DISTINCT estado_id) FROM edital")
+
+        # IPCA
+        ipca_rows = q("SELECT ano, mes FROM ipca_mensal ORDER BY ano DESC, mes DESC LIMIT 1")
+        if ipca_rows:
+            ano_i, mes_i = ipca_rows[0]
+            stats["ipca_ultimo"] = f"{mes_i:02d}/{ano_i}"
+            from datetime import datetime as _dt
+            now = _dt.now()
+            stats["ipca_defasagem_meses"] = (now.year - ano_i) * 12 + (now.month - mes_i)
+
+        # Solicitacoes por status
+        status_rows = q("SELECT status, COUNT(*) FROM solicitacoes_tema GROUP BY status")
+        stats["sol_por_status"] = {str(r[0]): int(r[1]) for r in status_rows}
+
+        # Historico de uploads
+        stats["uploads"] = q("""
+            SELECT tipo, qtd_registros, usuario, criado_em
+            FROM upload_historico ORDER BY criado_em DESC LIMIT 10
+        """)
+
+        # Editais por mes (usa data_edital, que existe na tabela edital)
+        stats["editais_por_mes"] = q("""
+            SELECT DATE_TRUNC('month', (data_edital || '-01')::date) AS mes, COUNT(*)
+            FROM edital WHERE data_edital IS NOT NULL AND data_edital ~ '^\d{4}-\d{2}$'
+            GROUP BY 1 ORDER BY 1 DESC LIMIT 12
+        """)
+
+    except Exception as e:
+        logger.error("Erro geral ao carregar stats dashboard: %s", e)
+    finally:
+        conn.close()
+    return stats
+
+
+def pagina_dashboard():
+    header_principal()
+
+    if st.session_state.perfil not in ("ADMIN", "PMO"):
+        st.error("Acesso restrito a ADMIN e PMO.")
+        return
+
+    stats = carregar_stats_dashboard()
+
+    # ── Alerta IPCA desatualizado ──
+    def_meses = stats.get("ipca_defasagem_meses", 0)
+    if def_meses > 2:
+        st.markdown(f"""
+        <div style="background:#fef3c7;border:1px solid #fcd34d;border-left:4px solid #f59e0b;
+                    border-radius:10px;padding:12px 16px;margin-bottom:16px;
+                    display:flex;align-items:center;gap:12px;">
+            <div style="font-size:1.2rem;">⚠</div>
+            <div>
+                <div style="font-weight:700;color:#92400e;font-size:0.88rem;">
+                    IPCA desatualizado — {def_meses} meses de defasagem
+                </div>
+                <div style="color:#92400e;font-size:0.8rem;">
+                    Ultimo mes disponivel: {stats.get('ipca_ultimo','—')}.
+                    Atualize em Base de Dados > Atualizar IPCA.
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ── Métricas principais ──
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
+    hv1, hv2 = st.columns([5, 1])
+    with hv1:
+        st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:16px;">Visao geral</div>', unsafe_allow_html=True)
+    with hv2:
+        if st.button("Atualizar", key="dash_refresh", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
+
+    total_editais  = stats.get("total_editais", 0)
+    total_projetos = stats.get("total_projetos", 0)
+    total_temas    = stats.get("total_temas", 0)
+    total_estados  = stats.get("total_estados", 0)
+    sol_pendentes  = stats.get("sol_pendentes", 0)
+    sol_total      = stats.get("sol_total", 0)
+    ipca_label     = stats.get("ipca_ultimo", "-")
+    ipca_ok        = def_meses <= 2
+    ipca_cor       = "#166534" if ipca_ok else "#92400e"
+    ipca_bg        = "#dcfce7" if ipca_ok else "#fef3c7"
+    ipca_status    = "Atualizado" if ipca_ok else str(def_meses) + "m defasagem"
+    editais_fmt    = str(total_editais).replace(",",".")
+
+    # Renderiza cada card individualmente em colunas
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    card_style = ("background:var(--surface-1);border:1px solid var(--border-subtle);"
+                  "border-radius:12px;padding:16px 18px;text-align:left;height:90px;")
+    lbl_style  = ("font-size:0.6rem;font-weight:700;letter-spacing:0.06em;"
+                  "text-transform:uppercase;color:var(--ink-secondary);margin-bottom:6px;"
+                  "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;")
+    val_style  = "font-size:1.6rem;font-weight:700;color:var(--ink-primary);letter-spacing:-0.02em;line-height:1;"
+    sub_style  = "font-size:0.72rem;color:#64748b;margin-top:4px;"
+
+    with c1:
+        st.markdown(
+            f'<div style="{card_style}"><div style="{lbl_style}">Editais</div>' +
+            f'<div style="{val_style}">{total_editais}</div></div>',
+            unsafe_allow_html=True)
+    with c2:
+        st.markdown(
+            f'<div style="{card_style}"><div style="{lbl_style}">Concluidos</div>' +
+            f'<div style="{val_style}">{total_projetos}</div></div>',
+            unsafe_allow_html=True)
+    with c3:
+        st.markdown(
+            f'<div style="{card_style}"><div style="{lbl_style}">Temas</div>' +
+            f'<div style="{val_style}">{total_temas}</div></div>',
+            unsafe_allow_html=True)
+    with c4:
+        st.markdown(
+            f'<div style="{card_style}"><div style="{lbl_style}">Estados</div>' +
+            f'<div style="{val_style}">{total_estados}</div></div>',
+            unsafe_allow_html=True)
+    with c5:
+        st.markdown(
+            f'<div style="{card_style}"><div style="{lbl_style}">Pendentes</div>' +
+            f'<div style="{val_style}">{sol_pendentes}</div>' +
+            f'<div style="{sub_style}">{sol_total} no total</div></div>',
+            unsafe_allow_html=True)
+    with c6:
+        ipca_card = ("background:" + ipca_bg + ";border:1px solid var(--border-subtle);"
+                     "border-radius:12px;padding:16px 18px;text-align:left;height:90px;")
+        ipca_lbl  = ("font-size:0.65rem;font-weight:700;letter-spacing:0.08em;"
+                     "text-transform:uppercase;color:" + ipca_cor + ";margin-bottom:8px;")
+        ipca_val  = "font-size:1.4rem;font-weight:700;color:" + ipca_cor + ";letter-spacing:-0.02em;line-height:1;"
+        ipca_sub  = "font-size:0.72rem;color:" + ipca_cor + ";margin-top:4px;font-weight:600;"
+        st.markdown(
+            f'<div style="{ipca_card}"><div style="{ipca_lbl}">IPCA ate</div>' +
+            f'<div style="{ipca_val}">{ipca_label}</div>' +
+            f'<div style="{ipca_sub}">{ipca_status}</div></div>',
+            unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Graficos ──
+    col_g1, col_g2 = st.columns([3, 2])
+
+    with col_g1:
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:12px;">Solicitacoes por status</div>', unsafe_allow_html=True)
+        sol_status = stats.get("sol_por_status", {})
+        if sol_status:
+            try:
+                import plotly.graph_objects as go
+                cores_status = {
+                    "PENDENTE": "#f59e0b",
+                    "EM ANÁLISE": "#3b82f6",
+                    "CONCLUÍDA": "#10b981",
+                    "RECUSADA": "#ef4444",
+                }
+                labels = list(sol_status.keys())
+                values = list(sol_status.values())
+                cores  = [cores_status.get(l, "#94a3b8") for l in labels]
+                fig = go.Figure(go.Pie(
+                    labels=labels, values=values,
+                    marker_colors=cores,
+                    hole=0.55,
+                    textinfo="label+value",
+                    hovertemplate="%{label}: %{value}<extra></extra>",
+                ))
+                fig.update_layout(
+                    height=260, margin=dict(t=10,b=10,l=10,r=10),
+                    showlegend=False, template="plotly_white",
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            except ImportError:
+                for s, n in sol_status.items():
+                    st.write(f"{s}: {n}")
+        else:
+            st.info("Nenhuma solicitacao registrada.")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with col_g2:
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:12px;">Acoes rapidas</div>', unsafe_allow_html=True)
+
+        acoes = [
+            ("Base de Prazos", "Consultar editais e projetos"),
+            ("Análise de Prazos", "Calcular estimativas Kerzner"),
+            ("Projetos Concluídos", "Ver projetos finalizados"),
+            ("Solicitações", "Gerenciar solicitacoes"),
+            ("Base de dados", "Importar planilha ou IPCA"),
+        ]
+        for menu_alvo, descricao in acoes:
+            col_a, col_b = st.columns([3, 1])
+            with col_a:
+                st.markdown(f'<div style="font-size:0.82rem;color:var(--ink-primary);padding:4px 0;">{descricao}</div>', unsafe_allow_html=True)
+            with col_b:
+                if st.button("Ir", key=f"acao_{menu_alvo}", use_container_width=True):
+                    st.session_state.menu = menu_alvo
+                    st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Historico de uploads ──
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:12px;">Historico de uploads</div>', unsafe_allow_html=True)
+
+    uploads = stats.get("uploads", [])
+    if not uploads:
+        st.caption("Nenhum upload registrado ainda. Os proximos uploads aparecerão aqui.")
+    else:
+        import html as _h_dash
+        for tipo, qtd, usuario, criado_em in uploads:
+            data_fmt = str(criado_em)[:16].replace("T"," ") if criado_em else "—"
+            tipo_cores = {
+                "base": ("#dbeafe","#1e40af"),
+                "projetos": ("#dcfce7","#166534"),
+                "ipca": ("#fef3c7","#92400e"),
+            }
+            bg_t, fg_t = tipo_cores.get(tipo, ("#f1f5f9","#475569"))
+            st.markdown(f"""
+            <div style="display:flex;align-items:center;gap:12px;
+                        padding:8px 12px;border-radius:8px;
+                        background:var(--surface-1);margin-bottom:4px;">
+                <span style="background:{bg_t};color:{fg_t};padding:2px 10px;
+                             border-radius:999px;font-size:11px;font-weight:700;
+                             white-space:nowrap;">{_h_dash.escape(tipo.upper())}</span>
+                <span style="flex:1;font-size:0.82rem;color:var(--ink-primary);">
+                    {qtd} registros</span>
+                <span style="font-size:0.75rem;color:var(--ink-secondary);">
+                    {_h_dash.escape(usuario)} &nbsp;·&nbsp; {data_fmt}</span>
+            </div>
+            """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+
 def pagina_consulta():
     header_principal()
     df = carregar_view()
@@ -1748,7 +2766,6 @@ def pagina_consulta():
     for col in df.columns:
         if df[col].dtype == object:
             df[col] = df[col].fillna("").astype(str)
-
     df.columns = [c.strip() for c in df.columns]
 
     def achar_coluna(preferidas):
@@ -1758,66 +2775,71 @@ def pagina_consulta():
                     return c
         return None
 
-    col_tema = achar_coluna(["tema"])
-    col_subtema = achar_coluna(["subtema"])
-    col_estado = achar_coluna(["estado"])
-    col_municipio = achar_coluna(["municipio", "município"])
-    col_nome = achar_coluna(["nome", "denominacao", "denominação"])
-    col_desc = achar_coluna(["descricao", "descrição"])
-    col_codigo = achar_coluna(["codigo", "código", "codigo_planilha"])
-    col_obs = achar_coluna(["observacao", "observação", "obs"])
-    col_custo = achar_coluna(["custo", "valor", "custo_execucao"])
-    col_prazo = achar_coluna(["prazo_meses", "prazo"])
-    col_data = achar_coluna(["data_edital", "data edital", "data"])
+    col_tema     = achar_coluna(["tema"])
+    col_subtema  = achar_coluna(["subtema"])
+    col_estado   = achar_coluna(["estado"])
+    col_municipio= achar_coluna(["municipio", "município"])
+    col_nome     = achar_coluna(["nome", "denominacao", "denominação"])
+    col_desc     = achar_coluna(["descricao", "descrição"])
+    col_codigo   = achar_coluna(["codigo", "código", "codigo_planilha"])
+    col_obs      = achar_coluna(["observacao", "observação", "obs"])
+    col_custo    = achar_coluna(["custo", "valor", "custo_execucao"])
+    col_prazo    = achar_coluna(["prazo_meses", "prazo"])
+    col_data     = achar_coluna(["data_edital", "data edital", "data"])
 
-    if col_custo:
-        df[col_custo] = pd.to_numeric(df[col_custo], errors="coerce")
-    if col_prazo:
-        df[col_prazo] = pd.to_numeric(df[col_prazo], errors="coerce")
-    if col_data:
-        df[col_data] = pd.to_datetime(df[col_data], errors="coerce")
-
-
-    st.subheader("Filtros de consulta")
+    if col_custo: df[col_custo] = pd.to_numeric(df[col_custo], errors="coerce")
+    if col_prazo: df[col_prazo] = pd.to_numeric(df[col_prazo], errors="coerce")
+    if col_data:  df[col_data]  = pd.to_datetime(df[col_data], errors="coerce")
 
     def opcoes(df_base, col):
+        """Retorna lista de valores únicos para o selectbox.
+        Para colunas de estado/município, expande valores separados por ';'
+        para listar cada estado/município individualmente."""
         if not col:
             return ["Todos"]
-        return ["Todos"] + sorted(df_base[col].dropna().replace("", pd.NA).dropna().unique().tolist())
+        vals = df_base[col].dropna().replace("", pd.NA).dropna().astype(str)
+        # Expande valores múltiplos separados por ";"
+        expandido = set()
+        for v in vals:
+            for parte in v.split(";"):
+                parte = parte.strip()
+                if parte:
+                    expandido.add(parte)
+        return ["Todos"] + sorted(expandido)
 
-    # Filtros em cascata: cada filtro restringe as opções dos seguintes
+    def filtrar_col(df_base, col, valor):
+        """Filtra DataFrame por coluna, suportando valores múltiplos separados por ';'."""
+        if not col or valor == "Todos":
+            return df_base
+        return df_base[
+            df_base[col].astype(str).str.contains(
+                r'(?:^|;\s*)' + re.escape(valor) + r'(?:\s*;|$)',
+                case=False, na=False, regex=True
+            )
+        ]
+
+    # ── Filtros principais ──
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
+
     filtrado = df.copy()
-
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        tema = st.selectbox("Tema", opcoes(filtrado, col_tema))
+    f1, f2, f3, f4 = st.columns(4)
+    with f1:
+        tema = st.selectbox("Tema", opcoes(filtrado, col_tema), label_visibility="visible")
     if col_tema and tema != "Todos":
         filtrado = filtrado[filtrado[col_tema] == tema]
-
-    with c2:
+    with f2:
         subtema = st.selectbox("Subtema", opcoes(filtrado, col_subtema))
     if col_subtema and subtema != "Todos":
         filtrado = filtrado[filtrado[col_subtema] == subtema]
-
-    with c3:
+    with f3:
         estado = st.selectbox("Estado", opcoes(filtrado, col_estado))
-    if col_estado and estado != "Todos":
-        filtrado = filtrado[filtrado[col_estado] == estado]
-
-    with c4:
+    filtrado = filtrar_col(filtrado, col_estado, estado)
+    with f4:
         municipio = st.selectbox("Município", opcoes(filtrado, col_municipio))
-    if col_municipio and municipio != "Todos":
-        filtrado = filtrado[filtrado[col_municipio] == municipio]
+    filtrado = filtrar_col(filtrado, col_municipio, municipio)
 
-    busca = st.text_input("Busca textual", placeholder="Nome, descrição, código...")
-
-    c9, c10, c11, c12 = st.columns(4)
-    custo_min = c9.number_input("Custo mínimo", min_value=0.0, value=0.0, step=1000.0, format="%.2f")
-    custo_max = c10.number_input("Custo máximo", min_value=0.0, value=0.0, step=1000.0, format="%.2f")
-    prazo_min = c11.number_input("Prazo mínimo (meses)", min_value=0.0, value=0.0, step=1.0, format="%.2f")
-    prazo_max = c12.number_input("Prazo máximo (meses)", min_value=0.0, value=0.0, step=1.0, format="%.2f")
-    st.markdown('</div>', unsafe_allow_html=True)
-
+    busca = st.text_input("Busca textual", placeholder="Nome, descrição, código...",
+                          label_visibility="collapsed")
     if busca:
         texto_cols = [c for c in [col_nome, col_desc, col_codigo, col_obs] if c]
         if texto_cols:
@@ -1826,166 +2848,286 @@ def pagina_consulta():
                 mask = mask | filtrado[c].astype(str).str.contains(busca, case=False, na=False)
             filtrado = filtrado[mask]
 
-    if col_custo:
-        if custo_min > 0:
-            filtrado = filtrado[filtrado[col_custo] >= custo_min]
-        if custo_max > 0:
-            filtrado = filtrado[filtrado[col_custo] <= custo_max]
-    if col_prazo:
-        if prazo_min > 0:
-            filtrado = filtrado[filtrado[col_prazo] >= prazo_min]
-        if prazo_max > 0:
-            filtrado = filtrado[filtrado[col_prazo] <= prazo_max]
+    # Filtros avançados colapsáveis
+    with st.expander("Filtros avançados - custo e prazo"):
+        c9, c10, c11, c12 = st.columns(4)
+        custo_min = c9.number_input("Custo mínimo (R$)", min_value=0.0, value=0.0, step=1000.0, format="%.2f")
+        custo_max = c10.number_input("Custo máximo (R$)", min_value=0.0, value=0.0, step=1000.0, format="%.2f")
+        prazo_min = c11.number_input("Prazo mínimo (meses)", min_value=0.0, value=0.0, step=1.0, format="%.1f")
+        prazo_max = c12.number_input("Prazo máximo (meses)", min_value=0.0, value=0.0, step=1.0, format="%.1f")
 
+    if col_custo:
+        if custo_min > 0: filtrado = filtrado[filtrado[col_custo] >= custo_min]
+        if custo_max > 0: filtrado = filtrado[filtrado[col_custo] <= custo_max]
+    if col_prazo:
+        if prazo_min > 0: filtrado = filtrado[filtrado[col_prazo] >= prazo_min]
+        if prazo_max > 0: filtrado = filtrado[filtrado[col_prazo] <= prazo_max]
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Métricas ──
     total_registros = len(filtrado)
-    total_temas = filtrado[col_tema].nunique() if col_tema else 0
-    total_estados = filtrado[col_estado].nunique() if col_estado else 0
-    custo_medio = filtrado[col_custo].mean() if col_custo and not filtrado.empty else 0
+    total_temas     = filtrado[col_tema].nunique() if col_tema else 0
+    # Expande múltiplos estados separados por ";" para contar corretamente
+    if col_estado:
+        _estados_expandidos = set()
+        for v in filtrado[col_estado].dropna().astype(str):
+            for parte in v.split(";"):
+                parte = parte.strip()
+                if parte:
+                    _estados_expandidos.add(parte)
+        total_estados = len(_estados_expandidos)
+    else:
+        total_estados = 0
+    custo_medio     = filtrado[col_custo].mean()     if col_custo and not filtrado.empty else 0
 
     m1, m2, m3, m4 = st.columns(4)
-    with m1:
-        metric_card("Registros filtrados", total_registros)
-    with m2:
-        metric_card("Temas", total_temas)
-    with m3:
-        metric_card("Estados", total_estados)
-    with m4:
-        metric_card("Custo médio", formatar_numero(custo_medio if pd.notna(custo_medio) else 0))
+    with m1: metric_card("Registros filtrados", total_registros)
+    with m2: metric_card("Temas", total_temas)
+    with m3: metric_card("Estados", total_estados)
+    with m4: metric_card("Custo médio", formatar_numero(custo_medio if pd.notna(custo_medio) else 0))
 
+    # ── Abas: Tabela | Evolução | Mapa ──
+    tab_tabela, tab_evolucao, tab_mapa = st.tabs(["Tabela", "Evolução por tema", "Distribuição geográfica"])
 
-    st.subheader("Resultados")
+    # ── TAB Tabela ──
+    with tab_tabela:
+        colunas_remover = ["id","tipo_edital","codigo_planilha","metodo_calculo","valor_min","valor_max","observacao"]
+        colunas_remover_existentes = [c for c in colunas_remover if c in filtrado.columns]
+        df_exibicao = filtrado.drop(columns=colunas_remover_existentes)
 
-    colunas_remover = [
-        "id", "tipo_edital", "codigo_planilha", "metodo_calculo", "valor_min", "valor_max", "observacao"
-    ]
-    colunas_remover_existentes = [c for c in colunas_remover if c in filtrado.columns]
-    df_exibicao = filtrado.drop(columns=colunas_remover_existentes)
+        mapa_colunas = {
+            "codigo":"Código","nome":"Nome","descricao":"Objetivo do Projeto",
+            "tema":"Tema","subtema":"Subtema","pais":"País","estado":"Estado",
+            "municipio":"Município","nome_edital":"Edital",
+            "esforco":"Parâmetro","unidade":"Unidade",
+            "esforco2":"esforco2","unidade2":"unidade2",
+            "servicos":"Serviços",
+            "custo_execucao":"Custo da Execução (R$)","custo":"Custo da Execução (R$)",
+            "prazo_meses":"Prazo (meses)","data_edital":"Data do edital",
+            "fonte_dado":"URL"
+        }
+        df_exibicao = df_exibicao.rename(columns={k:v for k,v in mapa_colunas.items() if k in df_exibicao.columns})
 
-    mapa_colunas = {
-        "codigo": "Código",
-        "nome": "Nome",
-        "descricao": "Objetivo do Projeto",
-        "tema": "Tema",
-        "subtema": "Subtema",
-        "pais": "País",
-        "estado": "Estado",
-        "municipio": "Município",
-        "nome_edital": "Edital",
-        "esforco": "Parâmetro utilizado para verificação do prazo",
-        "unidade": "Unidade de Medida do Parâmetro ",
-        "servicos": "Serviços",
-        "custo_execucao": "Custo (R$)",
-        "custo": "Custo (R$)",
-        "prazo_meses": "Prazo de execução (meses)",
-        "data_edital": "Data do edital",
-        "fonte_dado": "URL"
-    }
-    df_exibicao = df_exibicao.rename(columns={k: v for k, v in mapa_colunas.items() if k in df_exibicao.columns})
+        if "Data do edital" in df_exibicao.columns:
+            df_exibicao["Data do edital"] = pd.to_datetime(df_exibicao["Data do edital"], errors="coerce").dt.strftime("%d/%m/%Y")
 
-    if "Data do edital" in df_exibicao.columns:
-        df_exibicao["Data do edital"] = pd.to_datetime(df_exibicao["Data do edital"], errors="coerce").dt.strftime("%d/%m/%Y")
-    if "Custo (R$)" in df_exibicao.columns:
-        df_exibicao["Custo (R$)"] = df_exibicao["Custo (R$)"].apply(
-            lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if pd.notnull(x) else ""
-        )
+        def fmt_brl(x):
+            if pd.isnull(x) or x == 0: return ""
+            return f"R$ {x:,.2f}".replace(",","X").replace(".",",").replace("X",".")
 
-    # ── Paginação ──
-    PAGE_SIZE = 50
-    total = len(df_exibicao)
-    n_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
-    if "pagina_consulta" not in st.session_state:
-        st.session_state["pagina_consulta"] = 1
-    # Reset se filtros mudaram e página ficou fora do range
-    if st.session_state["pagina_consulta"] > n_pages:
-        st.session_state["pagina_consulta"] = 1
+        if "Custo da Execução (R$)" in df_exibicao.columns:
+            df_exibicao["Custo da Execução (R$)"] = df_exibicao["Custo da Execução (R$)"].apply(fmt_brl)
 
-    pg_atual = st.session_state["pagina_consulta"]
-    inicio = (pg_atual - 1) * PAGE_SIZE
-    fim = min(inicio + PAGE_SIZE, total)
+        ipca_bd = carregar_ipca()
+        from datetime import datetime as _dt_now
+        data_ref_bd = f"{_dt_now.now().year}-{_dt_now.now().month:02d}"
+        if ipca_bd and "custo_execucao" in filtrado.columns and "data_edital" in filtrado.columns:
+            def _corrigir_linha(row):
+                custo = row.get("custo_execucao")
+                data_b = row.get("data_edital")
+                if not custo or not data_b or pd.isnull(custo) or pd.isnull(data_b): return ""
+                try:
+                    v = corrigir_ipca(float(custo), str(data_b)[:7], data_ref_bd, ipca_bd)
+                    return fmt_brl(v) if v else ""
+                except Exception: return ""
+            df_exibicao["Custo da Execução corrigido pelo IPCA (R$)"] = filtrado.apply(_corrigir_linha, axis=1)
+        else:
+            df_exibicao["Custo da Execução corrigido pelo IPCA (R$)"] = ""
 
-    st.dataframe(df_exibicao.iloc[inicio:fim], use_container_width=True, hide_index=True)
+        if "Custo da Execução (R$)" in df_exibicao.columns and "Custo da Execução corrigido pelo IPCA (R$)" in df_exibicao.columns:
+            cols = list(df_exibicao.columns)
+            idx_custo = cols.index("Custo da Execução (R$)")
+            cols.remove("Custo da Execução corrigido pelo IPCA (R$)")
+            cols.insert(idx_custo + 1, "Custo da Execução corrigido pelo IPCA (R$)")
+            df_exibicao = df_exibicao[cols]
 
-    # Controles de paginação
-    pg1, pg2, pg3, pg4, pg5 = st.columns([1, 1, 3, 1, 1])
-    with pg1:
-        if st.button("⟪ Primeira", use_container_width=True, disabled=pg_atual == 1):
+        # Paginação
+        PAGE_SIZE = 50
+        total = len(df_exibicao)
+        n_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
+        if "pagina_consulta" not in st.session_state:
             st.session_state["pagina_consulta"] = 1
-            st.rerun()
-    with pg2:
-        if st.button("‹ Anterior", use_container_width=True, disabled=pg_atual == 1):
-            st.session_state["pagina_consulta"] -= 1
-            st.rerun()
-    with pg3:
-        st.markdown(
-            f"<div style='text-align:center;padding:8px 0;font-size:13px;color:var(--ink-secondary);'>"
-            f"Página <b>{pg_atual}</b> de <b>{n_pages}</b> &nbsp;·&nbsp; "
-            f"Exibindo registros <b>{inicio+1}</b>–<b>{fim}</b> de <b>{total}</b></div>",
-            unsafe_allow_html=True
-        )
-    with pg4:
-        if st.button("Próxima ›", use_container_width=True, disabled=pg_atual == n_pages):
-            st.session_state["pagina_consulta"] += 1
-            st.rerun()
-    with pg5:
-        if st.button("Última ⟫", use_container_width=True, disabled=pg_atual == n_pages):
-            st.session_state["pagina_consulta"] = n_pages
-            st.rerun()
+        if st.session_state["pagina_consulta"] > n_pages:
+            st.session_state["pagina_consulta"] = 1
+        pg_atual = st.session_state["pagina_consulta"]
+        inicio = (pg_atual - 1) * PAGE_SIZE
+        fim = min(inicio + PAGE_SIZE, total)
 
-    if pode_baixar_arquivos(st.session_state.perfil):
-        col_dl1, col_dl2 = st.columns([1, 5])
-        with col_dl1:
-            st.download_button(
-                "Baixar CSV",
-                data=filtrado.to_csv(index=False).encode("utf-8-sig"),
-                file_name="consulta_editais.csv",
-                mime="text/csv",
-                use_container_width=True
+        _col_cfg_consulta = {
+            "Parâmetro": st.column_config.TextColumn(
+                "1° Parâmetro",
+                help="Parâmetro utilizado para calculo de execução do projeto."
+            ),
+            "Unidade": st.column_config.TextColumn(
+                "Unidade",
+                help="Unidade de medida referente ao parâmetro."
+            ),
+            "esforco2": st.column_config.TextColumn(
+                "2° Parâmetro",
+                help="Parâmetro utilizado para calculo de execução do projeto."
+            ),
+            "unidade2": st.column_config.TextColumn(
+                "Unidade 2",
+                help="Unidade de medida referente ao 2° parâmetro."
+            ),
+        }
+        if "Custo da Execução corrigido pelo IPCA (R$)" in df_exibicao.columns:
+            _col_cfg_consulta["Custo da Execução corrigido pelo IPCA (R$)"] = st.column_config.TextColumn(
+                "Custo da Execução corrigido pelo IPCA (R$)",
+                help="Corrige o custo inicial pelo IPCA acumulado desde a data do edital ate o mes atual. Formula: Valor x PI(1 + IPCA_mes/100) para cada mes entre a data base e hoje. Fonte: Banco Central do Brasil, serie SGS 433."
             )
-        with col_dl2:
-            st.download_button(
-                "Baixar Excel",
-                data=to_excel_bytes(filtrado),
-                file_name="consulta_editais.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=False
-            )
+        st.dataframe(df_exibicao.iloc[inicio:fim], use_container_width=True,
+                     hide_index=True, column_config=_col_cfg_consulta)
 
-    # ── Gráfico de evolução por tema ──
-    if not filtrado.empty and "data_edital" in filtrado.columns and "tema" in filtrado.columns:
-        try:
-            import plotly.graph_objects as go
-            df_graf = filtrado[["data_edital", "tema"]].copy()
-            df_graf["data_edital"] = pd.to_datetime(df_graf["data_edital"], errors="coerce")
-            df_graf = df_graf.dropna(subset=["data_edital"])
-            df_graf["ano"] = df_graf["data_edital"].dt.year.astype(int)
-            df_graf = df_graf[df_graf["ano"] >= 2015]
-            if not df_graf.empty:
-                pivot = df_graf.groupby(["ano", "tema"]).size().reset_index(name="n")
-                temas_graf = pivot.groupby("tema")["n"].sum().nlargest(8).index.tolist()
-                pivot = pivot[pivot["tema"].isin(temas_graf)]
-                cores = ["#1d6fc4","#10b981","#f59e0b","#ef4444","#8b5cf6",
-                         "#06b6d4","#ec4899","#84cc16"]
-                fig = go.Figure()
-                for i, tema_g in enumerate(temas_graf):
-                    d = pivot[pivot["tema"] == tema_g].sort_values("ano")
-                    fig.add_trace(go.Scatter(
-                        x=d["ano"].tolist(), y=d["n"].tolist(),
-                        name=tema_g, mode="lines+markers",
-                        line=dict(width=2, color=cores[i % len(cores)]),
-                        marker=dict(size=6),
-                    ))
-                fig.update_layout(
-                    title="Evolução de editais por tema ao longo do tempo",
-                    xaxis_title="Ano", yaxis_title="Nº de editais",
-                    height=380, template="plotly_white",
-                    legend=dict(orientation="h", yanchor="bottom", y=-0.4),
-                    margin=dict(t=50, b=100, l=40, r=20),
-                    xaxis=dict(tickmode="linear", dtick=1),
-                )
-                st.plotly_chart(fig, use_container_width=True)
-        except ImportError:
-            pass
+        # Paginação
+        pg1, pg2, pg3, pg4, pg5 = st.columns([1, 1, 3, 1, 1])
+        with pg1:
+            if st.button("Primeira", use_container_width=True, disabled=pg_atual==1):
+                st.session_state["pagina_consulta"] = 1; st.rerun()
+        with pg2:
+            if st.button("Anterior", use_container_width=True, disabled=pg_atual==1):
+                st.session_state["pagina_consulta"] -= 1; st.rerun()
+        with pg3:
+            st.markdown(
+                f"<div style='text-align:center;padding:8px 0;font-size:13px;color:var(--ink-secondary);'>"
+                f"Página <b>{pg_atual}</b> de <b>{n_pages}</b> &nbsp;·&nbsp; "
+                f"<b>{inicio+1}</b>-<b>{fim}</b> de <b>{total}</b> registros</div>",
+                unsafe_allow_html=True)
+        with pg4:
+            if st.button("Próxima", use_container_width=True, disabled=pg_atual==n_pages):
+                st.session_state["pagina_consulta"] += 1; st.rerun()
+        with pg5:
+            if st.button("Última", use_container_width=True, disabled=pg_atual==n_pages):
+                st.session_state["pagina_consulta"] = n_pages; st.rerun()
 
+        # Exportação em linha separada
+        if pode_baixar_arquivos(st.session_state.perfil):
+            dl1, dl2, _ = st.columns([1, 1, 4])
+            with dl1:
+                st.download_button("Exportar CSV", data=filtrado.to_csv(index=False).encode("utf-8-sig"),
+                                   file_name="consulta_editais.csv", mime="text/csv",
+                                   use_container_width=True)
+            with dl2:
+                st.download_button("Exportar Excel", data=to_excel_bytes(filtrado),
+                                   file_name="consulta_editais.xlsx",
+                                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                   use_container_width=True)
+
+    # ── TAB Evolução ──
+    with tab_evolucao:
+        if not filtrado.empty and col_data and col_tema:
+            try:
+                import plotly.graph_objects as go
+                df_graf = filtrado[[col_data, col_tema]].copy()
+                df_graf[col_data] = pd.to_datetime(df_graf[col_data], errors="coerce")
+                df_graf = df_graf.dropna(subset=[col_data])
+                df_graf["ano"] = df_graf[col_data].dt.year.astype(int)
+                df_graf = df_graf[df_graf["ano"] >= 2015]
+                if not df_graf.empty:
+                    pivot = df_graf.groupby(["ano", col_tema]).size().reset_index(name="n")
+                    temas_graf = pivot.groupby(col_tema)["n"].sum().nlargest(8).index.tolist()
+                    pivot = pivot[pivot[col_tema].isin(temas_graf)]
+                    cores = ["#1d6fc4","#10b981","#f59e0b","#ef4444","#8b5cf6",
+                             "#06b6d4","#ec4899","#84cc16"]
+                    fig = go.Figure()
+                    for i, tema_g in enumerate(temas_graf):
+                        d = pivot[pivot[col_tema] == tema_g].sort_values("ano")
+                        fig.add_trace(go.Scatter(
+                            x=d["ano"].tolist(), y=d["n"].tolist(),
+                            name=tema_g, mode="lines+markers",
+                            line=dict(width=2, color=cores[i % len(cores)]),
+                            marker=dict(size=6),
+                        ))
+                    fig.update_layout(
+                        title="Evolução de editais/projetos por tema",
+                        xaxis_title="Ano", yaxis_title="Nº de editais/projetos",
+                        height=400, template="plotly_white",
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.4),
+                        margin=dict(t=50, b=120, l=40, r=20),
+                        xaxis=dict(tickmode="linear", dtick=1),
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("Sem dados de evolução para o filtro selecionado.")
+            except ImportError:
+                st.info("Instale plotly para visualizar os gráficos.")
+        else:
+            st.info("Sem dados suficientes para o gráfico.")
+
+    # ── TAB Mapa ──
+    with tab_mapa:
+        if not filtrado.empty:
+            try:
+                import plotly.express as px
+                tem_estado = "estado" in filtrado.columns and filtrado["estado"].notna().any()
+                tem_pais   = "pais"   in filtrado.columns and filtrado["pais"].notna().any()
+
+                if tem_estado:
+                    df_mapa = (filtrado.groupby(["pais","estado"], dropna=True)
+                               .size().reset_index(name="qtd"))
+                    df_mapa = df_mapa[df_mapa["qtd"] > 0]
+                    uf_map = {
+                        "Acre":"AC","Alagoas":"AL","Amapá":"AP","Amazonas":"AM",
+                        "Bahia":"BA","Ceará":"CE","Distrito Federal":"DF",
+                        "Espírito Santo":"ES","Goiás":"GO","Maranhão":"MA",
+                        "Mato Grosso":"MT","Mato Grosso do Sul":"MS","Minas Gerais":"MG",
+                        "Pará":"PA","Paraíba":"PB","Paraná":"PR","Pernambuco":"PE",
+                        "Piauí":"PI","Rio de Janeiro":"RJ","Rio Grande do Norte":"RN",
+                        "Rio Grande do Sul":"RS","Rondônia":"RO","Roraima":"RR",
+                        "Santa Catarina":"SC","São Paulo":"SP","Sergipe":"SE","Tocantins":"TO",
+                    }
+                    df_br = df_mapa[df_mapa["pais"] == "Brasil"].copy()
+                    df_br["uf"] = df_br["estado"].map(uf_map)
+                    df_br = df_br.dropna(subset=["uf"])
+
+                    if not df_br.empty:
+                        sub_mapa, sub_tabela = st.tabs(["Mapa", "Tabela por estado"])
+                        with sub_mapa:
+                            fig_mapa = px.choropleth(
+                                df_br,
+                                geojson="https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson",
+                                locations="uf", featureidkey="properties.sigla",
+                                color="qtd", hover_name="estado",
+                                hover_data={"qtd":True,"uf":False},
+                                color_continuous_scale=[[0,"#dbeafe"],[0.3,"#93c5fd"],[0.6,"#3b82f6"],[1.0,"#1e3a8a"]],
+                                labels={"qtd":"Editais/Projetos"},
+                                title="Editais/Projetos por estado (Brasil)",
+                            )
+                            fig_mapa.update_geos(fitbounds="locations", visible=False)
+                            fig_mapa.update_layout(height=500, margin=dict(l=0,r=0,t=40,b=0),
+                                                   coloraxis_colorbar=dict(title="Qtd."))
+                            st.plotly_chart(fig_mapa, use_container_width=True)
+                        with sub_tabela:
+                            st.dataframe(df_mapa.sort_values("qtd", ascending=False)
+                                         .rename(columns={"pais":"País","estado":"Estado","qtd":"Editais/Projetos"}),
+                                         use_container_width=True, hide_index=True)
+                            df_top = df_br.sort_values("qtd", ascending=True).tail(20)
+                            fig_bar = px.bar(df_top, x="qtd", y="estado", orientation="h",
+                                             labels={"qtd":"Editais/Projetos","estado":"Estado"},
+                                             color="qtd", color_continuous_scale=["#93c5fd","#1e3a8a"],
+                                             title="Top 20 estados")
+                            fig_bar.update_layout(height=420, template="plotly_white",
+                                                  showlegend=False, coloraxis_showscale=False,
+                                                  margin=dict(l=10,r=10,t=40,b=10))
+                            st.plotly_chart(fig_bar, use_container_width=True)
+
+                elif tem_pais:
+                    df_pais = filtrado.groupby("pais", dropna=True).size().reset_index(name="qtd")
+                    fig_pais = px.bar(df_pais.sort_values("qtd", ascending=False),
+                                      x="pais", y="qtd",
+                                      labels={"pais":"País","qtd":"Editais/Projetos"},
+                                      title="Editais/Projetos por país",
+                                      color="qtd", color_continuous_scale=["#93c5fd","#1e3a8a"])
+                    fig_pais.update_layout(height=350, template="plotly_white",
+                                           showlegend=False, coloraxis_showscale=False)
+                    st.plotly_chart(fig_pais, use_container_width=True)
+                else:
+                    st.info("Sem dados geográficos para exibir.")
+            except ImportError:
+                st.info("Instale plotly para visualizar o mapa.")
+        else:
+            st.info("Sem dados para o mapa com o filtro selecionado.")
 
 
 
@@ -1993,108 +3135,158 @@ def pagina_consulta():
 # SOLICITAÇÕES
 # =========================================================
 def pagina_solicitacoes():
+    import html as _html_sol
     header_principal()
 
+    def badge_status(s):
+        cores = {
+            "PENDENTE":    ("#fef3c7","#92400e","#f59e0b"),
+            "EM ANÁLISE":  ("#dbeafe","#1e40af","#3b82f6"),
+            "CONCLUÍDA":   ("#dcfce7","#166534","#10b981"),
+            "RECUSADA":    ("#fee2e2","#991b1b","#ef4444"),
+        }
+        s_safe = s if s in cores else "DESCONHECIDO"
+        bg, fg, _ = cores.get(s_safe, ("#f1f5f9","#475569","#94a3b8"))
+        return (f'<span style="background:{bg};color:{fg};padding:3px 12px;'
+                f'border-radius:999px;font-size:11px;font-weight:700;'
+                f'letter-spacing:0.04em;">{_html_sol.escape(s_safe)}</span>')
+
+    def sol_card(row):
+        import html as _h
+        sid    = int(row["id"])
+        tema_s = _h.escape(str(row.get("tema_solicitado", "")))
+        desc_s = _h.escape(str(row.get("descricao", "") or ""))
+        sol_s  = _h.escape(str(row.get("solicitante", "")))
+        data_s = str(row.get("data_solicitacao", ""))[:10]
+        status = str(row.get("status", ""))
+        cores_borda = {
+            "PENDENTE": "#f59e0b", "EM ANÁLISE": "#3b82f6",
+            "CONCLUÍDA": "#10b981", "RECUSADA": "#ef4444",
+        }
+        cor = cores_borda.get(status, "#94a3b8")
+        cores_badge = {
+            "PENDENTE":    ("#fef3c7","#92400e"),
+            "EM ANÁLISE":  ("#dbeafe","#1e40af"),
+            "CONCLUÍDA":   ("#dcfce7","#166534"),
+            "RECUSADA":    ("#fee2e2","#991b1b"),
+        }
+        bg_b, fg_b = cores_badge.get(status, ("#f1f5f9","#475569"))
+
+        label = f"#{sid}  ·  {tema_s}"
+        with st.expander(label, expanded=False):
+            st.markdown(f"""
+            <div style="border-left:4px solid {cor};padding:10px 14px;
+                        border-radius:0 8px 8px 0;background:var(--surface-1);margin-bottom:6px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <span style="font-weight:700;font-size:0.9rem;color:var(--ink-primary);">{tema_s}</span>
+                    <span style="background:{bg_b};color:{fg_b};padding:2px 12px;border-radius:999px;
+                                 font-size:11px;font-weight:700;">{_h.escape(status)}</span>
+                </div>
+                {"" if not desc_s else f'<div style="color:var(--ink-secondary);font-size:0.84rem;margin-bottom:8px;">{desc_s}</div>'}
+                <div style="color:#94a3b8;font-size:0.75rem;">{sol_s} &nbsp;·&nbsp; {data_s}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # ── Nova solicitação ──
     if pode_solicitar(st.session_state.perfil):
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.subheader("Solicitar busca de novos editais")
-
+        st.subheader("Nova solicitação")
+        st.caption("Descreva o tema que deseja pesquisar. A equipe PMO será notificada.")
         with st.form("form_solicitacao_tema", clear_on_submit=True):
-            tema = st.text_input("Tema da pesquisa")
-            descricao = st.text_area("Descrição complementar", placeholder="Explique melhor o tema, palavras-chave, região, observações...")
-            enviar = st.form_submit_button("Enviar solicitação")
-
+            tema = st.text_input("Tema da pesquisa",
+                                 placeholder="Ex: Pavimentação urbana, Saneamento rural...")
+            descricao = st.text_area("Descrição complementar (opcional)",
+                                     placeholder="Palavras-chave, região de interesse, observações...",
+                                     height=90)
+            enviar = st.form_submit_button("Enviar solicitação", use_container_width=True)
         if enviar:
             if not tema.strip():
                 st.warning("Informe o tema da pesquisa.")
             else:
                 solicitacao_id = inserir_solicitacao(
-                    tema=tema,
-                    descricao=descricao,
-                    solicitante=st.session_state.usuario,
-                    perfil=st.session_state.perfil
-                )
-                ok_email, msg_email = enviar_email_nova_solicitacao_para_admins(
-                    tema=tema,
-                    descricao=descricao,
+                    tema=tema, descricao=descricao,
                     solicitante=st.session_state.usuario,
                     perfil=st.session_state.perfil,
-                    solicitacao_id=solicitacao_id
                 )
-                if ok_email:
-                    st.success("Solicitação registrada com sucesso e notificação enviada aos administradores.")
-                else:
-                    st.success("Solicitação registrada com sucesso.")
-                    st.info(f"Aviso sobre e-mail: {msg_email}")
+                ok_email, _ = enviar_email_nova_solicitacao_para_admins(
+                    tema=tema, descricao=descricao,
+                    solicitante=st.session_state.usuario,
+                    perfil=st.session_state.perfil,
+                    solicitacao_id=solicitacao_id,
+                )
+                st.success("Solicitação registrada e notificação enviada." if ok_email
+                           else "Solicitação registrada.")
+                st.cache_data.clear()
                 st.rerun()
-
         st.markdown('</div>', unsafe_allow_html=True)
 
+    # ── Painel ADMIN/PMO: cards com controle inline ──
     if pode_ver_solicitacoes(st.session_state.perfil):
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.subheader("Solicitações recebidas")
-
         df_sol = listar_solicitacoes()
-        if df_sol.empty:
-            st.info("Nenhuma solicitação cadastrada.")
-        else:
-            st.dataframe(df_sol, use_container_width=True, hide_index=True)
-            st.markdown("### Atualizar status")
-            c1, c2 = st.columns(2)
-            with c1:
-                ids = df_sol["id"].tolist()
-                solicitacao_id = st.selectbox("ID da solicitação", ids)
-            with c2:
-                novo_status = st.selectbox("Novo status", ["PENDENTE", "EM ANÁLISE", "CONCLUÍDA", "RECUSADA"])
 
-            if st.button("Salvar status"):
-                dados_sol = obter_solicitacao_por_id(solicitacao_id)
-                if not dados_sol:
-                    st.error("Solicitação não encontrada.")
-                else:
-                    _, tema_solicitado, _, solicitante, _, _, _ = dados_sol
-                    atualizar_status_solicitacao(solicitacao_id, novo_status)
-                    ok_email, msg_email = enviar_email_atualizacao_status_para_admins(
-                        solicitacao_id=solicitacao_id,
-                        tema=tema_solicitado,
-                        solicitante=solicitante,
-                        novo_status=novo_status
+        ha, hb = st.columns([3, 1])
+        with ha:
+            st.subheader("Solicitações recebidas")
+        with hb:
+            filtro = st.selectbox("Filtrar", ["Todas","PENDENTE","EM ANÁLISE","CONCLUÍDA","RECUSADA"],
+                                  key="sol_filtro", label_visibility="collapsed")
+
+        df_view = df_sol if filtro == "Todas" else df_sol[df_sol["status"] == filtro]
+
+        n_pend = len(df_sol[df_sol["status"] == "PENDENTE"])
+        if n_pend:
+            st.markdown(
+                f'<div style="display:inline-flex;align-items:center;gap:6px;'
+                f'background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;'
+                f'padding:6px 14px;font-size:0.82rem;color:#92400e;font-weight:600;'
+                f'margin-bottom:12px;">{n_pend} pendente(s) aguardando análise</div>',
+                unsafe_allow_html=True,
+            )
+
+        if df_view.empty:
+            st.info("Nenhuma solicitação encontrada.")
+        else:
+            for _, row in df_view.iterrows():
+                sol_card(row)
+                sid = int(row["id"])
+                _, cc2, cc3 = st.columns([3, 2, 1])
+                with cc2:
+                    novo_status = st.selectbox(
+                        "Status", ["PENDENTE","EM ANÁLISE","CONCLUÍDA","RECUSADA"],
+                        index=(["PENDENTE","EM ANÁLISE","CONCLUÍDA","RECUSADA"].index(row["status"])
+                               if row["status"] in ["PENDENTE","EM ANÁLISE","CONCLUÍDA","RECUSADA"] else 0),
+                        key=f"status_{sid}", label_visibility="collapsed",
                     )
-                    if ok_email:
-                        st.success("Status atualizado e e-mail enviado aos administradores.")
-                    else:
-                        st.success("Status atualizado.")
-                        st.info(f"Aviso sobre e-mail: {msg_email}")
-                    st.rerun()
+                with cc3:
+                    if st.button("Salvar", key=f"salvar_{sid}", use_container_width=True):
+                        dados_sol = obter_solicitacao_por_id(sid)
+                        if dados_sol:
+                            _, tema_sol, _, sol_name, _, _, _ = dados_sol
+                            atualizar_status_solicitacao(sid, novo_status)
+                            enviar_email_atualizacao_status_para_admins(
+                                solicitacao_id=sid, tema=tema_sol,
+                                solicitante=sol_name, novo_status=novo_status,
+                            )
+                            st.cache_data.clear()
+                            st.rerun()
+                st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
 
         st.markdown('</div>', unsafe_allow_html=True)
-    # ── Histórico próprio (todos os perfis veem suas solicitações) ──
+
+    # ── Minhas solicitações ──
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
     st.subheader("Minhas solicitações")
     df_todas = listar_solicitacoes()
-    df_minhas = df_todas[df_todas["solicitante"].str.upper() == st.session_state.usuario.upper()].copy()
+    df_minhas = df_todas[
+        df_todas["solicitante"].str.upper() == st.session_state.usuario.upper()
+    ].copy()
     if df_minhas.empty:
         st.info("Você ainda não possui solicitações registradas.")
     else:
-        # Badges de status coloridos
-        def badge_status(s):
-            cores = {"PENDENTE": ("#fef3c7","#92400e"), "EM ANÁLISE": ("#dbeafe","#1e40af"),
-                     "CONCLUÍDA": ("#dcfce7","#166534"), "RECUSADA": ("#fee2e2","#991b1b")}
-            bg, fg = cores.get(s, ("#f1f5f9","#475569"))
-            return f'<span style="background:{bg};color:{fg};padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;">{s}</span>'
-
-        st.markdown(f"**{len(df_minhas)}** solicitação(ões) encontrada(s)")
+        st.caption(f"{len(df_minhas)} solicitação(ões) registrada(s)")
         for _, row in df_minhas.iterrows():
-            with st.expander(f"#{row['id']} — {row['tema_solicitado']}  |  {row['data_solicitacao'][:10]}"):
-                col_a, col_b = st.columns([2,1])
-                with col_a:
-                    st.markdown(f"**Tema:** {row['tema_solicitado']}")
-                    if row.get('descricao'):
-                        st.markdown(f"**Descrição:** {row['descricao']}")
-                    st.markdown(f"**Data:** {row['data_solicitacao']}")
-                with col_b:
-                    st.markdown(f"**Status:**", unsafe_allow_html=False)
-                    st.markdown(badge_status(row['status']), unsafe_allow_html=True)
+            sol_card(row)
     st.markdown('</div>', unsafe_allow_html=True)
 
 
@@ -2111,6 +3303,12 @@ def _inserir_edital_individual(tema, subtema, pais, estado, municipio,
     cur = conn.cursor()
 
     def upsert(table, nome):
+        _TABELAS_PERMITIDAS = {
+            "tema", "subtema", "pais", "estado", "municipio",
+            "tipo_edital", "unidade", "fonte_dado", "servico"
+        }
+        if table not in _TABELAS_PERMITIDAS:
+            raise ValueError(f"Tabela não permitida: {table}")
         if not nome:
             return None
         cur.execute(f"SELECT id FROM {table} WHERE nome = %s", (nome,))
@@ -2203,274 +3401,496 @@ def pagina_base():
     header_principal()
     df = carregar_view()
 
+    # ── Métricas de resumo ──
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
-    st.subheader("Visualização da base")
-    if df.empty:
-        st.warning("A view 'vw_consulta_editais' não foi encontrada ou não possui dados.")
-    else:
-        st.dataframe(df.head(500), use_container_width=True, hide_index=True)
-        st.caption("Exibindo até 500 linhas para visualização.")
-    st.markdown('</div>', unsafe_allow_html=True)
 
+    if not df.empty:
+        m1, m2, m3, m4 = st.columns(4)
+        total = len(df)
+        n_temas = df["tema"].nunique() if "tema" in df.columns else 0
+        n_estados = df["estado"].nunique() if "estado" in df.columns else 0
+        anos = pd.to_datetime(df["data_edital"], errors="coerce").dt.year.dropna()
+        periodo = f"{int(anos.min())}-{int(anos.max())}" if not anos.empty else "-"
+        m1.metric("Total de registros", f"{total:,}".replace(",","."))
+        m2.metric("Temas", n_temas)
+        m3.metric("Estados cobertos", n_estados)
+        m4.metric("Período", periodo)
+
+    # ── Tabs ──
     if pode_substituir_base(st.session_state.perfil):
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.subheader("Substituir base de dados")
-        st.info("Área reservada para ADMIN e PMO. O upload substitui todos os editais da base pelos da nova planilha. Usuários e solicitações não são afetados.")
-        arquivo = st.file_uploader("Selecione uma planilha", type=["xlsx", "xls", "csv"])
-        if arquivo is not None:
-            st.success(f"Arquivo carregado: {arquivo.name}")
-            if st.button("Processar e atualizar base", type="primary"):
-                with st.spinner("Processando planilha e atualizando o banco..."):
+        tab_viz, tab_import, tab_ipca, tab_edital = st.tabs([
+            "Visualizar base", "Importar planilha", "Atualizar IPCA", "Incluir edital"
+        ])
+    else:
+        tab_viz, = st.tabs(["Visualizar base"])
+        tab_import = tab_ipca = tab_edital = None
+
+    # ── TAB: Visualizar ──
+    with tab_viz:
+        if df.empty:
+            st.warning("A view 'vw_consulta_editais' não foi encontrada ou não possui dados.")
+        else:
+            col_busca, col_tema = st.columns([2, 1])
+            with col_busca:
+                busca = st.text_input("Buscar na base", placeholder="Nome, tema, município...",
+                                      label_visibility="collapsed")
+            with col_tema:
+                temas_disp = ["Todos"] + sorted(df["tema"].dropna().unique().tolist()) \
+                    if "tema" in df.columns else ["Todos"]
+                tema_filtro = st.selectbox("Tema", temas_disp, label_visibility="collapsed")
+
+            df_show = df.copy()
+            if busca:
+                mask = df_show.apply(lambda r: r.astype(str).str.contains(busca, case=False, na=False).any(), axis=1)
+                df_show = df_show[mask]
+            if tema_filtro != "Todos" and "tema" in df_show.columns:
+                df_show = df_show[df_show["tema"] == tema_filtro]
+
+            st.caption(f"Exibindo {min(500, len(df_show))} de {len(df_show)} registros")
+            st.dataframe(df_show.head(500), use_container_width=True, hide_index=True)
+
+    # ── TAB: Importar planilha ──
+    if tab_import:
+        with tab_import:
+
+            # Download do modelo
+            col_dl, _ = st.columns([1, 3])
+            with col_dl:
+                try:
+                    st.download_button(
+                        label="⬇️ Baixar planilha modelo",
+                        data=gerar_modelo_base(),
+                        file_name="Modelo_Base_Editais_Projetos.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key="dl_modelo_base",
+                    )
+                except Exception as _e:
+                    logger.error("Erro ao gerar modelo base: %s", _e)
+
+            # Modo de importação
+            modo_import = st.radio(
+                "Modo de importação",
+                options=["➕ Incrementar (adicionar novos registros)", "🔄 Substituir (apagar e reimportar tudo)"],
+                index=0,
+                key="modo_import_base",
+                horizontal=True,
+            )
+            _modo_substituir = "Substituir" in modo_import
+
+            if _modo_substituir:
+                st.markdown("""
+                <div style="background:#fff5f5;border:1px solid #fecaca;border-radius:10px;
+                            padding:14px 16px;margin-bottom:16px;font-size:0.85rem;color:#991b1b;">
+                    <strong>Atenção:</strong> O modo <strong>Substituir</strong> apaga <em>todos</em> os editais
+                    existentes e reimporta a planilha do zero. Usuários e solicitações não são afetados.
+                    Esta operação não pode ser desfeita.
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:10px;
+                            padding:14px 16px;margin-bottom:16px;font-size:0.85rem;color:#1e40af;">
+                    <strong>Modo Incrementar:</strong> Apenas novos registros serão adicionados.
+                    Editais com mesmo <em>Nome + Data + Tema</em> já existentes na base serão ignorados
+                    automaticamente.
+                </div>
+                """, unsafe_allow_html=True)
+
+            arquivo = st.file_uploader("Selecione a planilha (Excel ou CSV)",
+                                       type=["xlsx", "xls", "csv"], key="base_upload")
+            # Lê os bytes imediatamente para evitar race condition de SessionInfo no Streamlit Cloud
+            _bytes_base = arquivo.read() if arquivo is not None else None
+            if _bytes_base is not None:
+                _nome_arquivo_base = arquivo.name
+                # Preview antes de processar
+                try:
+                    import pandas as _pd_prev
+                    _buf_prev = BytesIO(_bytes_base)
+                    xl = _pd_prev.ExcelFile(_buf_prev)
+                    sheet = "Base" if "Base" in xl.sheet_names else xl.sheet_names[0]
+                    df_prev = _pd_prev.read_excel(BytesIO(_bytes_base), sheet_name=sheet, nrows=5)
+                    n_cols = len(df_prev.columns)
+                    st.markdown(f"""
+                    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;
+                                padding:12px 16px;margin-bottom:12px;font-size:0.84rem;color:#166534;">
+                        <strong>{_nome_arquivo_base}</strong> detectado —
+                        aba <em>{sheet}</em>, {n_cols} colunas identificadas.
+                    </div>
+                    """, unsafe_allow_html=True)
+                    with st.expander("Ver primeiras linhas"):
+                        st.dataframe(df_prev, use_container_width=True, hide_index=True)
+                except Exception:
+                    pass
+
+                if _modo_substituir:
+                    confirmar_upload = st.checkbox(
+                        "Confirmo que desejo substituir toda a base de dados",
+                        key="confirm_base_upload"
+                    )
+                else:
+                    confirmar_upload = True
+
+                label_btn = "Substituir base" if _modo_substituir else "Adicionar à base"
+                if st.button(label_btn, type="primary",
+                             use_container_width=True, disabled=not confirmar_upload):
+                    with st.spinner("Processando planilha..."):
+                        try:
+                            if _modo_substituir:
+                                processar_upload_planilha(BytesIO(_bytes_base))
+                                try:
+                                    registrar_upload_historico("base", len(pd.read_excel(BytesIO(_bytes_base))), st.session_state.usuario)
+                                except Exception:
+                                    pass
+                                st.success("Base substituída com sucesso!")
+                            else:
+                                inseridos, ignorados = processar_upload_planilha_incremental(BytesIO(_bytes_base))
+                                try:
+                                    registrar_upload_historico("base", inseridos, st.session_state.usuario)
+                                except Exception:
+                                    pass
+                                if inseridos == 0:
+                                    st.warning(
+                                        f"Nenhum registro novo encontrado. "
+                                        f"{ignorados} registro(s) já existiam na base e foram ignorados."
+                                    )
+                                else:
+                                    st.success(
+                                        f"✅ {inseridos} registro(s) adicionado(s) com sucesso! "
+                                        f"{ignorados} ignorado(s) por já existirem na base."
+                                    )
+                            st.cache_data.clear()
+                            st.rerun()
+                        except Exception as e:
+                            logger.error("Erro ao processar planilha: %s", e)
+                            st.error("Erro ao processar a planilha. Verifique o formato e tente novamente.")
+
+    # ── TAB: IPCA ──
+    if tab_ipca:
+        with tab_ipca:
+            st.markdown("""
+            <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:10px;
+                        padding:14px 16px;margin-bottom:16px;font-size:0.85rem;color:#1e40af;">
+                Faça upload do CSV do IPCA do Banco Central (série SGS 433) para atualizar os custos 
+                corrigidos na Base de Prazos e em Projetos Concluídos.<br><br>
+                <strong>Download:</strong> 
+                <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=csv" 
+                   target="_blank" style="color:#1d4ed8;">
+                   api.bcb.gov.br → série 433
+                </a>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Mostra último mês disponível no banco
+            try:
+                ipca_atual = carregar_ipca()
+                if ipca_atual:
+                    ultimo = max(ipca_atual.keys())
+                    st.markdown(f"""
+                    <div style="display:inline-flex;align-items:center;gap:6px;
+                                background:#f0fdf4;border:1px solid #bbf7d0;
+                                border-radius:8px;padding:6px 14px;
+                                font-size:0.82rem;color:#166534;
+                                font-weight:600;margin-bottom:12px;">
+                        Última atualização no banco: {ultimo[1]:02d}/{ultimo[0]}
+                    </div>
+                    """, unsafe_allow_html=True)
+            except Exception:
+                pass
+
+            arquivo_ipca = st.file_uploader("Selecione o arquivo CSV do IPCA",
+                                             type=["csv"], key="ipca_upload")
+            # Lê bytes imediatamente para evitar race condition de SessionInfo no Streamlit Cloud
+            _bytes_ipca = arquivo_ipca.read() if arquivo_ipca is not None else None
+            if _bytes_ipca is not None:
+                if st.button("Importar IPCA", type="primary",
+                             use_container_width=True, key="ipca_importar"):
+                    with st.spinner("Importando IPCA — processando serie historica..."):
+                        try:
+                            import csv, io
+                            conteudo = _bytes_ipca.decode("utf-8")
+                            reader = csv.DictReader(io.StringIO(conteudo), delimiter=";")
+                            conn_ipca = get_conn()
+                            cur_ipca = conn_ipca.cursor()
+                            inseridos = 0
+                            for row in reader:
+                                data = row.get("data", "").strip()
+                                valor = row.get("valor", "").strip().replace(",", ".")
+                                if not data or not valor:
+                                    continue
+                                partes = data.split("/")
+                                if len(partes) < 3:
+                                    continue
+                                mes, ano = int(partes[1]), int(partes[2])
+                                try:
+                                    variacao = float(valor)
+                                except ValueError:
+                                    continue
+                                cur_ipca.execute("""
+                                    INSERT INTO ipca_mensal (ano, mes, variacao)
+                                    VALUES (%s, %s, %s)
+                                    ON CONFLICT (ano, mes) DO UPDATE SET variacao = EXCLUDED.variacao
+                                """, (ano, mes, variacao))
+                                inseridos += 1
+                            conn_ipca.commit()
+                            conn_ipca.close()
+                            try:
+                                registrar_upload_historico("ipca", inseridos, st.session_state.usuario)
+                            except Exception:
+                                pass
+                            st.cache_data.clear()
+                            st.success(f"IPCA atualizado! {inseridos} meses inseridos/atualizados.")
+                        except Exception as e:
+                            logger.error("Erro ao importar IPCA: %s", e)
+                            st.error("Erro ao importar o IPCA. Verifique o formato do arquivo.")
+
+    # ── TAB: Incluir edital ──
+    if tab_edital:
+        with tab_edital:
+            conn_ref = get_conn()
+            try:
+                temas_ref   = pd.read_sql_query("SELECT DISTINCT nome FROM tema ORDER BY nome", conn_ref)["nome"].tolist()
+                estados_ref = pd.read_sql_query("SELECT DISTINCT nome FROM estado ORDER BY nome", conn_ref)["nome"].tolist()
+            except Exception:
+                temas_ref, estados_ref = [], []
+            finally:
+                conn_ref.close()
+
+            with st.form("form_novo_edital", clear_on_submit=True):
+                # Identificação
+                st.markdown("""
+                <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;
+                            text-transform:uppercase;color:#64748b;
+                            border-bottom:1px solid #e2e8f0;padding-bottom:6px;
+                            margin-bottom:12px;">Identificação</div>
+                """, unsafe_allow_html=True)
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    ne_tema = st.text_input("Tema *",
+                        placeholder="Ex: Infraestrutura Urbana e Industrial")
+                    ne_subtema = st.text_input("Subtema *",
+                        placeholder="Ex: Pavimentação Estadual")
+                with c2:
+                    ne_nome_edital = st.text_input("Nome do edital *")
+                    ne_pais = st.text_input("País", value="Brasil")
+                with c3:
+                    ne_estado = st.selectbox("Estado", [""] + estados_ref)
+                    ne_municipio = st.text_input("Município")
+
+                # Descrição
+                st.markdown("""
+                <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;
+                            text-transform:uppercase;color:#64748b;
+                            border-bottom:1px solid #e2e8f0;padding-bottom:6px;
+                            margin-bottom:12px;margin-top:8px;">Descrição</div>
+                """, unsafe_allow_html=True)
+                ne_descricao = st.text_area("Objetivo do edital", height=90)
+                ne_servicos  = st.text_input("Serviços (separados por vírgula)")
+
+                # Dados técnicos
+                st.markdown("""
+                <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;
+                            text-transform:uppercase;color:#64748b;
+                            border-bottom:1px solid #e2e8f0;padding-bottom:6px;
+                            margin-bottom:12px;margin-top:8px;">Dados técnicos</div>
+                """, unsafe_allow_html=True)
+                d1, d2, d3, d4 = st.columns(4)
+                with d1:
+                    ne_esforco = st.number_input("Esforço", min_value=0.0, step=0.1, format="%.2f")
+                    ne_unidade = st.text_input("Unidade", placeholder="km, m², unid...")
+                with d2:
+                    ne_prazo = st.number_input("Prazo (meses)", min_value=0.0, step=0.5, format="%.1f")
+                    ne_custo = st.number_input("Custo de execução (R$)", min_value=0.0, step=1000.0, format="%.2f")
+                with d3:
+                    ne_valor_min = st.number_input("Valor mínimo (R$)", min_value=0.0, step=1000.0, format="%.2f")
+                    ne_valor_max = st.number_input("Valor máximo (R$)", min_value=0.0, step=1000.0, format="%.2f")
+                with d4:
+                    ne_data   = st.text_input("Data do edital (AAAA-MM)", placeholder="2024-03")
+                    ne_codigo = st.text_input("Código planilha")
+                ne_obs = st.text_area("Observações", height=70)
+
+                salvar_edital = st.form_submit_button("Salvar edital", type="primary",
+                                                       use_container_width=True)
+
+            if salvar_edital:
+                if not ne_tema or not ne_subtema.strip() or not ne_nome_edital.strip():
+                    st.warning("Preencha ao menos Tema, Subtema e Nome do edital.")
+                else:
                     try:
-                        processar_upload_planilha(arquivo)
-                        st.success("Base atualizada com sucesso! Recarregue a página para ver os novos dados.")
+                        _inserir_edital_individual(
+                            tema=ne_tema, subtema=ne_subtema.strip(),
+                            pais=ne_pais.strip() or "Brasil",
+                            estado=ne_estado or None,
+                            municipio=ne_municipio.strip() or None,
+                            nome_edital=ne_nome_edital.strip(),
+                            descricao=ne_descricao.strip() or None,
+                            servicos=ne_servicos.strip() or None,
+                            esforco=str(ne_esforco) if ne_esforco > 0 else None,
+                            unidade=ne_unidade or None,
+                            prazo_meses=ne_prazo if ne_prazo > 0 else None,
+                            custo_execucao=ne_custo if ne_custo > 0 else None,
+                            valor_min=ne_valor_min if ne_valor_min > 0 else None,
+                            valor_max=ne_valor_max if ne_valor_max > 0 else None,
+                            data_edital=ne_data.strip() or None,
+                            codigo_planilha=ne_codigo.strip() or None,
+                            observacao=ne_obs.strip() or None,
+                        )
+                        st.success(f"Edital '{ne_nome_edital}' incluído com sucesso!")
                         st.cache_data.clear()
                     except Exception as e:
-                        logger.error("Erro ao processar planilha: %s", e)
-                        st.error("Erro ao processar a planilha. Verifique o formato do arquivo e tente novamente.")
-        st.markdown('</div>', unsafe_allow_html=True)
+                        logger.error("Erro ao incluir edital: %s", e)
+                        st.error("Erro ao salvar o edital. Tente novamente.")
 
-    # ── Inclusão de edital individual ──
-    if pode_substituir_base(st.session_state.perfil):
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.subheader("Incluir novo edital individualmente")
-        st.info("Adicione um edital diretamente na base sem precisar substituir a planilha inteira.")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-        conn_ref = get_conn()
-        try:
-            temas_ref = pd.read_sql_query("SELECT DISTINCT nome FROM tema ORDER BY nome", conn_ref)["nome"].tolist()
-            estados_ref = pd.read_sql_query("SELECT DISTINCT nome FROM estado ORDER BY nome", conn_ref)["nome"].tolist()
-        except Exception:
-            temas_ref, estados_ref = [], []
-        finally:
-            conn_ref.close()
-
-        with st.form("form_novo_edital", clear_on_submit=True):
-            st.markdown("**Identificação**")
-            c1, c2 = st.columns(2)
-            with c1:
-                ne_tema = st.selectbox("Tema *", [""] + temas_ref)
-                ne_subtema = st.text_input("Subtema *")
-                ne_nome_edital = st.text_input("Nome do edital *")
-            with c2:
-                ne_pais = st.text_input("País", value="Brasil")
-                ne_estado = st.selectbox("Estado", [""] + estados_ref)
-                ne_municipio = st.text_input("Município")
-
-            st.markdown("**Descrição**")
-            ne_descricao = st.text_area("Descrição / Objetivo do edital", height=100)
-            ne_servicos = st.text_input("Serviços (separados por vírgula)")
-
-            st.markdown("**Dados técnicos**")
-            c3, c4, c5 = st.columns(3)
-            with c3:
-                ne_esforco = st.number_input("Esforço", min_value=0.0, step=0.1, format="%.2f")
-                ne_unidade = st.text_input("Unidade de medida", placeholder="Ex: km, m², unid...")
-            with c4:
-                ne_prazo = st.number_input("Prazo (meses)", min_value=0.0, step=0.5, format="%.1f")
-                ne_custo = st.number_input("Custo de execução (R$)", min_value=0.0, step=1000.0, format="%.2f")
-            with c5:
-                ne_valor_min = st.number_input("Valor mínimo (R$)", min_value=0.0, step=1000.0, format="%.2f")
-                ne_valor_max = st.number_input("Valor máximo (R$)", min_value=0.0, step=1000.0, format="%.2f")
-
-            st.markdown("**Outros**")
-            c6, c7 = st.columns(2)
-            with c6:
-                ne_data = st.text_input("Data do edital (AAAA-MM)", placeholder="Ex: 2024-03")
-                ne_codigo = st.text_input("Código planilha")
-            with c7:
-                ne_obs = st.text_area("Observações", height=80)
-
-            salvar_edital = st.form_submit_button("Salvar edital", type="primary")
-
-        if salvar_edital:
-            if not ne_tema or not ne_subtema.strip() or not ne_nome_edital.strip():
-                st.warning("Preencha ao menos Tema, Subtema e Nome do edital.")
-            else:
-                try:
-                    _inserir_edital_individual(
-                        tema=ne_tema, subtema=ne_subtema.strip(),
-                        pais=ne_pais.strip() or "Brasil", estado=ne_estado or None,
-                        municipio=ne_municipio.strip() or None,
-                        nome_edital=ne_nome_edital.strip(),
-                        descricao=ne_descricao.strip() or None,
-                        servicos=ne_servicos.strip() or None,
-                        esforco=str(ne_esforco) if ne_esforco > 0 else None,
-                        unidade=ne_unidade or None,
-                        prazo_meses=ne_prazo if ne_prazo > 0 else None,
-                        custo_execucao=ne_custo if ne_custo > 0 else None,
-                        valor_min=ne_valor_min if ne_valor_min > 0 else None,
-                        valor_max=ne_valor_max if ne_valor_max > 0 else None,
-                        data_edital=ne_data.strip() or None,
-                        codigo_planilha=ne_codigo.strip() or None,
-                        observacao=ne_obs.strip() or None,
-                    )
-                    st.success(f"Edital '{ne_nome_edital}' incluído com sucesso!")
-                    st.cache_data.clear()
-                except Exception as e:
-                    logger.error("Erro ao incluir edital: %s", e)
-                    st.error("Erro ao salvar o edital. Tente novamente ou contate o administrador.")
-
-        st.markdown('</div>', unsafe_allow_html=True)
 
 
 # =========================================================
 # MINHA CONTA
 # =========================================================
 def pagina_minha_conta():
+    import html as _html_conta
     header_principal()
 
-    st.markdown('<div class="section-card">', unsafe_allow_html=True)
-    st.subheader("Minha conta")
-    st.write(f"**Usuário:** {st.session_state.usuario}")
-    st.write(f"**Perfil:** {st.session_state.perfil}")
-    st.write(f"**E-mail:** {st.session_state.email or '-'}")
-    st.markdown('</div>', unsafe_allow_html=True)
+    usuario  = st.session_state.usuario
+    perfil   = st.session_state.perfil
+    email    = st.session_state.email or "-"
+    inicial  = usuario[0].upper() if usuario else "U"
 
-    st.markdown('<div class="section-card">', unsafe_allow_html=True)
-    st.subheader("Alterar senha")
-    with st.form("form_alterar_senha", clear_on_submit=True):
-        senha_atual = st.text_input("Senha atual", type="password")
-        nova_senha = st.text_input("Nova senha", type="password")
-        confirmar_senha = st.text_input("Confirmar nova senha", type="password")
-        salvar = st.form_submit_button("Salvar nova senha")
+    cores_perfil = {
+        "ADMIN":       ("#fee2e2", "#991b1b", "#ef4444"),
+        "PMO":         ("#dbeafe", "#1e40af", "#3b82f6"),
+        "COORDENADOR": ("#fef3c7", "#92400e", "#f59e0b"),
+        "GERAL":       ("#f0fdf4", "#166534", "#10b981"),
+    }
+    bg_p, fg_p, cor_av = cores_perfil.get(perfil, ("#f1f5f9","#475569","#94a3b8"))
 
-    if salvar:
-        if not senha_atual or not nova_senha or not confirmar_senha:
-            st.warning("Preencha todos os campos.")
-        elif nova_senha != confirmar_senha:
-            st.error("A confirmação da nova senha não confere.")
-        elif len(nova_senha) < 6:
-            st.error("A nova senha deve ter pelo menos 6 caracteres.")
-        else:
-            ok, msg = alterar_senha_usuario(st.session_state.usuario, senha_atual, nova_senha)
-            if ok:
-                st.success(msg)
+    col_perfil, col_senha = st.columns([1, 1], gap="large")
+
+    # ── Card de perfil ──
+    with col_perfil:
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style="display:flex;flex-direction:column;align-items:center;
+                    padding:24px 0 16px;text-align:center;">
+            <div style="width:72px;height:72px;border-radius:50%;
+                        background:linear-gradient(135deg,{cor_av},{cor_av}99);
+                        display:flex;align-items:center;justify-content:center;
+                        font-size:1.8rem;font-weight:700;color:#fff;
+                        box-shadow:0 4px 16px {cor_av}40;margin-bottom:14px;">
+                {_html_conta.escape(inicial)}
+            </div>
+            <div style="font-size:1.15rem;font-weight:700;color:var(--ink-primary);
+                        margin-bottom:6px;">
+                {_html_conta.escape(usuario)}
+            </div>
+            <div style="margin-bottom:10px;">
+                <span style="background:{bg_p};color:{fg_p};padding:3px 14px;
+                             border-radius:999px;font-size:0.75rem;font-weight:700;
+                             letter-spacing:0.05em;">
+                    {_html_conta.escape(perfil)}
+                </span>
+            </div>
+            <div style="color:var(--ink-secondary);font-size:0.83rem;">
+                {_html_conta.escape(email)}
+            </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border-subtle);padding-top:14px;margin-top:4px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <div style="background:var(--surface-2);border-radius:8px;
+                            padding:10px 14px;text-align:center;">
+                    <div style="font-size:0.65rem;font-weight:600;letter-spacing:0.06em;
+                                text-transform:uppercase;color:var(--ink-secondary);
+                                margin-bottom:3px;">Acesso</div>
+                    <div style="font-size:0.88rem;font-weight:600;color:var(--ink-primary);">
+                        {_html_conta.escape(perfil)}
+                    </div>
+                </div>
+                <div style="background:var(--surface-2);border-radius:8px;
+                            padding:10px 14px;text-align:center;">
+                    <div style="font-size:0.65rem;font-weight:600;letter-spacing:0.06em;
+                                text-transform:uppercase;color:var(--ink-secondary);
+                                margin-bottom:3px;">Usuário</div>
+                    <div style="font-size:0.88rem;font-weight:600;color:var(--ink-primary);
+                                word-break:break-all;">
+                        {_html_conta.escape(usuario)}
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Card de alterar senha ──
+    with col_senha:
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+        st.subheader("Alterar senha")
+        st.caption("A nova senha deve ter ao menos 8 caracteres, uma maiúscula, uma minúscula e um número.")
+
+        with st.form("form_alterar_senha", clear_on_submit=True):
+            senha_atual     = st.text_input("Senha atual", type="password")
+            nova_senha      = st.text_input("Nova senha", type="password")
+            confirmar_senha = st.text_input("Confirmar nova senha", type="password")
+
+            # Indicador de força visual
+            if nova_senha:
+                forca = 0
+                checks = [
+                    (len(nova_senha) >= 8,  "8+ caracteres"),
+                    (any(c.isupper() for c in nova_senha), "Maiúscula"),
+                    (any(c.islower() for c in nova_senha), "Minúscula"),
+                    (any(c.isdigit() for c in nova_senha), "Número"),
+                ]
+                forca = sum(1 for ok, _ in checks if ok)
+                cores_f = ["#ef4444","#f59e0b","#3b82f6","#10b981"]
+                labels_f = ["Fraca","Razoável","Boa","Forte"]
+                cor_f = cores_f[min(forca-1, 3)] if forca > 0 else "#e2e8f0"
+                label_f = labels_f[min(forca-1, 3)] if forca > 0 else ""
+                checks_html = "".join([
+                    f'<span style="color:{"#10b981" if ok else "#cbd5e1"};'
+                    f'font-size:0.75rem;margin-right:8px;">'
+                    f'{"✓" if ok else "·"} {txt}</span>'
+                    for ok, txt in checks
+                ])
+                st.markdown(f"""
+                <div style="margin:6px 0 10px;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                        <div style="flex:1;height:4px;border-radius:2px;
+                                    background:linear-gradient(to right,{cor_f} {forca*25}%,#e2e8f0 {forca*25}%);">
+                        </div>
+                        <span style="font-size:0.72rem;font-weight:600;color:{cor_f};">{label_f}</span>
+                    </div>
+                    <div>{checks_html}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            salvar = st.form_submit_button("Salvar nova senha", type="primary",
+                                           use_container_width=True)
+
+        if salvar:
+            if not senha_atual or not nova_senha or not confirmar_senha:
+                st.warning("Preencha todos os campos.")
+            elif nova_senha != confirmar_senha:
+                st.error("A confirmação da nova senha não confere.")
             else:
-                st.error(msg)
+                ok_v, msg_v = validar_senha(nova_senha)
+                if not ok_v:
+                    st.error(msg_v)
+                else:
+                    ok, msg = alterar_senha_usuario(usuario, senha_atual, nova_senha)
+                    if ok:
+                        st.success(msg)
+                    else:
+                        st.error(msg)
 
-    st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 # =========================================================
 # USUÁRIOS
 # =========================================================
-def pagina_usuarios():
-    header_principal()
-
-    if not pode_gerenciar_usuarios(st.session_state.perfil):
-        st.error("Acesso restrito ao perfil ADMIN.")
-        return
-
-    st.markdown('<div class="section-card">', unsafe_allow_html=True)
-    st.subheader("Criar novo usuário")
-
-    with st.form("form_novo_usuario", clear_on_submit=True):
-        novo_user = st.text_input("Usuário")
-        novo_email = st.text_input("E-mail")
-        nova_senha = st.text_input("Senha", type="password")
-        perfil_novo = st.selectbox("Perfil", ["ADMIN", "PMO", "COORDENADOR", "GERAL"])
-        area_nova = st.text_input("Área", placeholder="Ex.: Celog, ECMI, PMO...",
-                                  help="Define quais oportunidades o usuário visualiza")
-        criar = st.form_submit_button("Criar usuário")
-
-    if criar:
-        if not novo_user.strip() or not nova_senha.strip():
-            st.warning("Preencha usuário e senha.")
-        elif not novo_email.strip():
-            st.warning("Preencha o e-mail do usuário.")
-        else:
-            ok_senha, msg_senha = validar_senha(nova_senha)
-            if not ok_senha:
-                st.warning(msg_senha)
-            else:
-                try:
-                    criar_usuario(novo_user, novo_email, nova_senha, perfil_novo, area_nova)
-                    st.success("Usuário criado com sucesso.")
-                    st.rerun()
-                except psycopg2.errors.UniqueViolation:
-                    st.error("Já existe um usuário com esse nome ou e-mail.")
-                except Exception as e:
-                    logger.error("Erro ao criar usuario: %s", e)
-                    st.error("Erro ao criar o usuário. Verifique se o nome ou e-mail já existe.")
-
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown('<div class="section-card">', unsafe_allow_html=True)
-    st.subheader("Usuários cadastrados")
-
-    df_users = listar_usuarios()
-    if df_users.empty:
-        st.info("Nenhum usuário cadastrado.")
-    else:
-        for _, urow in df_users.iterrows():
-            uid = int(urow["id"])
-            uname = urow["username"]
-            uemail = urow.get("email", "")
-            uperfil = urow.get("perfil", "")
-            uativo = urow.get("ativo", 1)
-            uarea = urow.get("area", "") or ""
-
-            with st.container():
-                st.markdown(f"""
-                <div style="background:var(--surface-2);border:1px solid var(--border);
-                    border-radius:var(--radius-md);padding:10px 14px;margin-bottom:8px;">
-                    <b>{uname}</b>
-                    <span style="margin-left:8px;font-size:0.8rem;color:var(--ink-secondary);">{uperfil}</span>
-                    {"" if not uarea else f'<span style="margin-left:8px;font-size:0.78rem;background:var(--surface-3);padding:2px 7px;border-radius:4px;">{uarea}</span>'}
-                    <span style="margin-left:8px;font-size:0.78rem;color:{"#4caf50" if uativo else "#e57373"};">
-                        {"Ativo" if uativo else "Inativo"}
-                    </span>
-                    <span style="margin-left:8px;font-size:0.78rem;color:var(--ink-muted);">{uemail}</span>
-                </div>
-                """, unsafe_allow_html=True)
-
-                c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
-                with c1:
-                    nova_area = st.text_input(
-                        "Área",
-                        value=uarea,
-                        key=f"area_{uid}",
-                        placeholder="Ex.: Celog",
-                        label_visibility="collapsed"
-                    )
-                with c2:
-                    novo_status = st.selectbox(
-                        "Status",
-                        ["Ativo", "Inativo"],
-                        index=0 if uativo else 1,
-                        key=f"status_{uid}",
-                        label_visibility="collapsed"
-                    )
-                with c3:
-                    if st.button("Salvar", key=f"salvar_{uid}", use_container_width=True):
-                        atualizar_area_usuario(uid, nova_area)
-                        alterar_status_usuario(uid, 1 if novo_status == "Ativo" else 0)
-                        st.success(f"Usuário {uname} atualizado.")
-                        st.rerun()
-                with c4:
-                    if uname.upper() != "ADMIN" and uname.upper() != st.session_state.usuario.upper():
-                        if st.button("Excluir", key=f"excluir_{uid}", use_container_width=True):
-                            excluir_usuario(uid)
-                            st.success(f"Usuário {uname} excluído.")
-                            st.rerun()
-
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown('<div class="section-card">', unsafe_allow_html=True)
-    st.subheader("Configuração de e-mail")
-    if all([SMTP_SERVER, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM]):
-        st.success("SMTP configurado. Os e-mails automáticos estão habilitados.")
-    else:
-        st.warning("SMTP não configurado. Defina SMTP_SERVER, SMTP_PORT, SMTP_USER, SMTP_PASSWORD e EMAIL_FROM como variáveis de ambiente.")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-
-# =========================================================
-# OPORTUNIDADES
-# =========================================================
 def listar_oportunidades(area: str = None, perfil_usuario: str = None):
-    """Retorna DataFrame com editais_oportunidades. ADMIN/PMO veem tudo; demais filtram por area."""
+    """Retorna DataFrame com editais_oportunidades. ADMIN/PMO veem tudo; demais filtram por área."""
     conn = get_conn()
     try:
         if perfil_usuario in ("ADMIN", "PMO") or not area:
@@ -2482,10 +3902,6 @@ def listar_oportunidades(area: str = None, perfil_usuario: str = None):
                 "SELECT * FROM editais_oportunidades WHERE area = %s ORDER BY data_identificacao DESC, id DESC",
                 conn, params=(area,)
             )
-        # Normaliza colunas de data para string ISO para evitar erros de serialização Arrow
-        for col in ("prazo_submissao", "data_identificacao", "semana_referencia"):
-            if col in df.columns:
-                df[col] = df[col].apply(lambda v: str(v) if v is not None and str(v) not in ("None", "NaT", "nan", "") else None)
     except Exception:
         df = pd.DataFrame()
     finally:
@@ -2494,90 +3910,60 @@ def listar_oportunidades(area: str = None, perfil_usuario: str = None):
 
 
 def _parse_data_oportunidade(val):
-    """Converte numero serial Excel, datetime ou string para ISO date string (ou None)."""
+    """Converte número serial Excel ou string para date (ou None)."""
     import math
-    from datetime import date as _date, datetime as _datetime, timedelta as _timedelta
-    import pandas as _pd
-    # None explícito
+    from datetime import date as _date, timedelta as _timedelta
     if val is None:
         return None
-    # pd.NaT e outros NA do pandas (deve ser verificado antes de qualquer str())
     try:
-        if _pd.isnull(val):
-            return None
-    except Exception:
-        pass
-    # String vazia / marcadores de ausência — verificar ANTES de tentar converter
-    if isinstance(val, str):
-        s = val.strip()
-        if s in ("", "nan", "None", "NaT", "NaN", "NAT", "N/A", "NA", "-"):
-            return None
-        # Tentar parse direto
-        try:
-            parsed = _pd.to_datetime(s, dayfirst=False, errors="coerce")
-            if _pd.isnull(parsed):
-                return None
-            return parsed.date().isoformat()
-        except Exception:
-            return None
-    try:
-        if isinstance(val, _datetime):
-            return val.date().isoformat()
-        if isinstance(val, _date):
-            return val.isoformat()
-        if isinstance(val, (int, float)):
-            fval = float(val)
-            if math.isnan(fval):
-                return None
-            return (_date(1899, 12, 30) + _timedelta(days=int(fval))).isoformat()
-        # Fallback: converter para string e tentar
+        if isinstance(val, (int, float)) and not math.isnan(float(val)):
+            # Serial date Excel: dias desde 1899-12-30
+            return (_date(1899, 12, 30) + _timedelta(days=int(val))).isoformat()
         s = str(val).strip()
-        if s in ("", "nan", "None", "NaT", "NaN", "NAT", "N/A", "NA", "-"):
+        if s in ("", "nan", "None", "NaT"):
             return None
-        parsed = _pd.to_datetime(s, dayfirst=False, errors="coerce")
-        if _pd.isnull(parsed):
-            return None
-        return parsed.date().isoformat()
+        return pd.to_datetime(s, dayfirst=True, errors="coerce").date().isoformat()
     except Exception:
         return None
 
 
 def importar_oportunidades(arquivo, area_importacao: str, usuario: str):
-    """Le planilha Excel e insere registros em editais_oportunidades."""
+    """Lê planilha Controle-Oportunidades e insere registros em editais_oportunidades.
+    Deduplicação por (area, tema, orgao, data_identificacao).
+    Retorna (inseridos, ignorados, erros).
+    """
+    import pandas as pd
+    from io import BytesIO
+
     COLUMN_MAP_OPP = {
-        "Area": "area",
         "Área": "area",
         "Perfil (A/B/C)": "perfil_aderencia",
         "Tema do edital": "tema",
-        "Orgao/empresa publicador": "orgao",
         "Órgão/empresa publicador": "orgao",
         "Macro escopo do projeto": "macro_escopo",
-        "Prazo para submissao": "prazo_submissao",
         "Prazo para submissão": "prazo_submissao",
-        "Valor do financiamento (quando disponivel)": "valor_financiamento",
         "Valor do financiamento (quando disponível)": "valor_financiamento",
-        "Status (Novo/Atualizacao/Encerrado)": "status",
         "Status (Novo/Atualização/Encerrado)": "status",
         "Status": "status",
         "Link direto": "link",
-        "Data de identificacao": "data_identificacao",
         "Data de identificação": "data_identificacao",
-        "Semana de referencia": "semana_referencia",
         "Semana de referência": "semana_referencia",
     }
+
     xl = pd.ExcelFile(arquivo)
     sheet = xl.sheet_names[0]
+    # Primeira linha já é o cabeçalho (header=0)
     df = pd.read_excel(arquivo, sheet_name=sheet, header=0)
     df = df[[c for c in df.columns if not str(c).startswith("Unnamed:")]]
     df = df.rename(columns=COLUMN_MAP_OPP)
+
+    # Descarta linhas completamente vazias
     df = df.dropna(how="all")
 
     conn = get_conn()
     conn.autocommit = False
     cur = conn.cursor()
-    inseridos = 0
-    ignorados = 0
-    erros = 0
+    inseridos = ignorados = erros = 0
 
     for _, row in df.iterrows():
         try:
@@ -2592,13 +3978,13 @@ def importar_oportunidades(arquivo, area_importacao: str, usuario: str):
                 ignorados += 1
                 continue
 
-            # Deduplicacao
+            # Deduplicação
             cur.execute("""
                 SELECT id FROM editais_oportunidades
                 WHERE area IS NOT DISTINCT FROM %s
-                AND tema IS NOT DISTINCT FROM %s
-                AND orgao IS NOT DISTINCT FROM %s
-                AND data_identificacao IS NOT DISTINCT FROM %s
+                  AND tema IS NOT DISTINCT FROM %s
+                  AND orgao IS NOT DISTINCT FROM %s
+                  AND data_identificacao IS NOT DISTINCT FROM %s
             """, (r_area, r_tema, r_orgao, r_data_id))
             if cur.fetchone():
                 ignorados += 1
@@ -2606,9 +3992,9 @@ def importar_oportunidades(arquivo, area_importacao: str, usuario: str):
 
             cur.execute("""
                 INSERT INTO editais_oportunidades
-                (area, perfil_aderencia, tema, orgao, macro_escopo,
-                 prazo_submissao, valor_financiamento, status, link,
-                 data_identificacao, semana_referencia, criado_em, importado_por)
+                    (area, perfil_aderencia, tema, orgao, macro_escopo,
+                     prazo_submissao, valor_financiamento, status, link,
+                     data_identificacao, semana_referencia, criado_em, importado_por)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (
                 r_area,
@@ -2628,7 +4014,6 @@ def importar_oportunidades(arquivo, area_importacao: str, usuario: str):
             inseridos += 1
         except Exception as e:
             logger.warning("Erro ao importar linha de oportunidades: %s", e)
-            conn.rollback()
             erros += 1
             continue
 
@@ -2638,140 +4023,433 @@ def importar_oportunidades(arquivo, area_importacao: str, usuario: str):
 
 
 def pagina_oportunidades():
+    import html as _h_opp
     header_principal()
-    perfil = st.session_state.get("perfil", "GERAL")
+
+    perfil   = st.session_state.perfil
     area_usr = st.session_state.get("area", "") or ""
 
-    if perfil not in ("ADMIN", "PMO", "COORDENADOR"):
-        st.error("Acesso restrito.")
-        return
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
 
     df_opp = listar_oportunidades(area=area_usr, perfil_usuario=perfil)
 
-    total = len(df_opp)
-    em_aberto = len(df_opp[df_opp.get("status", pd.Series(dtype=str)).str.upper().isin(["NOVO", "ATUALIZAÇÃO", "ATUALIZACAO"])]) if "status" in df_opp.columns else 0
-    encerrados = len(df_opp[df_opp.get("status", pd.Series(dtype=str)).str.upper() == "ENCERRADO"]) if "status" in df_opp.columns else 0
-    alta_aderencia = len(df_opp[df_opp.get("perfil_aderencia", pd.Series(dtype=str)).str.upper() == "A"]) if "perfil_aderencia" in df_opp.columns else 0
+    # ── Indicadores de topo ──
+    if not df_opp.empty:
+        # Status
+        status_aberto  = df_opp["status"].astype(str).str.lower().isin(["novo", "atualização", "atualiz", "open"])
+        n_abertos = int(status_aberto.sum())
+        n_encerrados = int(df_opp["status"].astype(str).str.lower().str.contains("encerrado").sum())
+        # Aderência alta = perfil A
+        n_alta = int(df_opp["perfil_aderencia"].astype(str).str.strip().str.upper().eq("A").sum())
 
-    st.markdown('<div class="section-card">', unsafe_allow_html=True)
-    st.subheader("Oportunidades de Editais")
-
-    mc1, mc2, mc3, mc4 = st.columns(4)
-    mc1.metric("Total de editais", total)
-    mc2.metric("Em aberto", em_aberto)
-    mc3.metric("Encerrados", encerrados)
-    mc4.metric("Alta aderencia (A)", alta_aderencia)
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Total de editais", len(df_opp))
+        m2.metric("Em aberto", n_abertos)
+        m3.metric("Encerrados", n_encerrados)
+        m4.metric("Aderência alta (A)", n_alta)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    tab_base, tab_import = st.tabs(["Base de Editais", "Importação"])
+    # ── Abas ──
+    tab_base, tab_import = st.tabs(["📋 Base de Editais", "⬆️ Importação"])
 
+    # ═══════════════════════════════════════════
+    # ABA BASE DE EDITAIS
+    # ═══════════════════════════════════════════
     with tab_base:
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
 
         if df_opp.empty:
-            st.info("Nenhuma oportunidade cadastrada.")
+            st.info("Nenhum edital cadastrado. Use a aba **Importação** para carregar a planilha.")
+            st.markdown('</div>', unsafe_allow_html=True)
         else:
-            col_busca, col_status, col_perf = st.columns([3, 2, 2])
-            with col_busca:
-                busca = st.text_input("Buscar", placeholder="Tema, orgao, area...", label_visibility="collapsed")
-            with col_status:
-                status_opts = ["Todos"] + sorted(df_opp["status"].dropna().unique().tolist()) if "status" in df_opp.columns else ["Todos"]
-                filtro_status = st.selectbox("Status", status_opts, label_visibility="collapsed")
-            with col_perf:
-                perf_opts = ["Todos"] + sorted(df_opp["perfil_aderencia"].dropna().unique().tolist()) if "perfil_aderencia" in df_opp.columns else ["Todos"]
-                filtro_perf = st.selectbox("Perfil", perf_opts, label_visibility="collapsed")
+            # ── Filtros ──
+            fa, fb, fc, fd = st.columns([2, 1, 1, 1])
+            with fa:
+                busca_opp = st.text_input("Buscar", placeholder="Tema, órgão ou escopo...",
+                                          key="opp_busca", label_visibility="collapsed")
+            with fb:
+                status_opts = ["Todos"] + sorted(df_opp["status"].dropna().unique().tolist())
+                filtro_status = st.selectbox("Status", status_opts, key="opp_status",
+                                             label_visibility="collapsed")
+            with fc:
+                perfil_opts = ["Todos"] + sorted(df_opp["perfil_aderencia"].dropna().unique().tolist())
+                filtro_perfil_opp = st.selectbox("Aderência", perfil_opts, key="opp_perfil",
+                                                 label_visibility="collapsed")
+            with fd:
+                # ADMIN/PMO podem filtrar por área
+                if perfil in ("ADMIN", "PMO"):
+                    areas_disp = ["Todas"] + sorted(df_opp["area"].dropna().unique().tolist())
+                    filtro_area_opp = st.selectbox("Área", areas_disp, key="opp_area",
+                                                   label_visibility="collapsed")
+                else:
+                    filtro_area_opp = "Todas"
 
-            df_filt = df_opp.copy()
-            if busca.strip():
-                mask = pd.Series([False] * len(df_filt), index=df_filt.index)
-                for col in ["tema", "orgao", "area", "macro_escopo"]:
-                    if col in df_filt.columns:
-                        mask = mask | df_filt[col].fillna("").str.contains(busca, case=False, na=False)
-                df_filt = df_filt[mask]
-            if filtro_status != "Todos" and "status" in df_filt.columns:
-                df_filt = df_filt[df_filt["status"] == filtro_status]
-            if filtro_perf != "Todos" and "perfil_aderencia" in df_filt.columns:
-                df_filt = df_filt[df_filt["perfil_aderencia"] == filtro_perf]
+            df_view = df_opp.copy()
+            if busca_opp:
+                mask = (
+                    df_view["tema"].astype(str).str.contains(busca_opp, case=False, na=False) |
+                    df_view["orgao"].astype(str).str.contains(busca_opp, case=False, na=False) |
+                    df_view["macro_escopo"].astype(str).str.contains(busca_opp, case=False, na=False)
+                )
+                df_view = df_view[mask]
+            if filtro_status != "Todos":
+                df_view = df_view[df_view["status"] == filtro_status]
+            if filtro_perfil_opp != "Todos":
+                df_view = df_view[df_view["perfil_aderencia"] == filtro_perfil_opp]
+            if filtro_area_opp != "Todas":
+                df_view = df_view[df_view["area"] == filtro_area_opp]
 
-            st.caption(f"{len(df_filt)} registro(s) encontrado(s)")
+            st.caption(f"{len(df_view)} edital(is) exibido(s)")
 
-            for _, r in df_filt.iterrows():
-                tema_r = r.get("tema", "") or ""
-                orgao_r = r.get("orgao", "") or ""
-                area_r = r.get("area", "") or ""
-                status_r = r.get("status", "") or ""
-                perf_r = r.get("perfil_aderencia", "") or ""
-                prazo_r = str(r.get("prazo_submissao", "") or "")
-                valor_r = str(r.get("valor_financiamento", "") or "")
-                link_r = str(r.get("link", "") or "")
-                macro_r = str(r.get("macro_escopo", "") or "")
+            # Cores por status
+            COR_STATUS = {
+                "novo":        ("#dcfce7","#166534"),
+                "atualização": ("#dbeafe","#1e40af"),
+                "encerrado":   ("#f1f5f9","#64748b"),
+            }
+            COR_PERF = {"A": ("#fef3c7","#92400e"), "B": ("#ede9fe","#5b21b6"), "C": ("#f0f9ff","#0369a1")}
 
-                with st.expander(f"{tema_r or 'Sem tema'} — {orgao_r or 'Sem orgao'}", expanded=False):
-                    c1, c2, c3 = st.columns(3)
-                    c1.markdown(f"**Area:** {area_r}")
-                    c2.markdown(f"**Perfil:** {perf_r}")
-                    c3.markdown(f"**Status:** {status_r}")
-                    if prazo_r and prazo_r not in ("None", "nan", ""):
-                        st.markdown(f"**Prazo de submissao:** {prazo_r}")
-                    if valor_r and valor_r not in ("None", "nan", ""):
-                        st.markdown(f"**Valor:** {valor_r}")
-                    if macro_r and macro_r not in ("None", "nan", ""):
-                        st.markdown(f"**Macro escopo:** {macro_r}")
-                    if link_r and link_r not in ("None", "nan", ""):
-                        st.markdown(f"[Acessar edital]({link_r})")
+            for _, row in df_view.iterrows():
+                tema_opp   = str(row.get("tema","") or "—")
+                orgao_opp  = str(row.get("orgao","") or "—")
+                escopo_opp = str(row.get("macro_escopo","") or "")
+                status_opp = str(row.get("status","") or "")
+                perf_opp   = str(row.get("perfil_aderencia","") or "")
+                area_opp   = str(row.get("area","") or "")
+                valor_opp  = str(row.get("valor_financiamento","") or "—")
+                prazo_opp  = str(row.get("prazo_submissao","") or "—")
+                if prazo_opp not in ("—", "None", "nan", "NaT"):
+                    prazo_opp = str(prazo_opp)[:10]
+                link_opp   = str(row.get("link","") or "")
+                data_id    = str(row.get("data_identificacao","") or "")[:10]
 
-            if perfil in ("ADMIN", "PMO", "COORDENADOR"):
-                if not df_filt.empty:
-                    xlsx_buf = BytesIO()
-                    df_filt.to_excel(xlsx_buf, index=False)
-                    xlsx_buf.seek(0)
-                    st.download_button(
-                        "Exportar Excel",
-                        xlsx_buf,
-                        file_name=f"oportunidades_{agora_str()[:10]}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True,
-                    )
+                st_key = status_opp.lower()
+                bg_s, fg_s = COR_STATUS.get(st_key, ("#f8fafc","#475569"))
+                bg_pr, fg_pr = COR_PERF.get(perf_opp.upper(), ("#f8fafc","#64748b"))
 
+                link_html = (f'<a href="{_h_opp.escape(link_opp)}" target="_blank" '
+                             f'style="color:var(--accent-primary);font-size:0.78rem;">🔗 Ver edital</a>'
+                             if link_opp.startswith("http") else "")
+
+                st.markdown(f"""
+                <div style="border:1px solid var(--border-subtle);border-radius:10px;
+                            padding:14px 16px;background:var(--surface-1);margin-bottom:8px;">
+                  <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:200px;">
+                      <div style="font-weight:700;font-size:0.92rem;color:var(--ink-primary);
+                                  margin-bottom:4px;">
+                        {_h_opp.escape(tema_opp)}
+                      </div>
+                      <div style="font-size:0.8rem;color:var(--ink-secondary);margin-bottom:6px;">
+                        {_h_opp.escape(orgao_opp)}
+                      </div>
+                      <div style="font-size:0.78rem;color:var(--ink-muted);">
+                        {_h_opp.escape(escopo_opp[:180] + ("…" if len(escopo_opp)>180 else ""))}
+                      </div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;
+                                min-width:180px;text-align:right;">
+                      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+                        <span style="background:{bg_s};color:{fg_s};padding:2px 10px;
+                                     border-radius:999px;font-size:11px;font-weight:600;">
+                          {_h_opp.escape(status_opp)}
+                        </span>
+                        <span style="background:{bg_pr};color:{fg_pr};padding:2px 10px;
+                                     border-radius:999px;font-size:11px;font-weight:600;">
+                          Perf. {_h_opp.escape(perf_opp)}
+                        </span>
+                        {(f'<span style="background:#f0f9ff;color:#0369a1;padding:2px 10px;border-radius:999px;font-size:11px;">{_h_opp.escape(area_opp)}</span>' if area_opp else "")}
+                      </div>
+                      <div style="font-size:0.78rem;color:var(--ink-secondary);">
+                        💰 {_h_opp.escape(valor_opp)}
+                      </div>
+                      <div style="font-size:0.78rem;color:var(--ink-secondary);">
+                        📅 Prazo: {_h_opp.escape(prazo_opp)} &nbsp;|&nbsp; Identificado: {_h_opp.escape(data_id)}
+                      </div>
+                      <div>{link_html}</div>
+                    </div>
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # Botão exportar
+            if pode_baixar_arquivos(perfil):
+                st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
+                cols_export = {
+                    "area": "Área", "perfil_aderencia": "Perfil",
+                    "tema": "Tema", "orgao": "Órgão",
+                    "macro_escopo": "Macro Escopo",
+                    "prazo_submissao": "Prazo Submissão",
+                    "valor_financiamento": "Valor Financiamento",
+                    "status": "Status", "link": "Link",
+                    "data_identificacao": "Data Identificação",
+                    "semana_referencia": "Semana Referência",
+                }
+                df_exp = df_view[[c for c in cols_export if c in df_view.columns]].rename(columns=cols_export)
+                from io import BytesIO as _BIO
+                _buf = _BIO()
+                df_exp.to_excel(_buf, index=False)
+                st.download_button("⬇️ Exportar Excel", _buf.getvalue(),
+                                   file_name="oportunidades_export.xlsx",
+                                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         st.markdown('</div>', unsafe_allow_html=True)
 
+    # ═══════════════════════════════════════════
+    # ABA IMPORTAÇÃO
+    # ═══════════════════════════════════════════
     with tab_import:
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
 
         if perfil != "ADMIN":
-            st.warning("Apenas administradores podem importar oportunidades.")
+            st.warning("Importação disponível apenas para o perfil ADMIN.")
+            st.markdown('</div>', unsafe_allow_html=True)
         else:
-            st.markdown("Importe uma planilha Excel com os editais de oportunidade.")
-            area_import = st.text_input(
-                "Area padrao da importacao",
-                placeholder="Ex.: Celog",
-                help="Usada quando a planilha nao traz coluna 'Area' ou a celula esta vazia."
-            )
-            arquivo_opp = st.file_uploader("Arquivo Excel (.xlsx)", type=["xlsx"], key="upload_opp")
+            st.markdown("""
+            **Formato esperado:** planilha no modelo *Controle-Oportunidades-FGV*, com as colunas:
+            `Área`, `Perfil (A/B/C)`, `Tema do edital`, `Órgão/empresa publicador`,
+            `Macro escopo do projeto`, `Prazo para submissão`, `Valor do financiamento`,
+            `Status`, `Link direto`, `Data de identificação`, `Semana de referência`.
 
-            if arquivo_opp:
-                with st.expander("Pre-visualizacao (5 primeiras linhas)", expanded=False):
-                    try:
-                        df_prev = pd.read_excel(arquivo_opp, nrows=5, header=0)
-                        st.dataframe(df_prev, use_container_width=True)
-                        arquivo_opp.seek(0)
-                    except Exception as e:
-                        st.warning(f"Nao foi possivel pre-visualizar: {e}")
+            Registros já existentes (mesma área + tema + órgão + data) são ignorados automaticamente.
+            """)
 
-                if st.button("Importar oportunidades", use_container_width=True):
+            # Área para importação — texto livre
+            area_import = st.text_input("Área desta importação *",
+                                        placeholder="Ex.: Celog, ECMI, PMO...",
+                                        key="opp_import_area")
+
+            arq_opp = st.file_uploader("Selecione a planilha (Excel)",
+                                       type=["xlsx","xls"], key="opp_upload")
+            _bytes_opp = arq_opp.read() if arq_opp is not None else None
+
+            if _bytes_opp is not None:
+                from io import BytesIO as _BIO
+                st.info(f"Arquivo carregado: **{arq_opp.name}** ({len(_bytes_opp):,} bytes)")
+
+                # Preview
+                try:
+                    _df_prev = pd.read_excel(_BIO(_bytes_opp), header=0, nrows=5)
+                    cols_prev = [c for c in _df_prev.columns if not str(c).startswith("Unnamed:")]
+                    with st.expander("Pré-visualização (5 primeiras linhas)"):
+                        st.dataframe(_df_prev[cols_prev], use_container_width=True)
+                except Exception:
+                    pass
+
+                if st.button("▶️ Importar oportunidades", type="primary", key="btn_import_opp"):
                     with st.spinner("Importando..."):
                         try:
                             ins, ign, err = importar_oportunidades(
-                                arquivo_opp, area_import, st.session_state.usuario
+                                _BIO(_bytes_opp), area_import,
+                                st.session_state.usuario
                             )
-                            st.success(f"Importacao concluida: {ins} inserido(s), {ign} ignorado(s) (duplicata/sem tema), {err} erro(s).")
-                            if err:
-                                st.warning("Algumas linhas nao puderam ser importadas. Verifique o formato das datas.")
+                            if ins > 0:
+                                st.success(f"✅ {ins} edital(is) importado(s).")
+                            if ign > 0:
+                                st.info(f"ℹ️ {ign} registro(s) já existentes — ignorados.")
+                            if err > 0:
+                                st.warning(f"⚠️ {err} linha(s) com erro e ignoradas.")
+                            st.cache_data.clear()
+                            st.rerun()
                         except Exception as e:
-                            logger.error("Erro na importacao de oportunidades: %s", e)
-                            st.error(f"Erro na importacao: {e}")
+                            logger.error("Erro import oportunidades: %s", e)
+                            st.error(f"Erro ao importar: {e}")
 
         st.markdown('</div>', unsafe_allow_html=True)
+
+
+def pagina_usuarios():
+    import html as _h_usr
+    header_principal()
+
+    if not pode_gerenciar_usuarios(st.session_state.perfil):
+        st.error("Acesso restrito ao perfil ADMIN.")
+        return
+
+    cores_perfil = {
+        "ADMIN":       ("#fee2e2","#991b1b","#ef4444"),
+        "PMO":         ("#dbeafe","#1e40af","#3b82f6"),
+        "COORDENADOR": ("#fef3c7","#92400e","#f59e0b"),
+        "GERAL":       ("#f0fdf4","#166534","#10b981"),
+    }
+
+    df_users = listar_usuarios()
+
+    # ── Métricas ──
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
+    if not df_users.empty:
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Total de usuários", len(df_users))
+        m2.metric("Ativos", int(df_users["ativo"].sum()) if "ativo" in df_users.columns else "-")
+        m3.metric("Inativos", int((df_users["ativo"] == 0).sum()) if "ativo" in df_users.columns else "-")
+        perfis_unicos = df_users["perfil"].nunique() if "perfil" in df_users.columns else "-"
+        m4.metric("Perfis distintos", perfis_unicos)
+
+    # ── Abas ──
+    tab_lista, tab_novo = st.tabs(["Usuários cadastrados", "Criar novo usuário"])
+
+    # ── TAB: Lista de usuários como cards ──
+    with tab_lista:
+        if df_users.empty:
+            st.info("Nenhum usuário cadastrado.")
+        else:
+            # Filtros
+            fa, fb = st.columns([2, 1])
+            with fa:
+                busca_usr = st.text_input("Buscar usuário", placeholder="Nome ou e-mail...",
+                                          label_visibility="collapsed")
+            with fb:
+                filtro_perfil = st.selectbox("Perfil", ["Todos","ADMIN","PMO","COORDENADOR","GERAL"],
+                                             label_visibility="collapsed")
+
+            df_view = df_users.copy()
+            if busca_usr:
+                mask = (df_view["username"].str.contains(busca_usr, case=False, na=False) |
+                        df_view.get("email", pd.Series(dtype=str)).str.contains(busca_usr, case=False, na=False))
+                df_view = df_view[mask]
+            if filtro_perfil != "Todos" and "perfil" in df_view.columns:
+                df_view = df_view[df_view["perfil"] == filtro_perfil]
+
+            st.markdown(f'<div style="height:8px;"></div>', unsafe_allow_html=True)
+
+            for _, row in df_view.iterrows():
+                uid      = int(row["id"])
+                uname    = str(row.get("username",""))
+                uemail   = str(row.get("email","") or "-")
+                uperfil  = str(row.get("perfil",""))
+                uarea    = str(row.get("area","") or "")
+                uativo   = row.get("ativo", 1)
+                inicial  = uname[0].upper() if uname else "U"
+                bg_p, fg_p, cor_av = cores_perfil.get(uperfil, ("#f1f5f9","#475569","#94a3b8"))
+                status_badge = (
+                    '<span style="background:#dcfce7;color:#166534;padding:2px 10px;'
+                    'border-radius:999px;font-size:11px;font-weight:600;">Ativo</span>'
+                    if uativo else
+                    '<span style="background:#f1f5f9;color:#64748b;padding:2px 10px;'
+                    'border-radius:999px;font-size:11px;font-weight:600;">Inativo</span>'
+                )
+                perfil_badge = (
+                    f'<span style="background:{bg_p};color:{fg_p};padding:2px 10px;'
+                    f'border-radius:999px;font-size:11px;font-weight:600;">{_h_usr.escape(uperfil)}</span>'
+                )
+                area_badge = (
+                    f'<span style="background:#f0f9ff;color:#0369a1;padding:2px 10px;'
+                    f'border-radius:999px;font-size:11px;font-weight:500;">{_h_usr.escape(uarea)}</span>'
+                    if uarea else ""
+                )
+                st.markdown(f"""
+                <div style="display:flex;align-items:center;gap:14px;
+                            border:1px solid var(--border-subtle);border-radius:10px;
+                            padding:12px 16px;background:var(--surface-1);margin-bottom:6px;">
+                    <div style="width:40px;height:40px;border-radius:50%;flex-shrink:0;
+                                background:linear-gradient(135deg,{cor_av},{cor_av}88);
+                                display:flex;align-items:center;justify-content:center;
+                                font-size:1rem;font-weight:700;color:#fff;">
+                        {_h_usr.escape(inicial)}
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:600;font-size:0.9rem;color:var(--ink-primary);">
+                            {_h_usr.escape(uname)}
+                        </div>
+                        <div style="font-size:0.78rem;color:var(--ink-secondary);">
+                            {_h_usr.escape(uemail)}
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                        {perfil_badge} {area_badge} {status_badge}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Controles inline
+                is_self  = uname.upper() == st.session_state.usuario.upper()
+                is_admin = uname.upper() == "ADMIN"
+                if not is_self and not is_admin:
+                    cc1, cc2, cc3, cc4 = st.columns([2, 1, 1, 1])
+                    with cc2:
+                        nova_area = st.text_input("Área", value=uarea or "",
+                                                  key=f"area_{uid}",
+                                                  placeholder="Ex.: Celog",
+                                                  label_visibility="collapsed")
+                        if nova_area != uarea:
+                            atualizar_area_usuario(uid, nova_area)
+                            st.cache_data.clear()
+                            st.rerun()
+                    with cc3:
+                        novo_status = 0 if uativo else 1
+                        label_btn = "Desativar" if uativo else "Ativar"
+                        if st.button(label_btn, key=f"ativ_{uid}", use_container_width=True):
+                            alterar_status_usuario(uid, novo_status)
+                            st.cache_data.clear()
+                            st.rerun()
+                    with cc4:
+                        if st.button("Excluir", key=f"excl_{uid}", use_container_width=True):
+                            excluir_usuario(uid)
+                            st.cache_data.clear()
+                            st.rerun()
+                st.markdown('<div style="height:2px;"></div>', unsafe_allow_html=True)
+
+    # ── TAB: Criar usuário ──
+    with tab_novo:
+        st.caption("Preencha os dados do novo usuário. A senha deve ter ao menos 8 caracteres, uma maiúscula, uma minúscula e um número.")
+        with st.form("form_novo_usuario", clear_on_submit=True):
+            c1, c2 = st.columns(2)
+            with c1:
+                novo_user  = st.text_input("Usuário *", placeholder="nome.sobrenome")
+                novo_email = st.text_input("E-mail *", placeholder="email@dominio.com")
+            with c2:
+                nova_senha = st.text_input("Senha *", type="password")
+                perfil_novo = st.selectbox("Perfil *", ["GERAL","COORDENADOR","PMO","ADMIN"])
+            c3, c4 = st.columns(2)
+            with c3:
+                area_nova = st.text_input("Área", placeholder="Ex.: Celog, ECMI, PMO...",
+                                          help="Define quais oportunidades o usuário visualiza")
+            criar = st.form_submit_button("Criar usuário", type="primary",
+                                          use_container_width=True)
+
+        if criar:
+            if not novo_user.strip() or not nova_senha.strip():
+                st.warning("Preencha usuário e senha.")
+            elif not novo_email.strip():
+                st.warning("Preencha o e-mail do usuário.")
+            else:
+                ok_senha, msg_senha = validar_senha(nova_senha)
+                if not ok_senha:
+                    st.warning(msg_senha)
+                else:
+                    try:
+                        criar_usuario(novo_user, novo_email, nova_senha, perfil_novo, area_nova)
+                        st.success(f"Usuário '{novo_user}' criado com sucesso.")
+                        st.cache_data.clear()
+                        st.rerun()
+                    except psycopg2.errors.UniqueViolation:
+                        st.error("Já existe um usuário com esse nome ou e-mail.")
+                    except Exception as e:
+                        logger.error("Erro ao criar usuario: %s", e)
+                        st.error("Erro ao criar o usuário.")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Status do e-mail ──
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
+    smtp_ok = all([SMTP_SERVER, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM])
+    st.markdown(f"""
+    <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;
+                    background:{'#10b981' if smtp_ok else '#f59e0b'};
+                    box-shadow:0 0 6px {'#10b981' if smtp_ok else '#f59e0b'}88;">
+        </div>
+        <div>
+            <div style="font-weight:600;font-size:0.88rem;color:var(--ink-primary);">
+                E-mail automático - {'Habilitado' if smtp_ok else 'Não configurado'}
+            </div>
+            <div style="font-size:0.78rem;color:var(--ink-secondary);">
+                {'SMTP configurado. Notificações de solicitações estão ativas.' if smtp_ok
+                 else 'Defina SMTP_SERVER, SMTP_PORT, SMTP_USER, SMTP_PASSWORD e EMAIL_FROM nos Secrets.'}
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # =========================================================
@@ -2782,8 +4460,9 @@ def listar_projetos_concluidos():
     conn = get_conn()
     try:
         df = pd.read_sql_query("""
-            SELECT id, nome_projeto, tema, subtema, estado, municipio,
+            SELECT id, nome_projeto, tema, subtema, pais, estado, municipio,
                    data_inicio, data_conclusao, prazo_real_meses,
+                   esforco, unidade, esforco2, unidade2,
                    custo_contratado, custo_final, observacoes, criado_por, criado_em
             FROM projetos_concluidos
             ORDER BY data_conclusao DESC NULLS LAST, id DESC
@@ -2811,16 +4490,27 @@ def processar_upload_projetos_concluidos(arquivo):
         "Prazo de execução\n(meses)": "prazo_meses",
         "Prazo de execução (meses)": "prazo_meses",
         "Custo de Execução": "custo_contratado",
+        "Custo final realizado": "custo_final",
         "Data edital/projeto (mês/ano)": "data_edital",
         "Data de Início do Projeto (Caso concluído)": "data_inicio",
         "Data de Término do Projeto (Caso concluído)": "data_conclusao",
         "Serviços": "servicos",
+        "Observações": "observacoes",
+        "Observacoes": "observacoes",
     }
 
     xl = pd.ExcelFile(arquivo)
-    sheet = "Planilha Modelo" if "Planilha Modelo" in xl.sheet_names else (
-            "Base" if "Base" in xl.sheet_names else xl.sheet_names[0])
-    df = pd.read_excel(arquivo, sheet_name=sheet)
+    sheet = next(
+        (s for s in ["Planilha Modelo", "Projetos", "Base"] if s in xl.sheet_names),
+        xl.sheet_names[0]
+    )
+    # O modelo tem título na linha 1 e instrução na linha 2; cabeçalho real na linha 3 (índice 2).
+    # Para arquivos sem essas linhas extras, tentamos header=2 primeiro; se não achar
+    # nenhuma coluna conhecida, tentamos header=0.
+    df = pd.read_excel(arquivo, sheet_name=sheet, header=2)
+    colunas_conhecidas = set(COLUMN_MAP_PC.keys())
+    if not colunas_conhecidas.intersection(set(df.columns.astype(str))):
+        df = pd.read_excel(arquivo, sheet_name=sheet, header=0)
     df = df.rename(columns=COLUMN_MAP_PC)
 
     for col in df.columns:
@@ -2886,9 +4576,10 @@ def processar_upload_projetos_concluidos(arquivo):
                 nome_projeto, tema, subtema, pais, estado, municipio,
                 descricao, objetivo, servicos, esforco, unidade,
                 esforco2, unidade2, data_inicio, data_conclusao,
-                prazo_real_meses, custo_contratado, data_edital,
+                prazo_real_meses, custo_contratado, custo_final,
+                data_edital, observacoes,
                 criado_por, criado_em, atualizado_em
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
             nome,
             limpar_pc(row.get("tema")), limpar_pc(row.get("subtema")),
@@ -2901,7 +4592,9 @@ def processar_upload_projetos_concluidos(arquivo):
             limpar_pc(row.get("esforco2")), limpar_pc(row.get("unidade2")),
             data_inicio, data_conclusao, prazo_real,
             safe_float_pc(row.get("custo_contratado")),
+            safe_float_pc(row.get("custo_final")),
             limpar_pc(row.get("data_edital")),
+            limpar_pc(row.get("observacoes")),
             "upload", agora_str(), agora_str()
         ))
         inseridos += 1
@@ -2911,9 +4604,10 @@ def processar_upload_projetos_concluidos(arquivo):
     return inseridos
 
 
-def inserir_projeto_concluido(nome, tema, subtema, estado, municipio,
-                               data_inicio, data_conclusao, custo_contratado,
-                               custo_final, observacoes, criado_por):
+def inserir_projeto_concluido(nome, tema, subtema, pais=None, estado=None, municipio=None,
+                               data_inicio=None, data_conclusao=None, custo_contratado=None,
+                               custo_final=None, observacoes=None, criado_por=None,
+                               esforco=None, unidade=None, esforco2=None, unidade2=None):
     from datetime import date
     prazo_real = None
     if data_inicio and data_conclusao:
@@ -2929,16 +4623,18 @@ def inserir_projeto_concluido(nome, tema, subtema, estado, municipio,
     cur = conn.cursor()
     cur.execute("""
         INSERT INTO projetos_concluidos
-            (nome_projeto, tema, subtema, estado, municipio,
+            (nome_projeto, tema, subtema, pais, estado, municipio,
              data_inicio, data_conclusao, prazo_real_meses,
-             custo_contratado, custo_final, observacoes, criado_por, criado_em, atualizado_em)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+             custo_contratado, custo_final, observacoes, criado_por, criado_em, atualizado_em,
+             esforco, unidade, esforco2, unidade2)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING id
-    """, (nome, tema, subtema, estado, municipio,
+    """, (nome, tema, subtema, pais, estado, municipio,
           str(data_inicio) if data_inicio else None,
           str(data_conclusao) if data_conclusao else None,
           prazo_real, custo_contratado, custo_final,
-          observacoes, criado_por, agora_str(), agora_str()))
+          observacoes, criado_por, agora_str(), agora_str(),
+          esforco or None, unidade or None, esforco2 or None, unidade2 or None))
     proj_id = cur.fetchone()[0]
     conn.commit()
     conn.close()
@@ -2956,37 +4652,67 @@ def excluir_projeto_concluido(proj_id: int):
 def kerzner_total_para_projeto(subtema: str, esforco) -> dict | None:
     """
     Calcula o prazo TOTAL Kerzner (min e max) para um projeto,
-    usando o esforço do projeto e a regressão do subtema.
-    Se não houver esforço ou correlação fraca, usa min/max histórico * 2.5 (total = exec/0.4).
+    usando o esforço do projeto e a regressão do subtema (ou tema como fallback).
+    Se não houver esforço ou correlação fraca, usa min/max histórico / 0.4.
     Retorna {"total_min": x, "total_max": y} ou None.
     """
     import math
 
-    conn = get_conn()
-    try:
-        df = pd.read_sql_query("""
-            SELECT prazo_meses, esforco FROM vw_consulta_editais
-            WHERE subtema = %s
-              AND prazo_meses IS NOT NULL AND prazo_meses > 0
-              AND esforco IS NOT NULL
-        """, conn, params=(subtema,))
-    except Exception:
-        return None
-    finally:
-        conn.close()
+    def _buscar_df(campo, valor):
+        if campo not in ("subtema", "tema"):
+            raise ValueError(f"Campo não permitido: {campo}")
+        conn = get_conn()
+        try:
+            return pd.read_sql_query(f"""
+                SELECT prazo_meses, esforco FROM vw_consulta_editais
+                WHERE {campo} = %s
+                  AND prazo_meses IS NOT NULL AND prazo_meses > 0
+                  AND esforco IS NOT NULL
+            """, conn, params=(valor,))
+        except Exception:
+            return pd.DataFrame()
+        finally:
+            conn.close()
+
+    # Tenta primeiro como subtema, depois como tema
+    df = _buscar_df("subtema", subtema)
+    if len(df) < 3:
+        df = _buscar_df("tema", subtema)
+    if len(df) < 3:
+        # Último fallback: busca sem filtro de esforço para ter ao menos o histórico
+        conn = get_conn()
+        try:
+            df = pd.read_sql_query("""
+                SELECT prazo_meses, esforco FROM vw_consulta_editais
+                WHERE (subtema = %s OR tema = %s)
+                  AND prazo_meses IS NOT NULL AND prazo_meses > 0
+            """, conn, params=(subtema, subtema))
+        except Exception:
+            return None
+        finally:
+            conn.close()
 
     if len(df) < 3:
         return None
 
     xs = pd.to_numeric(df["esforco"], errors="coerce").dropna().tolist()
-    ys = pd.to_numeric(df["prazo_meses"], errors="coerce").dropna().tolist()
-    if len(xs) < 3:
-        return None
+    ys_all = pd.to_numeric(df["prazo_meses"], errors="coerce").dropna().tolist()
+    # Align xs and ys to only rows that have both
+    df_valid = df.dropna(subset=["esforco"])
+    df_valid = df_valid[pd.to_numeric(df_valid["esforco"], errors="coerce").notna()]
+    xs = pd.to_numeric(df_valid["esforco"], errors="coerce").tolist()
+    ys = pd.to_numeric(df_valid["prazo_meses"], errors="coerce").tolist()
 
-    pearson = calcular_pearson(xs, ys)
-    spearman = calcular_spearman(xs, ys)
+    # Need at least prazos for hist_min/max even without esforco pairs
+    if not ys_all:
+        return None
+    # If xs < 3, can't do regression - use full prazo history for hist bounds
+    tem_regressao = len(xs) >= 3
+
+    pearson = calcular_pearson(xs, ys) if tem_regressao else 0.0
+    spearman = calcular_spearman(xs, ys) if tem_regressao else 0.0
     max_corr = max(abs(pearson), abs(spearman))
-    corr_forte = max_corr >= 0.6
+    corr_forte = max_corr >= 0.6 and tem_regressao
 
     # Tenta converter esforco do projeto
     esforco_val = None
@@ -2996,8 +4722,8 @@ def kerzner_total_para_projeto(subtema: str, esforco) -> dict | None:
         except Exception:
             esforco_val = None
 
-    # Estatísticas históricas de prazo de execução
-    s_prazos = sorted(ys)
+    # Estatísticas históricas de prazo de execução (usa todos os projetos do tema/subtema)
+    s_prazos = sorted(ys_all)
     n = len(s_prazos)
     hist_min = s_prazos[0]
     hist_max = s_prazos[-1]
@@ -3061,7 +4787,7 @@ def calcular_estatisticas_subtema(subtema: str):
 
 
 # =========================================================
-# IPCA — CORREÇÃO MONETÁRIA
+# IPCA - CORREÇÃO MONETÁRIA
 # =========================================================
 @st.cache_data(ttl=3600, show_spinner=False)
 def carregar_ipca() -> dict:
@@ -3109,6 +4835,449 @@ def corrigir_ipca(valor: float, data_base: str, data_ref: str, ipca: dict) -> fl
     return round(valor * fator, 2)
 
 
+def exportar_projetos_excel(df_tabela: "pd.DataFrame", df_comp: "pd.DataFrame",
+                             figs: list, subtema_comp: str,
+                             t_min: float, t_max: float, esforco_label: str) -> tuple:
+    """Gera Excel com dados + ZIP contendo Excel e HTML com gráficos interativos."""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from io import BytesIO
+    import zipfile
+
+    NAVY = "FF0B1F3A"; BLUE = "FF1A3F6F"; WHITE = "FFFFFFFF"
+    LGRAY = "FFF0F4F9"; MGRAY = "FFE8EEF6"; DGRAY = "FF3D5575"
+
+    def hdr(ws, row, col, text, bg=NAVY, fg=WHITE, bold=True, align="center"):
+        c = ws.cell(row=row, column=col, value=text)
+        c.font = Font(name="Arial", bold=bold, size=10, color=fg)
+        c.fill = PatternFill("solid", fgColor=bg)
+        c.alignment = Alignment(horizontal=align, vertical="center", wrap_text=True)
+        return c
+
+    def val(ws, row, col, value, bold=False, bg=None, align="left", color="FF0D1B2E"):
+        c = ws.cell(row=row, column=col, value=value)
+        c.font = Font(name="Arial", bold=bold, size=9, color=color)
+        if bg: c.fill = PatternFill("solid", fgColor=bg)
+        c.alignment = Alignment(horizontal=align, vertical="center", wrap_text=True)
+        return c
+
+    def borders(ws, r1, r2, c1, c2):
+        s = Side(style="thin", color="FFD8E5F2")
+        b = Border(left=s, right=s, top=s, bottom=s)
+        for r in range(r1, r2+1):
+            for c in range(c1, c2+1):
+                ws.cell(r, c).border = b
+
+    wb = openpyxl.Workbook()
+
+    # ── ABA 1: Dados ──────────────────────────────────────
+    ws1 = wb.active
+    ws1.title = "Projetos Concluídos"
+    ws1.sheet_view.showGridLines = False
+
+    # Título
+    ws1.merge_cells("A1:L1")
+    c = ws1.cell(1, 1, "PROJETOS CONCLUÍDOS")
+    c.font = Font(name="Arial", bold=True, size=13, color=WHITE)
+    c.fill = PatternFill("solid", fgColor=NAVY)
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    ws1.row_dimensions[1].height = 30
+
+    from datetime import datetime as _dt
+    ws1.merge_cells("A2:L2")
+    c2 = ws1.cell(2, 1, f"Gerado em: {_dt.now().strftime('%d/%m/%Y %H:%M')}")
+    c2.font = Font(name="Arial", size=9, color=DGRAY)
+    c2.fill = PatternFill("solid", fgColor=MGRAY)
+    c2.alignment = Alignment(horizontal="center", vertical="center")
+
+    # Headers da tabela
+    cols_map = [
+        ("nome_projeto", "Projeto", 40),
+        ("tema", "Tema", 20),
+        ("subtema", "Subtema", 20),
+        ("estado", "Estado", 12),
+        ("municipio", "Município", 18),
+        ("data_inicio", "Início", 12),
+        ("data_conclusao", "Conclusão", 12),
+        ("esforco", "Esforço", 10),
+        ("unidade", "Unidade", 10),
+        ("Prazo", "Prazo", 14),
+        ("Estimativa Kerzner", "Estimativa Kerzner", 18),
+        ("Custo da Execução (R$)", "Custo da Execução (R$)", 20),
+        ("Custo final (R$)", "Custo final (R$)", 20),
+    ]
+    # Only include columns that exist in df_tabela
+    cols_disp = [(src, lbl, w) for src, lbl, w in cols_map if src in df_tabela.columns]
+
+    r = 4
+    for i, (_, lbl, w) in enumerate(cols_disp, start=1):
+        hdr(ws1, r, i, lbl, align="center")
+        ws1.column_dimensions[get_column_letter(i)].width = w
+    ws1.row_dimensions[r].height = 20
+    r += 1
+
+    for idx_row, (_, row) in enumerate(df_tabela.iterrows()):
+        bg = LGRAY if idx_row % 2 == 0 else WHITE
+        for i, (src, _, _) in enumerate(cols_disp, start=1):
+            v = row.get(src, "")
+            val(ws1, r, i, v if v is not None and str(v) != "nan" else "", bg=bg,
+                align="left" if i == 1 else "center")
+        ws1.row_dimensions[r].height = 18
+        r += 1
+    borders(ws1, 4, r-1, 1, len(cols_disp))
+
+    # ── Gera HTML com gráficos interativos ───────────────
+    from datetime import datetime as _dt_html
+    titulos_fig = ["Prazo real por projeto", "Evolução do prazo ao longo do tempo", "Custo contratado vs. realizado"]
+    html_parts = [f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Gráficos - {subtema_comp}</title>
+<style>
+  body {{ font-family: Arial, sans-serif; background: #f0f4f9; margin: 0; padding: 24px; }}
+  h1 {{ color: #0b1f3a; font-size: 1.4rem; margin-bottom: 4px; }}
+  .sub {{ color: #3d5575; font-size: 0.85rem; margin-bottom: 24px; }}
+  .card {{ background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 20px;
+           box-shadow: 0 2px 8px rgba(11,31,58,.08); }}
+  h2 {{ color: #1a3f6f; font-size: 1rem; margin: 0 0 12px; }}
+</style>
+</head>
+<body>
+<h1>Projetos Concluídos - {subtema_comp}</h1>
+<div class="sub">Estimativa Kerzner: {t_min:.1f}-{t_max:.1f} meses &nbsp;|&nbsp; Esforço: {esforco_label} &nbsp;|&nbsp; Gerado em: {_dt_html.now().strftime('%d/%m/%Y %H:%M')}</div>
+"""]
+    figs_validos = [f for f in figs if f is not None]
+    for i, fig in enumerate(figs_validos):
+        try:
+            titulo = titulos_fig[i] if i < len(titulos_fig) else f"Gráfico {i+1}"
+            fig_html = fig.to_html(full_html=False, include_plotlyjs=(i == 0))
+            html_parts.append(f'<div class="card"><h2>{titulo}</h2>{fig_html}</div>')
+        except Exception:
+            pass
+    html_parts.append("</body></html>")
+    html_bytes = "\n".join(html_parts).encode("utf-8")
+
+    # ── ABA 3: Estimativa Kerzner ─────────────────────────
+    ws3 = wb.create_sheet("Estimativa Kerzner")
+    ws3.sheet_view.showGridLines = False
+    ws3.column_dimensions["A"].width = 28
+    ws3.column_dimensions["B"].width = 22
+
+    ws3.merge_cells("A1:B1")
+    c = ws3.cell(1, 1, "ESTIMATIVA KERZNER")
+    c.font = Font(name="Arial", bold=True, size=12, color=WHITE)
+    c.fill = PatternFill("solid", fgColor=NAVY)
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    ws3.row_dimensions[1].height = 28
+
+    r = 3
+    dados_kz = [
+        ("Subtema", subtema_comp),
+        ("Esforço utilizado", esforco_label),
+        ("Prazo total mínimo (Kerzner)", f"{t_min:.2f} meses"),
+        ("Prazo total máximo (Kerzner)", f"{t_max:.2f} meses"),
+        ("Planejamento mínimo (50%)", f"{t_min*0.5:.2f} meses"),
+        ("Planejamento máximo (50%)", f"{t_max*0.5:.2f} meses"),
+        ("Execução mínima (40%)", f"{t_min*0.4:.2f} meses"),
+        ("Execução máxima (40%)", f"{t_max*0.4:.2f} meses"),
+        ("Encerramento mínimo (10%)", f"{t_min*0.1:.2f} meses"),
+        ("Encerramento máximo (10%)", f"{t_max*0.1:.2f} meses"),
+    ]
+    for i, (label, value) in enumerate(dados_kz):
+        bg = LGRAY if i % 2 == 0 else WHITE
+        val(ws3, r, 1, label, bold=True, bg=bg, color=DGRAY)
+        val(ws3, r, 2, value, bg=bg, align="center")
+        r += 1
+    borders(ws3, 3, r-1, 1, 2)
+
+    # ── Salva Excel ────────────────────────────────────────
+    buf_xlsx = BytesIO()
+    wb.save(buf_xlsx)
+    buf_xlsx.seek(0)
+    xlsx_bytes = buf_xlsx.read()
+
+    # ── Empacota ZIP: Excel + HTML ──────────────────────────
+    from datetime import datetime as _dt_zip
+    buf_zip = BytesIO()
+    with zipfile.ZipFile(buf_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+        fname = f"projetos_concluidos_{_dt_zip.now().strftime('%Y-%m-%d')}"
+        zf.writestr(f"{fname}.xlsx", xlsx_bytes)
+        if html_bytes:
+            zf.writestr(f"{fname}_graficos.html", html_bytes)
+    buf_zip.seek(0)
+    return buf_zip.read(), xlsx_bytes
+
+
+def gerar_modelo_base() -> bytes:
+    """Gera planilha modelo para importacao da Base de Editais/Projetos."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from io import BytesIO
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Base"
+    ws.freeze_panes = "A4"
+
+    NAVY = "0B1F3A"
+    STRIPE = "E8EEF6"
+
+    def hdr_font():  return Font(name="Arial", bold=True, size=10, color="FFFFFF")
+    def hdr_fill():  return PatternFill("solid", fgColor=NAVY)
+    def hdr_align(): return Alignment(horizontal="center", vertical="center", wrap_text=True)
+    def thin_border():
+        s = Side(style="thin", color="D0DBE8")
+        return Border(left=s, right=s, top=s, bottom=s)
+    def row_fill(i): return PatternFill("solid", fgColor=STRIPE if i % 2 == 0 else "FFFFFF")
+    def row_font():  return Font(name="Arial", size=9)
+
+    # Linha 1 – titulo
+    ws.merge_cells("A1:S1")
+    c = ws["A1"]
+    c.value = "FGV PMO — Planilha Modelo: Base de Editais / Projetos"
+    c.font = Font(name="Arial", bold=True, size=13, color="FFFFFF")
+    c.fill = PatternFill("solid", fgColor=NAVY)
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 28
+
+    # Linha 2 – instrucao
+    ws.merge_cells("A2:S2")
+    c2 = ws["A2"]
+    c2.value = "Preencha a partir da linha 4. Campos com * são obrigatórios. Não altere os nomes das colunas."
+    c2.font = Font(name="Arial", italic=True, size=9, color="92400E")
+    c2.fill = PatternFill("solid", fgColor="FFF3CD")
+    c2.alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[2].height = 18
+
+    colunas = [
+        ("Tema *", 18), ("Subtema *", 22), ("País", 12), ("Estado", 12),
+        ("Município", 18), ("Nome Edital/Projeto *", 32),
+        ("Descrição", 36), ("Tipo de Edital", 18),
+        ("1º Parâmetro para verificação do prazo", 22),
+        ("Unidade de medida do 1º Parâmetro", 18),
+        ("2º Parâmetro para verificação do prazo", 22),
+        ("Unidade de medida do 2º Parâmetro", 18),
+        ("Prazo de execução (meses)", 14),
+        ("Custo de Execução (R$)", 18),
+        ("Data edital/projeto (mês/ano)", 16),
+        ("Data de Início do Projeto", 16),
+        ("Data de Término do Projeto", 16),
+        ("Serviços", 22), ("URL / Fonte", 28),
+    ]
+
+    for col_idx, (nome, largura) in enumerate(colunas, start=1):
+        cell = ws.cell(row=3, column=col_idx, value=nome)
+        cell.font = hdr_font()
+        cell.fill = hdr_fill()
+        cell.alignment = hdr_align()
+        cell.border = thin_border()
+        ws.column_dimensions[get_column_letter(col_idx)].width = largura
+    ws.row_dimensions[3].height = 36
+
+    exemplos = [
+        ["Infraestrutura", "Saneamento Básico", "Brasil", "MG", "Belo Horizonte",
+         "Projeto Piloto Saneamento BH", "Implantação de rede coletora", "Obra Pública",
+         "Extensão de rede (km)", "km", "", "", "24", "5000000", "01/2024",
+         "01/02/2024", "31/01/2026", "Engenharia Civil", "https://exemplo.gov.br"],
+        ["Meio Ambiente", "Gestão de Resíduos", "Brasil", "SP", "São Paulo",
+         "Coleta Seletiva SP", "Ampliação da coleta seletiva municipal", "Contrato",
+         "Número de pontos", "unid", "", "", "12", "2500000", "06/2024",
+         "01/07/2024", "30/06/2025", "Gestão Ambiental", ""],
+        ["Transporte", "Mobilidade Urbana", "Brasil", "RJ", "Rio de Janeiro",
+         "BRT Transoeste II", "Expansão do corredor BRT", "Obra Pública",
+         "Extensão (km)", "km", "", "", "36", "120000000", "03/2023",
+         "01/04/2023", "31/03/2026", "Engenharia Civil", "https://prefeitura.rio"],
+    ]
+    for row_idx, row_data in enumerate(exemplos, start=4):
+        for col_idx, val in enumerate(row_data, start=1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.font = row_font()
+            cell.fill = row_fill(row_idx)
+            cell.border = thin_border()
+            cell.alignment = Alignment(vertical="center", wrap_text=True)
+        ws.row_dimensions[row_idx].height = 20
+
+    # Aba de instrucoes
+    ws2 = wb.create_sheet("Instrucoes")
+    instrucoes = [
+        ("Campo", "Descricao", "Exemplo"),
+        ("Tema *", "Tema principal do edital/projeto", "Infraestrutura"),
+        ("Subtema *", "Subtema dentro do tema principal", "Saneamento Básico"),
+        ("País", "País de execução (padrão: Brasil)", "Brasil"),
+        ("Estado", "Sigla do estado", "MG"),
+        ("Município", "Nome do município", "Belo Horizonte"),
+        ("Nome Edital/Projeto *", "Nome completo do edital ou projeto", "Projeto Piloto Saneamento BH"),
+        ("Descrição", "Descrição detalhada do objeto", "Implantação de rede coletora"),
+        ("Tipo de Edital", "Tipo: Obra Pública, Contrato, Consulta, etc.", "Obra Pública"),
+        ("1º Parâmetro", "Métrica de esforço principal", "Extensão de rede (km)"),
+        ("Unidade 1º Parâmetro", "Unidade da métrica principal", "km"),
+        ("2º Parâmetro", "Métrica de esforço secundária (opcional)", ""),
+        ("Unidade 2º Parâmetro", "Unidade da métrica secundária", ""),
+        ("Prazo de execução (meses)", "Duração em meses", "24"),
+        ("Custo de Execução (R$)", "Valor em reais, sem símbolo", "5000000"),
+        ("Data edital/projeto (mês/ano)", "Formato: MM/AAAA", "01/2024"),
+        ("Data de Início do Projeto", "Formato: DD/MM/AAAA", "01/02/2024"),
+        ("Data de Término do Projeto", "Formato: DD/MM/AAAA", "31/01/2026"),
+        ("Serviços", "Serviços separados por vírgula", "Engenharia Civil"),
+        ("URL / Fonte", "Link ou referência da fonte", "https://exemplo.gov.br"),
+    ]
+    for r_idx, row in enumerate(instrucoes, 1):
+        for c_idx, val in enumerate(row, 1):
+            cell = ws2.cell(row=r_idx, column=c_idx, value=val)
+            if r_idx == 1:
+                cell.font = Font(name="Arial", bold=True, size=10, color="FFFFFF")
+                cell.fill = PatternFill("solid", fgColor=NAVY)
+            else:
+                cell.font = Font(name="Arial", size=9)
+                cell.fill = PatternFill("solid", fgColor=STRIPE if r_idx % 2 == 0 else "FFFFFF")
+            cell.alignment = Alignment(vertical="center", wrap_text=True)
+    ws2.column_dimensions["A"].width = 28
+    ws2.column_dimensions["B"].width = 48
+    ws2.column_dimensions["C"].width = 28
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.read()
+
+
+def gerar_modelo_projetos() -> bytes:
+    """Gera planilha modelo para importacao de Projetos Concluidos."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from io import BytesIO
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Projetos"
+    ws.freeze_panes = "A4"
+
+    NAVY = "0B1F3A"
+    STRIPE = "E8EEF6"
+
+    def hdr_font():  return Font(name="Arial", bold=True, size=10, color="FFFFFF")
+    def hdr_fill():  return PatternFill("solid", fgColor=NAVY)
+    def hdr_align(): return Alignment(horizontal="center", vertical="center", wrap_text=True)
+    def thin_border():
+        s = Side(style="thin", color="D0DBE8")
+        return Border(left=s, right=s, top=s, bottom=s)
+    def row_fill(i): return PatternFill("solid", fgColor=STRIPE if i % 2 == 0 else "FFFFFF")
+    def row_font():  return Font(name="Arial", size=9)
+
+    ws.merge_cells("A1:R1")
+    c = ws["A1"]
+    c.value = "FGV PMO — Planilha Modelo: Projetos Concluídos"
+    c.font = Font(name="Arial", bold=True, size=13, color="FFFFFF")
+    c.fill = PatternFill("solid", fgColor=NAVY)
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 28
+
+    ws.merge_cells("A2:R2")
+    c2 = ws["A2"]
+    c2.value = "Preencha a partir da linha 4. Campos com * são obrigatórios. Não altere os nomes das colunas."
+    c2.font = Font(name="Arial", italic=True, size=9, color="92400E")
+    c2.fill = PatternFill("solid", fgColor="FFF3CD")
+    c2.alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[2].height = 18
+
+    colunas = [
+        ("Tema", 18), ("Subtema", 22), ("País", 12), ("Estado", 12),
+        ("Município", 18), ("Objetivo do Projeto", 32), ("Descrição", 36),
+        ("Nome Edital/Projeto", 32),
+        ("1º Parâmetro para verificação do prazo", 22),
+        ("Unidade de medida do 1º Parâmetro", 18),
+        ("2º Parâmetro para verificação do prazo", 22),
+        ("Unidade de medida do 2º Parâmetro", 18),
+        ("Prazo de execução (meses)", 14),
+        ("Custo de Execução", 18),
+        ("Custo final realizado", 18),
+        ("Data edital/projeto (mês/ano)", 16),
+        ("Data de Início do Projeto (Caso concluído)", 20),
+        ("Data de Término do Projeto (Caso concluído)", 20),
+        ("Serviços", 22),
+        ("Observações", 36),
+    ]
+
+    for col_idx, (nome, largura) in enumerate(colunas, start=1):
+        cell = ws.cell(row=3, column=col_idx, value=nome)
+        cell.font = hdr_font()
+        cell.fill = hdr_fill()
+        cell.alignment = hdr_align()
+        cell.border = thin_border()
+        ws.column_dimensions[get_column_letter(col_idx)].width = largura
+    ws.row_dimensions[3].height = 36
+
+    exemplos = [
+        ["Infraestrutura", "Saneamento Básico", "Brasil", "MG", "Contagem",
+         "Ampliar saneamento", "Implantação de ETE", "ETE Contagem",
+         "Capacidade (m³/dia)", "m³/dia", "", "", "30", "8000000", "7800000",
+         "03/2021", "01/04/2021", "30/09/2023", "Engenharia Civil", ""],
+        ["Mobilidade", "Transporte Público", "Brasil", "SP", "Campinas",
+         "Modernizar frota de ônibus", "Aquisição de 50 ônibus elétricos", "Frota Elétrica Campinas",
+         "Número de veículos", "unid", "", "", "18", "15000000", "14500000",
+         "07/2022", "01/08/2022", "31/01/2024", "Logística;Engenharia", ""],
+        ["Habitação", "Habitação Social", "Brasil", "RJ", "Nova Iguaçu",
+         "Construir unidades habitacionais", "Edificação de 200 UH", "Residencial Nova Esperança",
+         "Unidades habitacionais", "UH", "", "", "24", "22000000", "23100000",
+         "11/2020", "01/12/2020", "30/11/2022", "Construção Civil", "Projeto entregue com aditivo de prazo"],
+    ]
+    for row_idx, row_data in enumerate(exemplos, start=4):
+        for col_idx, val in enumerate(row_data, start=1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.font = row_font()
+            cell.fill = row_fill(row_idx)
+            cell.border = thin_border()
+            cell.alignment = Alignment(vertical="center", wrap_text=True)
+        ws.row_dimensions[row_idx].height = 20
+
+    ws2 = wb.create_sheet("Instrucoes")
+    instrucoes = [
+        ("Campo", "Descricao", "Exemplo"),
+        ("Tema", "Tema principal do projeto", "Infraestrutura"),
+        ("Subtema", "Subtema do projeto", "Saneamento Básico"),
+        ("País", "País de execução", "Brasil"),
+        ("Estado", "Sigla do estado", "MG"),
+        ("Município", "Nome do município", "Contagem"),
+        ("Objetivo do Projeto", "Objetivo macro do projeto", "Ampliar saneamento"),
+        ("Descrição", "Descrição detalhada", "Implantação de ETE"),
+        ("Nome Edital/Projeto", "Nome do edital ou projeto", "ETE Contagem"),
+        ("1º Parâmetro", "Métrica de esforço principal", "Capacidade (m³/dia)"),
+        ("Unidade 1º Parâmetro", "Unidade da métrica principal", "m³/dia"),
+        ("2º Parâmetro", "Métrica secundária (opcional)", ""),
+        ("Unidade 2º Parâmetro", "Unidade da métrica secundária", ""),
+        ("Prazo de execução (meses)", "Duração em meses", "30"),
+        ("Custo de Execução", "Valor contratado/orçado em R$ (sem símbolo)", "8000000"),
+        ("Custo final realizado", "Valor efetivamente gasto em R$ (pode diferir do contratado)", "7800000"),
+        ("Data edital/projeto (mês/ano)", "Formato: MM/AAAA", "03/2021"),
+        ("Data de Início (Caso concluído)", "Formato: DD/MM/AAAA", "01/04/2021"),
+        ("Data de Término (Caso concluído)", "Formato: DD/MM/AAAA", "30/09/2023"),
+        ("Serviços", "Serviços separados por ponto-e-vírgula", "Engenharia Civil"),
+        ("Observações", "Notas adicionais sobre o projeto (opcional)", "Entregue com aditivo de prazo"),
+    ]
+    for r_idx, row in enumerate(instrucoes, 1):
+        for c_idx, val in enumerate(row, 1):
+            cell = ws2.cell(row=r_idx, column=c_idx, value=val)
+            if r_idx == 1:
+                cell.font = Font(name="Arial", bold=True, size=10, color="FFFFFF")
+                cell.fill = PatternFill("solid", fgColor=NAVY)
+            else:
+                cell.font = Font(name="Arial", size=9)
+                cell.fill = PatternFill("solid", fgColor=STRIPE if r_idx % 2 == 0 else "FFFFFF")
+            cell.alignment = Alignment(vertical="center", wrap_text=True)
+    ws2.column_dimensions["A"].width = 30
+    ws2.column_dimensions["B"].width = 48
+    ws2.column_dimensions["C"].width = 28
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.read()
+
+
 def pagina_projetos_concluidos():
     try:
         import plotly.graph_objects as go
@@ -3118,414 +5287,632 @@ def pagina_projetos_concluidos():
         HAS_PLOTLY = False
 
     header_principal()
-    st.markdown("## Projetos Concluídos")
-    st.markdown("Registre projetos finalizados e compare o prazo real com as estimativas da análise estatística.")
 
-    # ── Upload de planilha (PMO e ADMIN) ──
-    if st.session_state.perfil in ("ADMIN", "PMO"):
-        with st.expander("Importar projetos via planilha", expanded=True):
-            st.info("Envie a Planilha Modelo preenchida pelas áreas. Todos os registros serão adicionados à base de projetos concluídos.")
-            arquivo_pc = st.file_uploader("Selecione a planilha", type=["xlsx", "xls"], key="pc_upload")
-            if arquivo_pc is not None:
-                st.success(f"Arquivo carregado: {arquivo_pc.name}")
-                if st.button("Importar projetos", type="primary", key="pc_importar"):
-                    with st.spinner("Importando projetos..."):
-                        try:
-                            n = processar_upload_projetos_concluidos(arquivo_pc)
-                            st.success(f"{n} projeto(s) importado(s) com sucesso!")
-                            st.cache_data.clear()
-                            st.rerun()
-                        except Exception as e:
-                            logger.error("Erro ao importar projetos: %s", e)
-                            st.error("Erro ao importar a planilha. Verifique o formato e tente novamente.")
-
-    # ── Formulário de cadastro manual ──
-    if st.session_state.perfil in ("ADMIN", "PMO"):
-        with st.expander("Registrar projeto manualmente", expanded=False):
-            conn_view = get_conn()
-            try:
-                df_temas = pd.read_sql_query("SELECT DISTINCT tema, subtema FROM vw_consulta_editais WHERE tema IS NOT NULL ORDER BY tema, subtema", conn_view)
-            except Exception:
-                df_temas = pd.DataFrame(columns=["tema", "subtema"])
-            finally:
-                conn_view.close()
-
-            # Seletores de tema/subtema FORA do form para permitir cascata dinâmica
-            temas_disp = sorted(df_temas["tema"].dropna().unique().tolist())
-            pc1, pc2 = st.columns(2)
-            with pc1:
-                tema_proj = st.selectbox("Tema", [""] + temas_disp, key="pc_form_tema")
-            with pc2:
-                subtemas_disp = sorted(df_temas[df_temas["tema"] == tema_proj]["subtema"].dropna().unique().tolist()) if tema_proj else []
-                subtema_proj = st.selectbox("Subtema", [""] + subtemas_disp, key="pc_form_subtema")
-
-            with st.form("form_proj_concluido", clear_on_submit=True):
-                st.markdown("**Identificação**")
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    nome_proj = st.text_input("Nome do projeto *")
-                    pais_proj = st.text_input("País", value="Brasil")
-                with c2:
-                    estado_proj = st.text_input("Estado")
-                    municipio_proj = st.text_input("Município")
-                with c3:
-                    data_inicio_proj = st.date_input("Data de início", value=None)
-                    data_conclusao_proj = st.date_input("Data de conclusão", value=None)
-
-                st.markdown("**Parâmetros**")
-                p1, p2, p3, p4 = st.columns(4)
-                with p1:
-                    esforco_proj = st.text_input("1º Parâmetro")
-                with p2:
-                    unidade_proj = st.text_input("Unidade", placeholder="km, m², unid...")
-                with p3:
-                    esforco2_proj = st.text_input("2º Parâmetro")
-                with p4:
-                    unidade2_proj = st.text_input("Unidade 2", placeholder="km, m², unid...")
-
-                st.markdown("**Custos**")
-                cc1, cc2 = st.columns(2)
-                with cc1:
-                    custo_contratado_proj = st.number_input("Custo contratado (R$)", min_value=0.0, step=1000.0, format="%.2f")
-                with cc2:
-                    custo_final_proj = st.number_input("Custo final realizado (R$)", min_value=0.0, step=1000.0, format="%.2f")
-
-                obs_proj = st.text_area("Observações", height=70)
-                salvar = st.form_submit_button("Salvar projeto", type="primary")
-
-            if salvar:
-                if not nome_proj.strip():
-                    st.warning("Informe o nome do projeto.")
-                else:
-                    proj_id, prazo_real = inserir_projeto_concluido(
-                        nome=nome_proj.strip(), tema=tema_proj or None,
-                        subtema=subtema_proj or None,
-                        pais=pais_proj.strip() or None,
-                        estado=estado_proj or None,
-                        municipio=municipio_proj or None,
-                        data_inicio=data_inicio_proj, data_conclusao=data_conclusao_proj,
-                        custo_contratado=custo_contratado_proj or None,
-                        custo_final=custo_final_proj or None,
-                        observacoes=obs_proj or None,
-                        criado_por=st.session_state.usuario
-                    )
-                    prazo_msg = f" Prazo real calculado: **{prazo_real:.1f} meses**." if prazo_real else ""
-                    st.success(f"Projeto registrado com sucesso!{prazo_msg}")
-                    st.rerun()
-
-    # ── Lista de projetos ──
     df_proj = listar_projetos_concluidos()
+    is_admin = st.session_state.perfil in ("ADMIN", "PMO")
 
-    if df_proj.empty:
-        st.info("Nenhum projeto concluído registrado ainda.")
-        return
-
-    # ── Busca textual + Filtros ──
-    busca_proj = st.text_input("Busca por nome do projeto", placeholder="Digite parte do nome...", key="pc_busca")
-
-    cf1, cf2, cf3 = st.columns(3)
-    with cf1:
-        temas_f = ["Todos"] + sorted(df_proj["tema"].dropna().unique().tolist())
-        tema_f = st.selectbox("Filtrar por tema", temas_f, key="pc_tema_f")
-    with cf2:
-        df_proj_f = df_proj[df_proj["tema"] == tema_f] if tema_f != "Todos" else df_proj
-        subtemas_f = ["Todos"] + sorted(df_proj_f["subtema"].dropna().unique().tolist())
-        subtema_f = st.selectbox("Filtrar por subtema", subtemas_f, key="pc_subtema_f")
-    with cf3:
-        estados_f = ["Todos"] + sorted(df_proj["estado"].dropna().unique().tolist())
-        estado_f = st.selectbox("Filtrar por estado", estados_f, key="pc_estado_f")
-
-    df_exib = df_proj.copy()
-    if busca_proj.strip():
-        df_exib = df_exib[df_exib["nome_projeto"].str.contains(busca_proj.strip(), case=False, na=False)]
-    if tema_f != "Todos":
-        df_exib = df_exib[df_exib["tema"] == tema_f]
-    if subtema_f != "Todos":
-        df_exib = df_exib[df_exib["subtema"] == subtema_f]
-    if estado_f != "Todos":
-        df_exib = df_exib[df_exib["estado"] == estado_f]
-
-    # ── Métricas resumo ──
-    prazo_vals = df_exib["prazo_real_meses"].dropna()
-    custo_dif = (df_exib["custo_final"] - df_exib["custo_contratado"]).dropna()
-    var_pct = (custo_dif / df_exib["custo_contratado"].replace(0, None)).dropna() * 100
-
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Projetos", len(df_exib))
-    m2.metric("Prazo médio real", f"{prazo_vals.mean():.1f} m" if not prazo_vals.empty else "—")
-    m3.metric("Prazo mínimo / máximo",
-              f"{prazo_vals.min():.1f} – {prazo_vals.max():.1f} m" if not prazo_vals.empty else "—")
-    if not var_pct.empty:
-        media_var = var_pct.mean()
-        sinal = "+" if media_var >= 0 else ""
-        m4.metric("Variação de custo média", f"{sinal}{media_var:.1f}%",
-                  delta=f"{'acima' if media_var > 0 else 'abaixo'} do contratado")
+    # ── Abas principais ──
+    if is_admin:
+        tab_proj, tab_analise, tab_gerenciar = st.tabs([
+            "Projetos", "Análise Kerzner", "Gerenciar"
+        ])
+        tab_analise_visible = True
     else:
-        m4.metric("Variação de custo média", "—")
+        tab_proj, = st.tabs(["Projetos"])
+        tab_analise = None
+        tab_gerenciar = None
+        tab_analise_visible = False
 
-    # ── IPCA: carrega série e calcula data de referência ──
-    ipca = carregar_ipca()
-    from datetime import datetime as _dt
-    data_ref_ipca = f"{_dt.now().year}-{_dt.now().month:02d}"
-    tem_ipca = bool(ipca)
-
-    # ── Tabela com badge de prazo e custo corrigido ──
-    st.markdown("### Projetos registrados")
-
-    df_tabela = df_exib.copy()
-
-    # Badge de prazo por subtema
-    def badge_prazo(row):
-        sub = row.get("subtema")
-        prazo = row.get("prazo_real_meses")
-        esforco = row.get("esforco")
-        if not sub or pd.isna(prazo):
-            return "—"
-        kz = kerzner_total_para_projeto(sub, esforco)
-        if not kz:
-            return f"{prazo:.1f} m"
-        t_min, t_max = kz["total_min"], kz["total_max"]
-        if t_min <= prazo <= t_max:
-            return f"[OK] {prazo:.1f} m"
-        elif prazo < t_min:
-            return f"[MIN] {prazo:.1f} m"
+    # =========================================================
+    # ABA: PROJETOS
+    # =========================================================
+    with tab_proj:
+        if df_proj.empty:
+            st.info("Nenhum projeto concluído registrado ainda.")
         else:
-            return f"[MAX] {prazo:.1f} m"
+            # ── Filtros compactos ──
+            f1, f2, f3, f4 = st.columns([2, 1, 1, 1])
+            with f1:
+                busca_proj = st.text_input("Buscar", placeholder="Nome do projeto...",
+                                           label_visibility="collapsed")
+            with f2:
+                temas_f = ["Todos"] + sorted(df_proj["tema"].dropna().unique().tolist())
+                tema_f = st.selectbox("Tema", temas_f, key="pc_tema_f",
+                                      label_visibility="collapsed")
+            with f3:
+                df_pf = df_proj[df_proj["tema"] == tema_f] if tema_f != "Todos" else df_proj
+                subtemas_f = ["Todos"] + sorted(df_pf["subtema"].dropna().unique().tolist())
+                subtema_f = st.selectbox("Subtema", subtemas_f, key="pc_subtema_f",
+                                         label_visibility="collapsed")
+            with f4:
+                estados_f = ["Todos"] + sorted(df_proj["estado"].dropna().unique().tolist())
+                estado_f = st.selectbox("Estado", estados_f, key="pc_estado_f",
+                                        label_visibility="collapsed")
 
-    df_tabela["Prazo"] = df_tabela.apply(badge_prazo, axis=1)
-    df_tabela["Estimativa Kerzner"] = df_tabela.apply(
-        lambda row: (lambda kz: f"{kz['total_min']:.1f}–{kz['total_max']:.1f} m"
-                     if kz else "—")(kerzner_total_para_projeto(row.get("subtema"), row.get("esforco"))),
-        axis=1
-    )
+            df_exib = df_proj.copy()
+            if busca_proj.strip():
+                df_exib = df_exib[df_exib["nome_projeto"].str.contains(
+                    busca_proj.strip(), case=False, na=False)]
+            if tema_f != "Todos":
+                df_exib = df_exib[df_exib["tema"] == tema_f]
+            if subtema_f != "Todos":
+                df_exib = df_exib[df_exib["subtema"] == subtema_f]
+            if estado_f != "Todos":
+                df_exib = df_exib[df_exib["estado"] == estado_f]
 
-    # Custo corrigido pelo IPCA
-    def custo_corrigido(row):
-        if not tem_ipca:
-            return None
-        custo = row.get("custo_contratado")
-        data_b = row.get("data_edital") or row.get("data_inicio")
-        if pd.isna(custo) or not data_b:
-            return None
-        v = corrigir_ipca(float(custo), str(data_b)[:7], data_ref_ipca, ipca)
-        return f"R$ {v:,.2f}".replace(",","X").replace(".",",").replace("X",".") if v else None
+            # ── Métricas ──
+            prazo_vals = df_exib["prazo_real_meses"].dropna()
+            custo_dif  = (df_exib["custo_final"] - df_exib["custo_contratado"]).dropna()
+            var_pct    = (custo_dif / df_exib["custo_contratado"].replace(0, None)).dropna() * 100
 
-    if tem_ipca:
-        df_tabela["Custo corr. IPCA"] = df_tabela.apply(custo_corrigido, axis=1)
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Projetos", len(df_exib))
+            m2.metric("Prazo médio real",
+                      f"{prazo_vals.mean():.1f} m" if not prazo_vals.empty else "-")
+            m3.metric("Prazo mín. / máx.",
+                      f"{prazo_vals.min():.1f} - {prazo_vals.max():.1f} m"
+                      if not prazo_vals.empty else "-")
+            if not var_pct.empty:
+                mv = var_pct.mean()
+                m4.metric("Variação de custo média", f"{mv:+.1f}%",
+                          delta=f"{'acima' if mv > 0 else 'abaixo'} do contratado")
+            else:
+                m4.metric("Variação de custo média", "-")
 
-    # Formata custos
-    for col_custo, col_label in [("custo_contratado","Custo contratado (R$)"), ("custo_final","Custo final (R$)")]:
-        if col_custo in df_tabela.columns:
-            df_tabela[col_label] = df_tabela[col_custo].apply(
-                lambda x: f"R$ {x:,.2f}".replace(",","X").replace(".",",").replace("X",".") if pd.notnull(x) and x > 0 else "—"
-            )
+            # ── IPCA ──
+            ipca = carregar_ipca()
+            from datetime import datetime as _dt
+            data_ref_ipca = f"{_dt.now().year}-{_dt.now().month:02d}"
+            tem_ipca = bool(ipca)
 
-    colunas_exib = ["nome_projeto","tema","subtema","estado","municipio",
-                    "data_inicio","data_conclusao","Prazo","Estimativa Kerzner",
-                    "Custo contratado (R$)","Custo final (R$)"]
-    if tem_ipca:
-        colunas_exib.append("Custo corr. IPCA")
-    colunas_exib += ["observacoes","criado_por"]
+            # ── Tabela ──
+            df_tabela = df_exib.copy()
 
-    rename_map = {"nome_projeto":"Projeto","tema":"Tema","subtema":"Subtema",
-                  "estado":"Estado","municipio":"Município",
-                  "data_inicio":"Início","data_conclusao":"Conclusão",
-                  "observacoes":"Obs.","criado_por":"Registrado por"}
+            def badge_prazo(row):
+                sub    = row.get("subtema")
+                prazo  = row.get("prazo_real_meses")
+                esforco= row.get("esforco")
+                if not sub or pd.isna(prazo):
+                    return "-"
+                kz = kerzner_total_para_projeto(sub, esforco)
+                if not kz:
+                    return f"{prazo:.1f} m"
+                t_min, t_max = kz["total_min"], kz["total_max"]
+                if t_min <= prazo <= t_max:
+                    return f"OK {prazo:.1f} m"
+                elif prazo < t_min:
+                    return f"< {prazo:.1f} m"
+                else:
+                    return f"> {prazo:.1f} m"
 
-    df_show = df_tabela[[c for c in colunas_exib if c in df_tabela.columns]].rename(columns=rename_map)
-    st.dataframe(df_show, use_container_width=True, hide_index=True)
+            df_tabela["Prazo"] = df_tabela.apply(badge_prazo, axis=1)
+            df_tabela["Estimativa Kerzner"] = df_tabela.apply(
+                lambda r: (lambda kz: f"{kz['total_min']:.1f}-{kz['total_max']:.1f} m"
+                           if kz else "-")(kerzner_total_para_projeto(
+                               r.get("subtema"), r.get("esforco"))), axis=1)
 
-    if tem_ipca:
-        st.caption(f"[MIN] Prazo abaixo do mínimo Kerzner   [OK] Prazo dentro do intervalo Kerzner   [MAX] Prazo acima do máximo Kerzner   |   Estimativa Kerzner = prazo total (Planejamento + Execução + Encerramento) calculado pelo esforço do projeto   |   Custo corr. IPCA atualizado até {data_ref_ipca}")
-    else:
-        st.caption("[MIN] Prazo abaixo do mínimo Kerzner   [OK] Prazo dentro do intervalo Kerzner   [MAX] Prazo acima do máximo Kerzner   |   Estimativa Kerzner = prazo total calculado pelo esforço do projeto")
+            def custo_corrigido(row):
+                if not tem_ipca: return None
+                custo  = row.get("custo_contratado")
+                data_b = row.get("data_edital") or row.get("data_inicio")
+                if pd.isna(custo) or not data_b: return None
+                v = corrigir_ipca(float(custo), str(data_b)[:7], data_ref_ipca, ipca)
+                return (f"R$ {v:,.2f}".replace(",","X").replace(".",",").replace("X",".")
+                        if v else None)
 
-    # ── Exportar Excel ──
-    if not df_exib.empty:
-        try:
-            buf = __import__("io").BytesIO()
-            df_show.to_excel(buf, index=False, engine="openpyxl")
-            buf.seek(0)
-            from datetime import datetime as _dt2
-            st.download_button(
-                "Exportar Excel",
-                data=buf.read(),
-                file_name=f"projetos_concluidos_{_dt2.now().strftime('%Y-%m-%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-        except Exception:
-            pass
+            if tem_ipca:
+                df_tabela["Custo da Execução corrigido pelo IPCA"] = df_tabela.apply(custo_corrigido, axis=1)
 
-    # ── Gráfico custo contratado vs realizado ──
-    df_custo_g = df_exib.dropna(subset=["custo_contratado","custo_final"])
-    df_custo_g = df_custo_g[(df_custo_g["custo_contratado"] > 0) | (df_custo_g["custo_final"] > 0)]
-    if not df_custo_g.empty and HAS_PLOTLY:
-        st.markdown("### Custo contratado vs. realizado")
-        fig_c = go.Figure()
-        nomes = df_custo_g["nome_projeto"].tolist()
-        fig_c.add_trace(go.Bar(name="Contratado", x=nomes,
-                               y=df_custo_g["custo_contratado"].tolist(),
-                               marker_color="#3b82f6"))
-        fig_c.add_trace(go.Bar(name="Realizado", x=nomes,
-                               y=df_custo_g["custo_final"].tolist(),
-                               marker_color="#ef4444"))
-        if tem_ipca:
-            corrigidos = df_custo_g.apply(
-                lambda r: corrigir_ipca(r["custo_contratado"],
-                                        str(r.get("data_edital") or r.get("data_inicio") or "")[:7],
-                                        data_ref_ipca, ipca) or 0, axis=1).tolist()
-            fig_c.add_trace(go.Bar(name=f"Contratado corr. IPCA ({data_ref_ipca})", x=nomes,
-                                   y=corrigidos, marker_color="#8b5cf6", opacity=0.7))
-        fig_c.update_layout(barmode="group", height=380, template="plotly_white",
-                            xaxis_title="Projeto", yaxis_title="R$",
-                            legend=dict(orientation="h", yanchor="bottom", y=1.02))
-        st.plotly_chart(fig_c, use_container_width=True)
+            def fmt_brl(x):
+                if pd.isnull(x) or x == 0: return "-"
+                return f"R$ {x:,.2f}".replace(",","X").replace(".",",").replace("X",".")
 
-    # ── Excluir projeto com confirmação ──
-    if st.session_state.perfil in ("ADMIN", "PMO"):
-        with st.expander("Excluir projeto"):
-            if not df_exib.empty:
-                proj_id_del = st.selectbox(
-                    "Selecione o projeto",
-                    df_exib["id"].tolist(),
-                    format_func=lambda x: f"{x} — {df_exib.loc[df_exib['id']==x, 'nome_projeto'].values[0]}"
+            for col_c, col_l in [("custo_contratado","Custo da Execução (R$)"),
+                                   ("custo_final","Custo final (R$)")]:
+                if col_c in df_tabela.columns:
+                    df_tabela[col_l] = df_tabela[col_c].apply(fmt_brl)
+
+            for col_dt in ["data_inicio","data_conclusao"]:
+                if col_dt in df_tabela.columns:
+                    df_tabela[col_dt] = pd.to_datetime(
+                        df_tabela[col_dt], errors="coerce").dt.strftime("%d/%m/%Y").fillna("-")
+
+            colunas_exib = ["nome_projeto","tema","subtema","estado","municipio",
+                            "data_inicio","data_conclusao","esforco","unidade",
+                            "Prazo","Estimativa Kerzner",
+                            "Custo da Execução (R$)","Custo final (R$)"]
+            if tem_ipca:
+                colunas_exib.append("Custo da Execução corrigido pelo IPCA")
+            colunas_exib += ["observacoes","criado_por"]
+
+            rename_map = {
+                "nome_projeto":"Projeto","tema":"Tema","subtema":"Subtema",
+                "estado":"Estado","municipio":"Município",
+                "data_inicio":"Início","data_conclusao":"Conclusão",
+                "esforco":"Esforço","unidade":"Unidade",
+                "observacoes":"Obs.","criado_por":"Registrado por",
+            }
+            df_show = df_tabela[
+                [c for c in colunas_exib if c in df_tabela.columns]
+            ].rename(columns=rename_map)
+            _col_cfg_proj = {
+                "Esforço": st.column_config.TextColumn(
+                    "1° Parâmetro",
+                    help="Parâmetro utilizado para calculo de execução do projeto."
+                ),
+                "Unidade": st.column_config.TextColumn(
+                    "Unidade",
+                    help="Unidade de medida referente ao parâmetro."
+                ),
+                "esforco2": st.column_config.TextColumn(
+                    "2° Parâmetro",
+                    help="Parâmetro utilizado para calculo de execução do projeto."
+                ),
+                "unidade2": st.column_config.TextColumn(
+                    "Unidade 2",
+                    help="Unidade de medida referente ao 2° parâmetro."
+                ),
+            }
+            if "Custo da Execução corrigido pelo IPCA" in df_show.columns:
+                _col_cfg_proj["Custo da Execução corrigido pelo IPCA"] = st.column_config.TextColumn(
+                    "Custo da Execução corrigido pelo IPCA",
+                    help="Corrige o custo inicial pelo IPCA acumulado desde a data do edital ate o mes atual. Formula: Valor x PI(1 + IPCA_mes/100) para cada mes entre a data base e hoje. Fonte: Banco Central do Brasil, serie SGS 433."
                 )
-                nome_del = df_exib.loc[df_exib["id"] == proj_id_del, "nome_projeto"].values[0]
-                st.warning(f"Você está prestes a excluir: **{nome_del}**. Esta ação não pode ser desfeita.")
-                confirmar = st.checkbox("Confirmo que desejo excluir este projeto")
-                if st.button("Excluir projeto", type="primary", disabled=not confirmar):
-                    excluir_projeto_concluido(proj_id_del)
-                    st.cache_data.clear()
-                    st.success("Projeto excluído.")
-                    st.rerun()
+            # Paginacao
+            PAGE_SIZE_PC = 50
+            total_pc = len(df_show)
+            n_pages_pc = max(1, (total_pc + PAGE_SIZE_PC - 1) // PAGE_SIZE_PC)
+            if "pagina_proj" not in st.session_state:
+                st.session_state["pagina_proj"] = 1
+            if st.session_state["pagina_proj"] > n_pages_pc:
+                st.session_state["pagina_proj"] = 1
+            pg_pc = st.session_state["pagina_proj"]
+            ini_pc = (pg_pc - 1) * PAGE_SIZE_PC
+            fim_pc = min(ini_pc + PAGE_SIZE_PC, total_pc)
 
-    # ── Comparação com Análise de Prazos ──
-    st.markdown("---")
-    st.markdown("### Comparação: Prazo Real vs. Estimativa Estatística")
+            st.dataframe(df_show.iloc[ini_pc:fim_pc], use_container_width=True,
+                         hide_index=True, column_config=_col_cfg_proj)
 
-    subtemas_comp = sorted(df_proj["subtema"].dropna().unique().tolist())
-    if not subtemas_comp:
-        st.info("Nenhum projeto com subtema definido para comparação.")
-        return
+            if n_pages_pc > 1:
+                p1, p2, p3, p4, p5 = st.columns([1, 1, 3, 1, 1])
+                with p1:
+                    if st.button("Primeira", key="pc_pag_first", use_container_width=True, disabled=pg_pc==1):
+                        st.session_state["pagina_proj"] = 1; st.rerun()
+                with p2:
+                    if st.button("Anterior", key="pc_pag_prev", use_container_width=True, disabled=pg_pc==1):
+                        st.session_state["pagina_proj"] -= 1; st.rerun()
+                with p3:
+                    st.markdown(
+                        f"<div style='text-align:center;padding:8px 0;font-size:13px;"
+                        f"color:var(--ink-secondary);'>Pagina <b>{pg_pc}</b> de <b>{n_pages_pc}</b>"
+                        f" &nbsp;·&nbsp; <b>{ini_pc+1}</b>-<b>{fim_pc}</b> de <b>{total_pc}</b></div>",
+                        unsafe_allow_html=True)
+                with p4:
+                    if st.button("Proxima", key="pc_pag_next", use_container_width=True, disabled=pg_pc==n_pages_pc):
+                        st.session_state["pagina_proj"] += 1; st.rerun()
+                with p5:
+                    if st.button("Ultima", key="pc_pag_last", use_container_width=True, disabled=pg_pc==n_pages_pc):
+                        st.session_state["pagina_proj"] = n_pages_pc; st.rerun()
 
-    subtema_comp = st.selectbox("Selecione o subtema para comparar", subtemas_comp, key="pc_subtema_comp")
-    df_comp = df_proj[df_proj["subtema"] == subtema_comp].dropna(subset=["prazo_real_meses"])
+            # Legenda visual
+            st.markdown("""
+            <div style="display:flex;gap:12px;flex-wrap:wrap;margin:4px 0 8px;">
+                <span style="font-size:0.76rem;color:var(--ink-secondary);">
+                    <span style="background:#dcfce7;color:#166534;padding:1px 8px;
+                                 border-radius:4px;font-weight:600;">OK</span>
+                    Dentro do intervalo Kerzner
+                </span>
+                <span style="font-size:0.76rem;color:var(--ink-secondary);">
+                    <span style="background:#dbeafe;color:#1e40af;padding:1px 8px;
+                                 border-radius:4px;font-weight:600;">&lt;</span>
+                    Abaixo do mínimo
+                </span>
+                <span style="font-size:0.76rem;color:var(--ink-secondary);">
+                    <span style="background:#fee2e2;color:#991b1b;padding:1px 8px;
+                                 border-radius:4px;font-weight:600;">&gt;</span>
+                    Acima do máximo
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
 
-    est = calcular_estatisticas_subtema(subtema_comp)
+            # Exportação
+            dl1, dl2, _ = st.columns([1, 1, 3])
+            with dl1:
+                try:
+                    buf = __import__("io").BytesIO()
+                    df_show.to_excel(buf, index=False, engine="openpyxl")
+                    buf.seek(0)
+                    from datetime import datetime as _dt2
+                    st.download_button("Exportar Excel", data=buf.read(),
+                                       file_name=f"projetos_{_dt2.now().strftime('%Y-%m-%d')}.xlsx",
+                                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                       use_container_width=True)
+                except Exception:
+                    pass
+            with dl2:
+                csv_bytes = df_exib.drop(columns=["id"], errors="ignore").to_csv(
+                    index=False).encode("utf-8")
+                from datetime import datetime as _dt3
+                st.download_button("Exportar CSV", data=csv_bytes,
+                                   file_name=f"projetos_{_dt3.now().strftime('%Y-%m-%d')}.csv",
+                                   mime="text/csv", use_container_width=True)
 
-    if df_comp.empty:
-        st.info("Nenhum projeto concluído com prazo real para este subtema.")
-    elif not est:
-        st.info("Não há dados de editais suficientes para calcular a estimativa deste subtema.")
-    else:
-        # Métricas de comparação
-        prazo_real_medio = df_comp["prazo_real_meses"].mean()
-        est_min = est["lower"] if est["lower"] > 0 else est["min"]
-        est_max = est["upper"] if est["upper"] > est["max"] else est["max"]
-        est_medio = est["mean"]
+    # =========================================================
+    # ABA: ANÁLISE KERZNER (ADMIN / PMO)
+    # =========================================================
+    if tab_analise:
+      with tab_analise:
+          if df_proj.empty:
+              st.info("Nenhum projeto registrado para análise.")
+          else:
+              # Só considera projetos com tema E subtema preenchidos
+              df_kz = df_proj[
+                  df_proj["tema"].notna() & (df_proj["tema"].astype(str).str.strip() != "") &
+                  df_proj["subtema"].notna() & (df_proj["subtema"].astype(str).str.strip() != "")
+              ].copy()
+              n_excluidos = len(df_proj) - len(df_kz)
+              if n_excluidos > 0:
+                  st.caption(
+                      f"ℹ️ {n_excluidos} projeto(s) sem tema/subtema foram excluídos desta análise."
+                  )
+              # Subtemas que existem na base de editais (com ao menos 3 registros para regressão)
+              try:
+                  _conn_kz = get_conn()
+                  df_subtemas_editais = pd.read_sql_query("""
+                      SELECT subtema, COUNT(*) as n
+                      FROM vw_consulta_editais
+                      WHERE subtema IS NOT NULL AND prazo_meses IS NOT NULL AND prazo_meses > 0
+                      GROUP BY subtema
+                  """, _conn_kz)
+                  _conn_kz.close()
+                  subtemas_editais = set(df_subtemas_editais["subtema"].tolist())
+              except Exception:
+                  subtemas_editais = set()
 
-        ce1, ce2, ce3, ce4 = st.columns(4)
-        # Para a comparação geral, usa intervalo Kerzner médio do subtema (sem esforço específico)
-        kz_geral = kerzner_total_para_projeto(subtema_comp, None)
-        t_min_geral = kz_geral["total_min"] if kz_geral else est["min"] * 2.5
-        t_max_geral = kz_geral["total_max"] if kz_geral else est["max"] * 2.5
+              subtemas_proj = set(df_kz["subtema"].dropna().unique().tolist())
+              subtemas_cruzados = subtemas_proj & subtemas_editais
 
-        ce1.metric("Estimativa Kerzner mínima (total)", f"{t_min_geral:.1f} m")
-        ce2.metric("Estimativa Kerzner máxima (total)", f"{t_max_geral:.1f} m")
-        ce3.metric("Prazo real médio", f"{prazo_real_medio:.1f} m",
-                   delta=f"{prazo_real_medio - (t_min_geral+t_max_geral)/2:.1f} m vs. média Kerzner")
-        dentro = df_comp[(df_comp["prazo_real_meses"] >= t_min_geral) &
-                         (df_comp["prazo_real_meses"] <= t_max_geral)]
-        ce4.metric("Dentro do intervalo Kerzner", f"{len(dentro)}/{len(df_comp)}")
+              n_sem_cruzamento = len(df_kz[~df_kz["subtema"].isin(subtemas_cruzados)])
+              if n_sem_cruzamento > 0:
+                  n_excluidos += n_sem_cruzamento
+                  st.caption(
+                      f"ℹ️ {n_excluidos} projeto(s) excluídos: sem tema/subtema ou subtema ausente na base de editais."
+                  )
 
-        if HAS_PLOTLY:
-            # Gráfico 1: Barras comparando prazo real de cada projeto com intervalo estimado
-            fig1 = go.Figure()
+              subtemas_comp = sorted(subtemas_cruzados)
+              if not subtemas_comp:
+                  st.info("Nenhum subtema em comum entre projetos concluídos e base de editais para análise.")
+              else:
+                  fa, fb = st.columns([1, 2])
+                  with fa:
+                      subtema_comp = st.selectbox("Subtema", subtemas_comp,
+                                                  key="pc_subtema_comp")
+                  df_sub = df_kz[df_kz["subtema"] == subtema_comp].dropna(
+                      subset=["prazo_real_meses"])
+                  with fb:
+                      opcoes_proj = df_sub["nome_projeto"].tolist()
+                      proj_sel = st.multiselect("Projetos para análise", opcoes_proj,
+                                                default=opcoes_proj, key="pc_proj_sel")
 
-            # Faixa de intervalo histórico como área
-            projetos_nomes = df_comp["nome_projeto"].tolist()
-            prazos_reais = df_comp["prazo_real_meses"].tolist()
+                  if not proj_sel:
+                      st.info("Selecione ao menos um projeto.")
+                  else:
+                      df_comp = df_sub[df_sub["nome_projeto"].isin(proj_sel)].copy()
 
-            fig1.add_trace(go.Bar(
-                x=projetos_nomes, y=prazos_reais,
-                name="Prazo real",
-                marker_color=["#10b981" if t_min_geral <= p <= t_max_geral else "#ef4444" for p in prazos_reais],
-                hovertemplate="<b>%{x}</b><br>Prazo real: %{y:.1f} meses<extra></extra>"
-            ))
+                      esforcos_sel = pd.to_numeric(df_comp["esforco"], errors="coerce").dropna()
+                      if not esforcos_sel.empty:
+                          media_esforco = esforcos_sel.mean()
+                          kz = kerzner_total_para_projeto(subtema_comp, media_esforco)
+                          unid = (df_comp["unidade"].dropna().iloc[0]
+                                  if not df_comp["unidade"].dropna().empty else "")
+                          esforco_label = f"média {media_esforco:.1f} {unid}".strip()
+                      else:
+                          kz = kerzner_total_para_projeto(subtema_comp, None)
+                          esforco_label = "sem esforço - usando histórico"
 
-            # Linhas de referência
-            fig1.add_hline(y=t_min_geral, line_dash="dash", line_color="#3b82f6",
-                           annotation_text=f"Kerzner mín.: {t_min_geral:.1f}m",
-                           annotation_position="top right")
-            fig1.add_hline(y=t_max_geral, line_dash="dash", line_color="#f59e0b",
-                           annotation_text=f"Kerzner máx.: {t_max_geral:.1f}m",
-                           annotation_position="top right")
-            fig1.add_hline(y=(t_min_geral+t_max_geral)/2, line_dash="dot", line_color="#8b5cf6",
-                           annotation_text=f"Kerzner médio: {(t_min_geral+t_max_geral)/2:.1f}m",
-                           annotation_position="top right")
+                      if not kz:
+                          st.info("Dados insuficientes para calcular Kerzner neste subtema.")
+                      else:
+                          t_min  = kz["total_min"]
+                          t_max  = kz["total_max"]
+                          t_medio= (t_min + t_max) / 2
+                          prazo_real_medio = df_comp["prazo_real_meses"].mean()
+                          dentro = df_comp[(df_comp["prazo_real_meses"] >= t_min) &
+                                           (df_comp["prazo_real_meses"] <= t_max)]
 
-            fig1.update_layout(
-                title=f"Prazo real por projeto — {subtema_comp}",
-                xaxis_title="Projeto", yaxis_title="Meses",
-                height=400, template="plotly_white",
-                showlegend=True
-            )
-            st.plotly_chart(fig1, use_container_width=True)
-            st.caption("[OK] Dentro do intervalo histórico   [FORA] Fora do intervalo histórico")
+                          # Métricas Kerzner
+                          ce1, ce2, ce3, ce4 = st.columns(4)
+                          ce1.metric("Kerzner mínimo", f"{t_min:.1f} m")
+                          ce2.metric("Kerzner máximo", f"{t_max:.1f} m")
+                          ce3.metric("Prazo real médio", f"{prazo_real_medio:.1f} m",
+                                     delta=f"{prazo_real_medio - t_medio:+.1f} m vs. Kerzner")
+                          ce4.metric("Dentro do intervalo", f"{len(dentro)}/{len(df_comp)}")
 
-            # Gráfico 2: Dispersão prazo real ao longo do tempo
-            df_comp_ord = df_comp.sort_values("data_conclusao")
-            if not df_comp_ord["data_conclusao"].isna().all():
-                fig2 = go.Figure()
-                fig2.add_trace(go.Scatter(
-                    x=df_comp_ord["data_conclusao"].astype(str).tolist(),
-                    y=df_comp_ord["prazo_real_meses"].tolist(),
-                    mode="markers+lines",
-                    marker=dict(size=10, color="#2563eb"),
-                    line=dict(color="#93c5fd", width=1, dash="dot"),
-                    text=df_comp_ord["nome_projeto"].tolist(),
-                    hovertemplate="<b>%{text}</b><br>Conclusão: %{x}<br>Prazo real: %{y:.1f} meses<extra></extra>",
-                    name="Prazo real"
-                ))
-                fig2.add_hrect(y0=t_min_geral, y1=t_max_geral,
-                               fillcolor="#3b82f6", opacity=0.08,
-                               annotation_text="Intervalo histórico", annotation_position="top right")
-                fig2.update_layout(
-                    title="Evolução do prazo real ao longo do tempo",
-                    xaxis_title="Data de conclusão", yaxis_title="Meses",
-                    height=350, template="plotly_white"
-                )
-                st.plotly_chart(fig2, use_container_width=True)
+                          # Info card
+                          metodo = "Regressão estatística" if kz.get("corr_forte") else "Mín/máx histórico"
+                          st.markdown(f"""
+                          <div style="background:var(--surface-2);border:1px solid var(--border-subtle);
+                                      border-radius:10px;padding:12px 16px;font-size:0.82rem;
+                                      color:var(--ink-secondary);margin-bottom:12px;">
+                              <strong>Subtema:</strong> {subtema_comp} &nbsp;·&nbsp;
+                              <strong>Esforço:</strong> {esforco_label} &nbsp;·&nbsp;
+                              <strong>Método:</strong> {metodo}
+                          </div>
+                          """, unsafe_allow_html=True)
 
-            # Gráfico 3: Custo contratado vs realizado
-            df_custo = df_comp.dropna(subset=["custo_contratado", "custo_final"])
-            if not df_custo.empty:
-                fig3 = go.Figure()
-                fig3.add_trace(go.Bar(
-                    name="Custo contratado",
-                    x=df_custo["nome_projeto"].tolist(),
-                    y=df_custo["custo_contratado"].tolist(),
-                    marker_color="#3b82f6"
-                ))
-                fig3.add_trace(go.Bar(
-                    name="Custo final realizado",
-                    x=df_custo["nome_projeto"].tolist(),
-                    y=df_custo["custo_final"].tolist(),
-                    marker_color="#ef4444"
-                ))
-                fig3.update_layout(
-                    title="Custo contratado vs. realizado",
-                    xaxis_title="Projeto", yaxis_title="R$",
-                    barmode="group", height=380, template="plotly_white"
-                )
-                st.plotly_chart(fig3, use_container_width=True)
-        else:
-            st.info("Instale plotly para ver os gráficos: pip install plotly")
+                          if HAS_PLOTLY:
+                              projetos_nomes = df_comp["nome_projeto"].tolist()
+                              prazos_reais   = df_comp["prazo_real_meses"].tolist()
 
-    # Exportar
-    st.markdown("---")
-    csv_proj = df_exib.drop(columns=["id"], errors="ignore").to_csv(index=False).encode("utf-8")
-    st.download_button("Exportar CSV", csv_proj, file_name="projetos_concluidos.csv", mime="text/csv")
+                              # Gráfico 1: Barras
+                              fig1 = go.Figure()
+                              fig1.add_trace(go.Bar(
+                                  x=projetos_nomes, y=prazos_reais, name="Prazo real",
+                                  marker_color=["#10b981" if t_min<=p<=t_max else "#ef4444"
+                                                for p in prazos_reais],
+                                  hovertemplate="<b>%{x}</b><br>Prazo real: %{y:.1f} m<extra></extra>"
+                              ))
+                              for y_val, dash, cor, label in [
+                                  (t_min,   "dash", "#3b82f6", f"Kerzner mín.: {t_min:.1f}m"),
+                                  (t_max,   "dash", "#f59e0b", f"Kerzner máx.: {t_max:.1f}m"),
+                                  (t_medio, "dot",  "#8b5cf6", f"Kerzner médio: {t_medio:.1f}m"),
+                              ]:
+                                  fig1.add_hline(y=y_val, line_dash=dash, line_color=cor,
+                                                 annotation_text=label,
+                                                 annotation_position="top right")
+                              fig1.update_layout(
+                                  title=f"Prazo real por projeto - {subtema_comp}",
+                                  xaxis_title="Projeto", yaxis_title="Meses",
+                                  height=380, template="plotly_white", showlegend=False)
+                              st.plotly_chart(fig1, use_container_width=True)
+                              _figs_export = [fig1]
+
+                              # Gráfico 2: Temporal
+                              df_comp_ord = df_comp.sort_values("data_conclusao")
+                              if not df_comp_ord["data_conclusao"].isna().all():
+                                  fig2 = go.Figure()
+                                  fig2.add_trace(go.Scatter(
+                                      x=df_comp_ord["data_conclusao"].astype(str).tolist(),
+                                      y=df_comp_ord["prazo_real_meses"].tolist(),
+                                      mode="markers+lines",
+                                      marker=dict(size=10, color="#2563eb"),
+                                      line=dict(color="#93c5fd", width=1, dash="dot"),
+                                      text=df_comp_ord["nome_projeto"].tolist(),
+                                      hovertemplate="<b>%{text}</b><br>Conclusão: %{x}<br>Prazo: %{y:.1f} m<extra></extra>",
+                                      name="Prazo real"
+                                  ))
+                                  fig2.add_hrect(y0=t_min, y1=t_max, fillcolor="#3b82f6",
+                                                 opacity=0.08,
+                                                 annotation_text=f"Intervalo Kerzner ({t_min:.1f}-{t_max:.1f}m)",
+                                                 annotation_position="top right")
+                                  fig2.update_layout(
+                                      title="Evolução do prazo ao longo do tempo",
+                                      xaxis_title="Data de conclusão", yaxis_title="Meses",
+                                      height=320, template="plotly_white")
+                                  st.plotly_chart(fig2, use_container_width=True)
+                                  _figs_export.append(fig2)
+                              else:
+                                  _figs_export.append(None)
+
+                              # Gráfico 3: Custo
+                              df_custo = df_comp.dropna(subset=["custo_contratado","custo_final"])
+                              if not df_custo.empty:
+                                  fig3 = go.Figure()
+                                  fig3.add_trace(go.Bar(name="Contratado",
+                                      x=df_custo["nome_projeto"].tolist(),
+                                      y=df_custo["custo_contratado"].tolist(),
+                                      marker_color="#3b82f6"))
+                                  fig3.add_trace(go.Bar(name="Realizado",
+                                      x=df_custo["nome_projeto"].tolist(),
+                                      y=df_custo["custo_final"].tolist(),
+                                      marker_color="#ef4444"))
+                                  fig3.update_layout(
+                                      title="Custo contratado vs. realizado",
+                                      xaxis_title="Projeto", yaxis_title="R$",
+                                      barmode="group", height=340, template="plotly_white")
+                                  st.plotly_chart(fig3, use_container_width=True)
+                                  _figs_export.append(fig3)
+                              else:
+                                  _figs_export.append(None)
+
+                              # Exportação ZIP
+                              st.markdown("---")
+                              from datetime import datetime as _dt_exp
+                              try:
+                                  zip_bytes, xlsx_only = exportar_projetos_excel(
+                                      df_tabela=df_show if 'df_show' in dir() else df_comp,
+                                      df_comp=df_comp, figs=_figs_export,
+                                      subtema_comp=subtema_comp,
+                                      t_min=t_min, t_max=t_max,
+                                      esforco_label=esforco_label)
+                                  ex1, ex2 = st.columns(2)
+                                  with ex1:
+                                      st.download_button(
+                                          "Exportar Excel + Gráficos (ZIP)", data=zip_bytes,
+                                          file_name=f"analise_kerzner_{_dt_exp.now().strftime('%Y-%m-%d')}.zip",
+                                          mime="application/zip", use_container_width=True)
+                                  with ex2:
+                                      st.download_button(
+                                          "Exportar Excel (somente dados)", data=xlsx_only,
+                                          file_name=f"analise_kerzner_{_dt_exp.now().strftime('%Y-%m-%d')}.xlsx",
+                                          mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                          use_container_width=True)
+                              except Exception as _ex:
+                                  logger.error("Erro ao exportar: %s", _ex)
+
+      # =========================================================
+      # ABA: GERENCIAR (ADMIN / PMO)
+    # =========================================================
+    if tab_gerenciar:
+        with tab_gerenciar:
+            sub_import, sub_manual, sub_excluir = st.tabs([
+                "Importar planilha", "Cadastrar manualmente", "Excluir projeto"
+            ])
+
+            # ── Sub-aba: Importar ──
+            with sub_import:
+                st.caption("Envie a Planilha Modelo preenchida pelas áreas para importar em lote.")
+                col_dl_pc, _ = st.columns([1, 3])
+                with col_dl_pc:
+                    try:
+                        st.download_button(
+                            label="⬇️ Baixar planilha modelo",
+                            data=gerar_modelo_projetos(),
+                            file_name="Modelo_Projetos_Concluidos.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            key="dl_modelo_projetos",
+                        )
+                    except Exception as _e:
+                        logger.error("Erro ao gerar modelo projetos: %s", _e)
+                arquivo_pc = st.file_uploader("Selecione a planilha",
+                                              type=["xlsx","xls"], key="pc_upload")
+                # Lê bytes imediatamente para evitar race condition de SessionInfo no Streamlit Cloud
+                _bytes_pc = arquivo_pc.read() if arquivo_pc is not None else None
+                if _bytes_pc is not None:
+                    st.success(f"Arquivo carregado: {arquivo_pc.name}")
+                    if st.button("Importar projetos", type="primary",
+                                 key="pc_importar", use_container_width=True):
+                        with st.spinner("Importando projetos — aguarde..."):
+                            try:
+                                n = processar_upload_projetos_concluidos(BytesIO(_bytes_pc))
+                                try:
+                                    registrar_upload_historico("projetos", n, st.session_state.usuario)
+                                except Exception:
+                                    pass
+                                st.success(f"{n} projeto(s) importado(s) com sucesso!")
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as e:
+                                logger.error("Erro ao importar projetos: %s", e)
+                                st.error("Erro ao importar. Verifique o formato e tente novamente.")
+
+            # ── Sub-aba: Cadastrar manualmente ──
+            with sub_manual:
+                temas_disp = []  # texto livre — não precisa carregar lista
+                pc1, pc2 = st.columns(2)
+                with pc1:
+                    tema_proj = st.text_input("Tema",
+                        placeholder="Ex: Infraestrutura Urbana e Industrial",
+                        key="pc_form_tema")
+                with pc2:
+                    subtema_proj = st.text_input("Subtema",
+                        placeholder="Ex: Edificação",
+                        key="pc_form_subtema")
+
+                with st.form("form_proj_concluido", clear_on_submit=True):
+                    st.markdown("""
+                    <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;
+                                text-transform:uppercase;color:#64748b;
+                                border-bottom:1px solid #e2e8f0;padding-bottom:6px;
+                                margin-bottom:12px;">Identificação</div>
+                    """, unsafe_allow_html=True)
+                    c1, c2, c3 = st.columns(3)
+                    with c1:
+                        nome_proj = st.text_input("Nome do projeto *")
+                        pais_proj = st.text_input("País", value="Brasil")
+                    with c2:
+                        estado_proj    = st.text_input("Estado")
+                        municipio_proj = st.text_input("Município")
+                    with c3:
+                        data_inicio_proj    = st.date_input("Data de início",
+                                                             value=None, format="DD/MM/YYYY")
+                        data_conclusao_proj = st.date_input("Data de conclusão",
+                                                             value=None, format="DD/MM/YYYY")
+
+                    st.markdown("""
+                    <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;
+                                text-transform:uppercase;color:#64748b;
+                                border-bottom:1px solid #e2e8f0;padding-bottom:6px;
+                                margin-bottom:12px;margin-top:8px;">Parâmetros</div>
+                    """, unsafe_allow_html=True)
+                    p1, p2, p3, p4 = st.columns(4)
+                    with p1:
+                        esforco_proj  = st.text_input("1º Parâmetro")
+                    with p2:
+                        unidade_proj  = st.text_input("Unidade", placeholder="km, m², unid...")
+                    with p3:
+                        esforco2_proj = st.text_input("2º Parâmetro")
+                    with p4:
+                        unidade2_proj = st.text_input("Unidade 2", placeholder="km, m², unid...")
+
+                    st.markdown("""
+                    <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;
+                                text-transform:uppercase;color:#64748b;
+                                border-bottom:1px solid #e2e8f0;padding-bottom:6px;
+                                margin-bottom:12px;margin-top:8px;">Custos</div>
+                    """, unsafe_allow_html=True)
+                    cc1, cc2 = st.columns(2)
+                    with cc1:
+                        custo_contratado_proj = st.number_input(
+                            "Custo da Execução (R$)", min_value=0.0, step=1000.0, format="%.2f")
+                    with cc2:
+                        custo_final_proj = st.number_input(
+                            "Custo final realizado (R$)", min_value=0.0, step=1000.0, format="%.2f")
+                    obs_proj = st.text_area("Observações", height=70)
+                    salvar   = st.form_submit_button("Salvar projeto", type="primary",
+                                                     use_container_width=True)
+
+                if salvar:
+                    if not nome_proj.strip():
+                        st.warning("Informe o nome do projeto.")
+                    else:
+                        proj_id, prazo_real = inserir_projeto_concluido(
+                            nome=nome_proj.strip(), tema=tema_proj or None,
+                            subtema=subtema_proj or None,
+                            pais=pais_proj.strip() or None,
+                            estado=estado_proj or None,
+                            municipio=municipio_proj or None,
+                            data_inicio=data_inicio_proj,
+                            data_conclusao=data_conclusao_proj,
+                            custo_contratado=custo_contratado_proj or None,
+                            custo_final=custo_final_proj or None,
+                            observacoes=obs_proj or None,
+                            criado_por=st.session_state.usuario,
+                            esforco=esforco_proj.strip() or None,
+                            unidade=unidade_proj.strip() or None,
+                            esforco2=esforco2_proj.strip() or None,
+                            unidade2=unidade2_proj.strip() or None,
+                        )
+                        prazo_msg = (f" Prazo real: **{prazo_real:.1f} meses**."
+                                     if prazo_real else "")
+                        st.success(f"Projeto registrado!{prazo_msg}")
+                        st.cache_data.clear()
+                        st.rerun()
+
+            # ── Sub-aba: Excluir ──
+            with sub_excluir:
+                if df_proj.empty:
+                    st.info("Nenhum projeto cadastrado.")
+                else:
+                    proj_id_del = st.selectbox(
+                        "Selecione o projeto a excluir",
+                        df_proj["id"].tolist(),
+                        format_func=lambda x: (
+                            f"{x} - "
+                            f"{df_proj.loc[df_proj['id']==x,'nome_projeto'].values[0]}"
+                        )
+                    )
+                    nome_del = df_proj.loc[
+                        df_proj["id"]==proj_id_del, "nome_projeto"].values[0]
+                    st.markdown(f"""
+                    <div style="background:#fff5f5;border:1px solid #fecaca;
+                                border-radius:10px;padding:14px 16px;margin:12px 0;">
+                        <div style="font-weight:600;color:#991b1b;margin-bottom:4px;">
+                            Atenção - ação irreversível
+                        </div>
+                        <div style="color:#7f1d1d;font-size:0.85rem;">
+                            O projeto <strong>{nome_del}</strong> será excluído permanentemente.
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    confirmar = st.checkbox("Confirmo que desejo excluir este projeto")
+                    if st.button("Excluir projeto", type="primary",
+                                 disabled=not confirmar, use_container_width=False):
+                        excluir_projeto_concluido(proj_id_del)
+                        st.cache_data.clear()
+                        st.success("Projeto excluído.")
+                        st.rerun()
+
 
 
 # =========================================================
@@ -3577,7 +5964,7 @@ def exportar_analise_excel(data: dict) -> bytes:
 
     wb=openpyxl.Workbook()
 
-    # ─── ABA 1: Resumo ───────────────────────────────────
+    #  ABA 1: Resumo
     ws1=wb.active; ws1.title="Resumo da Análise"
     ws1.sheet_view.showGridLines=False
     cols_w(ws1,{1:34,2:30})
@@ -3620,7 +6007,7 @@ def exportar_analise_excel(data: dict) -> bytes:
     for label,value in [
         ("Pearson (Linear)",f"{pearson:.4f}"),("Spearman (Não-linear)",f"{spearman:.4f}"),
         ("Correlação Dominante","Logarítmica (Spearman)" if abs(spearman)>abs(pearson) else "Linear (Pearson)"),
-        ("Status da Correlação",f"{'FORTE (≥ 0,6) — usando regressão' if corr_forte else 'FRACA (< 0,6) — usando histórico'}"),
+        ("Status da Correlação",f"{'FORTE (≥ 0,6) - usando regressão' if corr_forte else 'FRACA (< 0,6) - usando histórico'}"),
         ("Tipo de Regressão Utilizado",data.get("reg_type_display","Automático")),
     ]:
         val(ws1,r,1,label,bold=True,color=DGRAY,bg=LGRAY); val(ws1,r,2,value); r+=1
@@ -3648,7 +6035,7 @@ def exportar_analise_excel(data: dict) -> bytes:
     if alerts:
         r+=1
         ws1.merge_cells(start_row=r,start_column=1,end_row=r,end_column=2)
-        c=ws1.cell(r,1,"ALERTA: ESTIMATIVA FORA DO INTERVALO HISTÓRICO")
+        c=ws1.cell(r,1," ALERTA: ESTIMATIVA FORA DO INTERVALO HISTÓRICO")
         c.font=Font(name="Arial",bold=True,size=10,color=WHITE)
         c.fill=PatternFill("solid",fgColor="FFDC2626")
         c.alignment=Alignment(horizontal="left",vertical="center")
@@ -3660,7 +6047,7 @@ def exportar_analise_excel(data: dict) -> bytes:
             c.fill=PatternFill("solid",fgColor="FFFFF1F1")
             c.alignment=Alignment(wrap_text=True); r+=1
 
-    # ─── ABA 2: Cronograma ───────────────────────────────
+    #  ABA 2: Cronograma
     ws2=wb.create_sheet("Cronograma Kerzner")
     ws2.sheet_view.showGridLines=False
     cols_w(ws2,{1:30,2:22,3:22,4:22})
@@ -3676,8 +6063,8 @@ def exportar_analise_excel(data: dict) -> bytes:
     for label,value in [
         ("Metodologia","Kerzner (2009)"),("Encerramento",enc_desc),
         ("Método de Cálculo",f"Regressão ({reg_label})" if corr_forte else "Valores históricos"),
-        ("Equação utilizada",reg.get("eq","—") if reg else "—"),
-        ("R²",f"{reg.get('r2',0):.4f}" if reg else "—"),
+        ("Equação utilizada",reg.get("eq","-") if reg else "-"),
+        ("R²",f"{reg.get('r2',0):.4f}" if reg else "-"),
     ]:
         val(ws2,r,1,label,bold=True,color=DGRAY,bg=LGRAY)
         ws2.merge_cells(start_row=r,start_column=2,end_row=r,end_column=4)
@@ -3724,7 +6111,7 @@ def exportar_analise_excel(data: dict) -> bytes:
         val(ws2,r,4,f"{total_max*pct:.4f}",align="center",bg=bg); r+=1
     borders(ws2,r-4,r-1,1,4)
 
-    # ─── ABA 3: Estatísticas ─────────────────────────────
+    #  ABA 3: Estatísticas
     ws3=wb.create_sheet("Estatísticas")
     ws3.sheet_view.showGridLines=False
     cols_w(ws3,{1:28,2:18,3:18})
@@ -3764,7 +6151,7 @@ def exportar_analise_excel(data: dict) -> bytes:
     val(ws3,r,3,forca(spearman),align="center"); r+=1
     borders(ws3,r-2,r-1,1,3)
 
-    # ─── ABA 4: Projetos ─────────────────────────────────
+    #  ABA 4: Projetos
     ws4=wb.create_sheet("Projetos")
     ws4.sheet_view.showGridLines=False
     cols_w(ws4,{1:55,2:10,3:16,4:12,5:12,6:14,7:14,8:16})
@@ -3887,7 +6274,7 @@ from datetime import datetime
 from io import BytesIO
 
 
-# ── Paleta de cores FGV ──────────────────────────────────────────
+#  Paleta de cores FGV
 C_NAVY   = "0B1F3A"   # cabeçalhos principais
 C_BLUE   = "1A3F6F"   # cabeçalhos de seção
 C_MID    = "1E5799"   # cabeçalhos de tabela
@@ -3957,7 +6344,7 @@ def gerar_relatorio_excel(
         if a >= 0.3: return "Fraca"
         return "Muito fraca"
 
-    # ── ABA 1: Resumo da Análise ─────────────────────────────────
+    #  ABA 1: Resumo da Análise
     ws1 = wb.active
     ws1.title = "Resumo da Análise"
     ws1.column_dimensions["A"].width = 38
@@ -3978,13 +6365,13 @@ def gerar_relatorio_excel(
 
     ws1.row_dimensions[10].height = 6
     _section(ws1, 11, "CORRELAÇÃO", 2)
-    _kv(ws1, 12, "Pearson (Linear)", f"{pearson:.4f}  —  {corr_forca(pearson)}")
-    _kv(ws1, 13, "Spearman (Não-linear)", f"{spearman:.4f}  —  {corr_forca(spearman)}")
+    _kv(ws1, 12, "Pearson (Linear)", f"{pearson:.4f}  -  {corr_forca(pearson)}")
+    _kv(ws1, 13, "Spearman (Não-linear)", f"{spearman:.4f}  -  {corr_forca(spearman)}")
     dom = "Linear (Pearson)" if abs(pearson) >= abs(spearman) else "Logarítmica (Spearman)"
     _kv(ws1, 14, "Correlação Dominante", dom)
-    status_corr = f"FORTE (≥ 0,6) — usando regressão" if corr_forte else f"FRACA (< 0,6) — usando histórico"
+    status_corr = f"FORTE (≥ 0,6) - usando regressão" if corr_forte else f"FRACA (< 0,6) - usando histórico"
     _kv(ws1, 15, "Status da Correlação", status_corr)
-    _kv(ws1, 16, "Tipo de Regressão Utilizado", reg_type_label if reg else "—")
+    _kv(ws1, 16, "Tipo de Regressão Utilizado", reg_type_label if reg else "-")
 
     row = 17
     if reg and corr_forte:
@@ -4003,7 +6390,7 @@ def gerar_relatorio_excel(
     _kv(ws1, row, "Prazo Mínimo Histórico de Execução (meses)", f"{hist_exec_min:.2f}"); row += 1
     _kv(ws1, row, "Prazo Máximo Histórico de Execução (meses)", f"{hist_exec_max:.2f}"); row += 1
 
-    # Alertas — só execução
+    # Alertas - só execução
     alerts = []
     if exec_min > hist_exec_max:
         alerts.append(f"Prazo mínimo de execução estimado ({exec_min:.2f} m) ACIMA do máximo histórico ({hist_exec_max:.2f} m)")
@@ -4012,7 +6399,7 @@ def gerar_relatorio_excel(
 
     if alerts:
         ws1.row_dimensions[row].height = 6; row += 1
-        c = ws1.cell(row=row, column=1, value="ALERTA: ESTIMATIVA DE EXECUÇÃO FORA DO INTERVALO HISTÓRICO")
+        c = ws1.cell(row=row, column=1, value=" ALERTA: ESTIMATIVA DE EXECUÇÃO FORA DO INTERVALO HISTÓRICO")
         c.font = _ft(bold=True, color="92400E", size=10)
         c.fill = _fill(C_WARN)
         c.alignment = _align()
@@ -4024,7 +6411,7 @@ def gerar_relatorio_excel(
             ac.fill = _fill(C_WARN)
             row += 1
 
-    # ── ABA 2: Cronograma Kerzner ─────────────────────────────────
+    #  ABA 2: Cronograma Kerzner
     ws2 = wb.create_sheet("Cronograma Kerzner")
     for col, w in enumerate([28, 28, 22, 22], 1):
         ws2.column_dimensions[get_column_letter(col)].width = w
@@ -4097,7 +6484,7 @@ def gerar_relatorio_excel(
             c.alignment = _align("center" if col > 1 else "left")
         r += 1
 
-    # ── ABA 3: Estatísticas ───────────────────────────────────────
+    #  ABA 3: Estatísticas
     ws3 = wb.create_sheet("Estatísticas")
     for col, w in enumerate([30, 20, 20], 1):
         ws3.column_dimensions[get_column_letter(col)].width = w
@@ -4149,7 +6536,7 @@ def gerar_relatorio_excel(
             c.alignment = _align("center" if col > 1 else "left")
         r3 += 1
 
-    # ── ABA 4: Projetos ───────────────────────────────────────────
+    #  ABA 4: Projetos
     ws4 = wb.create_sheet("Projetos")
     ws4.column_dimensions["A"].width = 55
     for col, w in enumerate([14, 18, 12, 12, 18, 18, 16], 2):
@@ -4185,9 +6572,9 @@ def gerar_relatorio_excel(
             bg = C_NORM if row4 % 2 == 0 else C_WHITE
 
         vals = [
-            str(proj.get("nome_edital") or "—"),
-            str(proj.get("pais") or "—"),
-            str(proj.get("estado") or "—"),
+            str(proj.get("nome_edital") or "-"),
+            str(proj.get("pais") or "-"),
+            str(proj.get("estado") or "-"),
             str(proj.get("tipo_edital") or "Esforço"),
             proj.get("esforco") or 0,
             abs(proj.get("prazo_meses") or 0),
@@ -4208,7 +6595,7 @@ def gerar_relatorio_excel(
     c.font = _ft(bold=True, color="1A3F6F", size=10)
     ws4.merge_cells(start_row=row4, start_column=1, end_row=row4, end_column=8)
 
-    # ── Salvar ────────────────────────────────────────────────────
+    #  Salvar
     buf = BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -4219,7 +6606,6 @@ def pagina_analise_prazos():
     import math
 
     header_principal()
-    st.markdown("## Análise de Prazos por Tema")
 
     df_edit = carregar_view()
     if df_edit.empty:
@@ -4230,7 +6616,8 @@ def pagina_analise_prazos():
         if col in df_edit.columns:
             df_edit[col] = pd.to_numeric(df_edit[col], errors="coerce")
 
-    # ── Filtros ──
+    # Filtros
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
     cf1, cf2, cf3, cf4 = st.columns(4)
     with cf1:
         temas = sorted(df_edit["tema"].dropna().unique().tolist())
@@ -4238,9 +6625,11 @@ def pagina_analise_prazos():
     df_filt = df_edit if tema_sel == "Todos" else df_edit[df_edit["tema"] == tema_sel]
     with cf2:
         subtemas = sorted(df_filt["subtema"].dropna().unique().tolist())
-        subtema_sel = st.selectbox("Subtema (opcional)", ["Todos"] + subtemas, key="ap_subtema")
+        subtema_sel = st.selectbox("Subtema (opcional)",
+                                   ["Todos"] + subtemas, key="ap_subtema")
     if tema_sel == "Todos" and subtema_sel == "Todos":
         st.info("Selecione ao menos um Tema ou Subtema para iniciar a análise.")
+        st.markdown('</div>', unsafe_allow_html=True)
         return
     if subtema_sel != "Todos":
         df_tema = df_filt[df_filt["subtema"] == subtema_sel].copy()
@@ -4256,8 +6645,9 @@ def pagina_analise_prazos():
         estado_sel = st.selectbox("Estado", ["Todos"] + estados, key="ap_estado")
     if estado_sel != "Todos":
         df_tema = df_tema[df_tema["estado"] == estado_sel]
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Exclusões ──
+    #  Exclusões
     label_analise = subtema_sel if subtema_sel != "Todos" else tema_sel
     excluir_key = f"excluir_{label_analise}_{pais_sel}_{estado_sel}"
     if excluir_key not in st.session_state:
@@ -4273,7 +6663,7 @@ def pagina_analise_prazos():
     df_valido = df_valido[(df_valido["prazo_meses"] > 0) & (df_valido["esforco"] > 0)]
     is_san = "SAN-" in subtema_sel.upper() or (subtema_sel == "Todos" and "SAN-" in tema_sel.upper())
 
-    # ── Estatísticas ──
+    #  Estatísticas
     def stats(vals):
         if not vals: return {}
         s = sorted(vals)
@@ -4293,7 +6683,7 @@ def pagina_analise_prazos():
     st_prazos = stats(prazos)
     st_esforcos = stats(esforcos)
 
-    # ── Correlações ──
+    #  Correlações
     pearson, spearman = 0.0, 0.0
     reg_linear, reg_log = None, None
 
@@ -4309,10 +6699,10 @@ def pagina_analise_prazos():
     max_corr = max(abs(pearson), abs(spearman))
     corr_forte = max_corr >= 0.6
 
-    # ── Seletor de Tipo de Regressão ──
+    #  Seletor de Tipo de Regressão
     reg_type_sel = "auto"
     if corr_forte and reg_linear and reg_log:
-        st.markdown("### Tipo de Regressão")
+        st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;margin-bottom:8px;">Tipo de Regressão</div>', unsafe_allow_html=True)
         auto_label = f"Automático ({'Linear' if abs(pearson) >= abs(spearman) else 'Logarítmica'})"
         opcoes_reg = {
             "auto": auto_label,
@@ -4328,7 +6718,7 @@ def pagina_analise_prazos():
                     st.rerun()
         reg_type_sel = st.session_state.get("reg_type_ap", "auto")
 
-    # ── Determina regressão ativa ──
+    #  Determina regressão ativa
     reg = None
     reg_type_label = ""
     if corr_forte and reg_linear and reg_log:
@@ -4342,13 +6732,14 @@ def pagina_analise_prazos():
         else:
             reg = reg_log; reg_type_label = "Logarítmica"
 
-    # ── Status correlação ──
+    # Status correlação
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
     if corr_forte:
-        st.success(f"Correlação forte detectada! Máxima: {max_corr:.2f} (≥ 0,6) — Regressão **{reg_type_label}** será usada.")
+        st.success(f"Correlação forte detectada - máxima: {max_corr:.2f} (≥ 0,6). Regressão **{reg_type_label}** será usada.")
     else:
         st.warning(f"Correlação fraca ({max_corr:.2f} < 0,6). Serão usados os valores históricos mínimos e máximos.")
 
-    # ── Gráfico dispersão ──
+    # Gráfico dispersão
     if len(df_valido) >= 2:
         try:
             import plotly.graph_objects as go
@@ -4361,7 +6752,7 @@ def pagina_analise_prazos():
                 hovertemplate="<b>%{text}</b><br>Esforço: %{x}<br>Prazo: %{y:.1f} meses<extra></extra>",
                 name="Projetos"
             ))
-            title = f"Esforço vs Duração — {subtema_sel}"
+            title = f"Esforço vs Duração - {subtema_sel}"
             if reg and corr_forte:
                 xs_s = sorted(df_valido["esforco"].tolist())
                 ys_r = [reg["predict"](x) for x in xs_s]
@@ -4382,8 +6773,7 @@ def pagina_analise_prazos():
         except ImportError:
             st.info("Instale plotly: pip install plotly")
 
-    # ── Análise de Correlação ──
-    st.markdown("### Análise de Correlação")
+    st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin:16px 0 12px;">Correlação</div>', unsafe_allow_html=True)
     cc1, cc2 = st.columns(2)
     def corr_badge(val):
         a = abs(val)
@@ -4396,7 +6786,7 @@ def pagina_analise_prazos():
 
     with cc1:
         em_uso_p = reg and reg.get("type") == "linear"
-        badge_uso = ' <span style="background:#2563eb;color:#fff;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">Em uso</span>' if em_uso_p else ''
+        badge_uso = ' <span style="background:#2563eb;color:#fff;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;"> Em uso</span>' if em_uso_p else ''
         st.markdown(f"""
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -4410,7 +6800,7 @@ def pagina_analise_prazos():
 
     with cc2:
         em_uso_s = reg and reg.get("type") == "logaritmica"
-        badge_uso_s = ' <span style="background:#2563eb;color:#fff;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">Em uso</span>' if em_uso_s else ''
+        badge_uso_s = ' <span style="background:#2563eb;color:#fff;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;"> Em uso</span>' if em_uso_s else ''
         st.markdown(f"""
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -4431,9 +6821,10 @@ def pagina_analise_prazos():
             <div style="font-family:monospace;color:#1d4ed8;font-size:13px;">R² = {reg['r2']:.4f} &nbsp;&nbsp; 1 - R² = {1-reg['r2']:.4f}</div>
         </div>
         """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Estatísticas ──
-    st.markdown("### Estatísticas")
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:12px;">Estatísticas</div>', unsafe_allow_html=True)
     sc1, sc2 = st.columns(2)
     def stat_table(data):
         return pd.DataFrame(list(data.items()), columns=["Métrica", "Valor"])
@@ -4456,10 +6847,13 @@ def pagina_analise_prazos():
                 "Mínimo histórico": f"{st_esforcos['min']:.2f}", "Máximo histórico": f"{st_esforcos['max']:.2f}",
             }), hide_index=True, use_container_width=True)
 
-    # ── Calculadora Kerzner ──
-    st.markdown("### Calculadora de Prazos (Metodologia Kerzner)")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Calculadora Kerzner
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:12px;">Calculadora de Prazos - Metodologia Kerzner</div>', unsafe_allow_html=True)
     if is_san:
-        st.info("Tema SAN — Encerramento = 10% da execução.")
+        st.info("Tema SAN - Encerramento = 10% da execução.")
 
     esforco_input = 0.0
     if corr_forte and reg:
@@ -4515,10 +6909,10 @@ def pagina_analise_prazos():
 
         st.markdown("#### Cronograma Completo do Projeto")
         fases = [
-            ("Planejamento", "50% do projeto total", plan_min, plan_max, "#f59e0b"),
-            ("Execução", "40% do projeto total", exec_min, exec_max, "#3b82f6"),
-            ("Encerramento", enc_desc, enc_min, enc_max, "#10b981"),
-            ("Total", "Projeto completo", total_min, total_max, "#8b5cf6"),
+            ("🟡 Planejamento", "50% do projeto total", plan_min, plan_max, "#f59e0b"),
+            (" Execução", "40% do projeto total", exec_min, exec_max, "#3b82f6"),
+            (f"🟢 Encerramento", enc_desc, enc_min, enc_max, "#10b981"),
+            ("🟣 Total", "Projeto completo", total_min, total_max, "#8b5cf6"),
         ]
         k1, k2, k3, k4 = st.columns(4)
         for col, (titulo, desc, vmin, vmax, cor) in zip([k1,k2,k3,k4], fases):
@@ -4534,14 +6928,14 @@ def pagina_analise_prazos():
                 </div>
                 """, unsafe_allow_html=True)
 
-        # Alerta — só quando execução estimada > máximo histórico de execução
+        # Alerta - só quando execução estimada > máximo histórico de execução
         alerts = []
         if exec_min > hist_exec_max:
             alerts.append(f"Prazo mínimo de execução estimado ({exec_min:.1f} m) está **acima** do máximo histórico observado ({hist_exec_max:.1f} m)")
         if exec_max > hist_exec_max:
             alerts.append(f"Prazo máximo de execução estimado ({exec_max:.1f} m) está **acima** do máximo histórico observado ({hist_exec_max:.1f} m)")
         if alerts:
-            st.warning("**Atenção: estimativa de execução fora do intervalo histórico**\n\n" + "\n\n".join(alerts) +
+            st.warning(" **Atenção: estimativa de execução fora do intervalo histórico**\n\n" + "\n\n".join(alerts) +
                       f"\n\nIntervalo histórico de execução: **{hist_exec_min:.1f}** a **{hist_exec_max:.1f}** meses. Use os valores com cautela.")
 
         # Cronograma visual
@@ -4559,7 +6953,7 @@ def pagina_analise_prazos():
         ]:
             if total > 0:
                 pp = pv/total*100; ep = ev/total*100; cp = cv/total*100
-                st.markdown(f"**{label}** — {total:.2f} meses")
+                st.markdown(f"**{label}** - {total:.2f} meses")
                 st.markdown(f"""
                 <div style="display:flex;height:28px;border-radius:8px;overflow:hidden;margin-bottom:4px;">
                     <div style="width:{pp:.1f}%;background:#f59e0b;"></div>
@@ -4584,9 +6978,11 @@ def pagina_analise_prazos():
             </div>
         </div>
         """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Classificação dos projetos ──
-    st.markdown("### Classificação dos Projetos")
+    # Classificação dos projetos
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:12px;">Projetos incluídos na análise</div>', unsafe_allow_html=True)
 
     def classificar(prazo, excluido):
         if excluido: return "Excluído"
@@ -4608,7 +7004,7 @@ def pagina_analise_prazos():
     rc3.metric("Outlier Baixo", n_low)
     rc4.metric("Outlier Alto", n_high)
 
-    st.markdown("**Marque projetos para excluir da análise:**")
+    st.caption("Marque os projetos que deseja excluir da análise estatística.")
     hc = st.columns([0.5, 3, 1.5, 1.5, 1, 1, 1.5])
     for col, label in zip(hc, ["", "Nome", "País", "Estado", "Esforço", "Prazo (m)", "Classificação"]):
         col.markdown(f"**{label}**")
@@ -4630,7 +7026,10 @@ def pagina_analise_prazos():
         cols[5].write(f"{abs(row.get('prazo_meses') or 0):.1f}")
         cols[6].write(row["Classificação"])
 
-    st.markdown("---")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Exportação
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
     with st.container():
         kr_res = st.session_state.get("kerzner_result", {})
         export_data = {
@@ -4655,11 +7054,12 @@ def pagina_analise_prazos():
         try:
             xlsx_bytes = exportar_analise_excel(export_data)
             fname = f"Relatorio_Analise_{subtema_sel.replace(' ','_')}_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
-            st.download_button("Exportar Relatório Excel", xlsx_bytes, file_name=fname,
+            st.download_button(" Exportar Relatório Excel", xlsx_bytes, file_name=fname,
                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                use_container_width=True)
         except Exception as ex:
             st.error(f"Erro ao gerar Excel: {ex}")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # =========================================================
@@ -4678,7 +7078,9 @@ def main():
 
     menu_sidebar()
 
-    if st.session_state.menu == "Base de Prazos":
+    if st.session_state.menu == "Dashboard":
+        pagina_dashboard()
+    elif st.session_state.menu == "Base de Prazos":
         pagina_consulta()
     elif st.session_state.menu == "Análise de Prazos":
         pagina_analise_prazos()
