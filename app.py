@@ -1,4 +1,5 @@
 import os
+import re
 import hashlib
 import hmac
 import logging
@@ -2720,8 +2721,31 @@ def pagina_consulta():
     if col_data:  df[col_data]  = pd.to_datetime(df[col_data], errors="coerce")
 
     def opcoes(df_base, col):
-        if not col: return ["Todos"]
-        return ["Todos"] + sorted(df_base[col].dropna().replace("", pd.NA).dropna().unique().tolist())
+        """Retorna lista de valores únicos para o selectbox.
+        Para colunas de estado/município, expande valores separados por ';'
+        para listar cada estado/município individualmente."""
+        if not col:
+            return ["Todos"]
+        vals = df_base[col].dropna().replace("", pd.NA).dropna().astype(str)
+        # Expande valores múltiplos separados por ";"
+        expandido = set()
+        for v in vals:
+            for parte in v.split(";"):
+                parte = parte.strip()
+                if parte:
+                    expandido.add(parte)
+        return ["Todos"] + sorted(expandido)
+
+    def filtrar_col(df_base, col, valor):
+        """Filtra DataFrame por coluna, suportando valores múltiplos separados por ';'."""
+        if not col or valor == "Todos":
+            return df_base
+        return df_base[
+            df_base[col].astype(str).str.contains(
+                r'(?:^|;\s*)' + re.escape(valor) + r'(?:\s*;|$)',
+                case=False, na=False, regex=True
+            )
+        ]
 
     # ── Filtros principais ──
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
@@ -2738,12 +2762,10 @@ def pagina_consulta():
         filtrado = filtrado[filtrado[col_subtema] == subtema]
     with f3:
         estado = st.selectbox("Estado", opcoes(filtrado, col_estado))
-    if col_estado and estado != "Todos":
-        filtrado = filtrado[filtrado[col_estado] == estado]
+    filtrado = filtrar_col(filtrado, col_estado, estado)
     with f4:
         municipio = st.selectbox("Município", opcoes(filtrado, col_municipio))
-    if col_municipio and municipio != "Todos":
-        filtrado = filtrado[filtrado[col_municipio] == municipio]
+    filtrado = filtrar_col(filtrado, col_municipio, municipio)
 
     busca = st.text_input("Busca textual", placeholder="Nome, descrição, código...",
                           label_visibility="collapsed")
@@ -2774,8 +2796,18 @@ def pagina_consulta():
 
     # ── Métricas ──
     total_registros = len(filtrado)
-    total_temas     = filtrado[col_tema].nunique()   if col_tema   else 0
-    total_estados   = filtrado[col_estado].nunique() if col_estado else 0
+    total_temas     = filtrado[col_tema].nunique() if col_tema else 0
+    # Expande múltiplos estados separados por ";" para contar corretamente
+    if col_estado:
+        _estados_expandidos = set()
+        for v in filtrado[col_estado].dropna().astype(str):
+            for parte in v.split(";"):
+                parte = parte.strip()
+                if parte:
+                    _estados_expandidos.add(parte)
+        total_estados = len(_estados_expandidos)
+    else:
+        total_estados = 0
     custo_medio     = filtrado[col_custo].mean()     if col_custo and not filtrado.empty else 0
 
     m1, m2, m3, m4 = st.columns(4)
@@ -3395,26 +3427,29 @@ def pagina_base():
 
             arquivo = st.file_uploader("Selecione a planilha (Excel ou CSV)",
                                        type=["xlsx", "xls", "csv"], key="base_upload")
-            if arquivo is not None:
+            # Lê os bytes imediatamente para evitar race condition de SessionInfo no Streamlit Cloud
+            _bytes_base = arquivo.read() if arquivo is not None else None
+            if _bytes_base is not None:
+                _nome_arquivo_base = arquivo.name
                 # Preview antes de processar
                 try:
                     import pandas as _pd_prev
-                    xl = _pd_prev.ExcelFile(arquivo)
+                    _buf_prev = BytesIO(_bytes_base)
+                    xl = _pd_prev.ExcelFile(_buf_prev)
                     sheet = "Base" if "Base" in xl.sheet_names else xl.sheet_names[0]
-                    df_prev = _pd_prev.read_excel(arquivo, sheet_name=sheet, nrows=5)
-                    arquivo.seek(0)
+                    df_prev = _pd_prev.read_excel(BytesIO(_bytes_base), sheet_name=sheet, nrows=5)
                     n_cols = len(df_prev.columns)
                     st.markdown(f"""
                     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;
                                 padding:12px 16px;margin-bottom:12px;font-size:0.84rem;color:#166534;">
-                        <strong>{arquivo.name}</strong> detectado —
+                        <strong>{_nome_arquivo_base}</strong> detectado —
                         aba <em>{sheet}</em>, {n_cols} colunas identificadas.
                     </div>
                     """, unsafe_allow_html=True)
                     with st.expander("Ver primeiras linhas"):
                         st.dataframe(df_prev, use_container_width=True, hide_index=True)
                 except Exception:
-                    arquivo.seek(0)
+                    pass
 
                 if _modo_substituir:
                     confirmar_upload = st.checkbox(
@@ -3430,14 +3465,14 @@ def pagina_base():
                     with st.spinner("Processando planilha..."):
                         try:
                             if _modo_substituir:
-                                processar_upload_planilha(arquivo)
+                                processar_upload_planilha(BytesIO(_bytes_base))
                                 try:
-                                    registrar_upload_historico("base", len(pd.read_excel(arquivo)), st.session_state.usuario)
+                                    registrar_upload_historico("base", len(pd.read_excel(BytesIO(_bytes_base))), st.session_state.usuario)
                                 except Exception:
                                     pass
                                 st.success("Base substituída com sucesso!")
                             else:
-                                inseridos, ignorados = processar_upload_planilha_incremental(arquivo)
+                                inseridos, ignorados = processar_upload_planilha_incremental(BytesIO(_bytes_base))
                                 try:
                                     registrar_upload_historico("base", inseridos, st.session_state.usuario)
                                 except Exception:
@@ -3493,13 +3528,15 @@ def pagina_base():
 
             arquivo_ipca = st.file_uploader("Selecione o arquivo CSV do IPCA",
                                              type=["csv"], key="ipca_upload")
-            if arquivo_ipca is not None:
+            # Lê bytes imediatamente para evitar race condition de SessionInfo no Streamlit Cloud
+            _bytes_ipca = arquivo_ipca.read() if arquivo_ipca is not None else None
+            if _bytes_ipca is not None:
                 if st.button("Importar IPCA", type="primary",
                              use_container_width=True, key="ipca_importar"):
                     with st.spinner("Importando IPCA — processando serie historica..."):
                         try:
                             import csv, io
-                            conteudo = arquivo_ipca.read().decode("utf-8")
+                            conteudo = _bytes_ipca.decode("utf-8")
                             reader = csv.DictReader(io.StringIO(conteudo), delimiter=";")
                             conn_ipca = get_conn()
                             cur_ipca = conn_ipca.cursor()
@@ -5271,13 +5308,15 @@ def pagina_projetos_concluidos():
                         logger.error("Erro ao gerar modelo projetos: %s", _e)
                 arquivo_pc = st.file_uploader("Selecione a planilha",
                                               type=["xlsx","xls"], key="pc_upload")
-                if arquivo_pc is not None:
+                # Lê bytes imediatamente para evitar race condition de SessionInfo no Streamlit Cloud
+                _bytes_pc = arquivo_pc.read() if arquivo_pc is not None else None
+                if _bytes_pc is not None:
                     st.success(f"Arquivo carregado: {arquivo_pc.name}")
                     if st.button("Importar projetos", type="primary",
                                  key="pc_importar", use_container_width=True):
                         with st.spinner("Importando projetos — aguarde..."):
                             try:
-                                n = processar_upload_projetos_concluidos(arquivo_pc)
+                                n = processar_upload_projetos_concluidos(BytesIO(_bytes_pc))
                                 try:
                                     registrar_upload_historico("projetos", n, st.session_state.usuario)
                                 except Exception:
