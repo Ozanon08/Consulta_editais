@@ -4230,56 +4230,85 @@ def pagina_oportunidades():
                     'style="font-size:0.78rem;color:var(--ink-secondary);"'
                 )
 
+                # Cabeçalho resumido do expander
+                _label_exp = f"{tema_opp}  •  {orgao_opp}"
+                _label_exp = _label_exp[:110] + "…" if len(_label_exp) > 110 else _label_exp
+
+                # Cor de fundo do card via CSS injetado antes do expander
                 st.markdown(f"""
-                <div style="border:1px solid {card_border};border-radius:10px;
-                            padding:14px 16px;background:{card_bg};margin-bottom:8px;{card_opacity}">
-                  <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;">
-                    <div style="flex:1;min-width:200px;">
-                      <div style="font-weight:700;font-size:0.92rem;color:var(--ink-primary);
-                                  margin-bottom:4px;">
-                        {_h_opp.escape(tema_opp)}
-                      </div>
-                      <div style="font-size:0.8rem;color:var(--ink-secondary);margin-bottom:6px;">
-                        {_h_opp.escape(orgao_opp)}
-                      </div>
-                      <div style="font-size:0.78rem;color:var(--ink-muted);">
-                        {_h_opp.escape(escopo_opp[:180] + ("…" if len(escopo_opp)>180 else ""))}
-                      </div>
-                    </div>
-                    <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;
-                                min-width:180px;text-align:right;">
-                      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
-                        <span style="background:{bg_s};color:{fg_s};padding:2px 10px;
-                                     border-radius:999px;font-size:11px;font-weight:600;">
-                          {_h_opp.escape(status_opp)}
-                        </span>
-                        <span style="background:{bg_pr};color:{fg_pr};padding:2px 10px;
-                                     border-radius:999px;font-size:11px;font-weight:600;">
-                          Perf. {_h_opp.escape(perf_opp)}
-                        </span>
-                        {(f'<span style="background:#f0f9ff;color:#0369a1;padding:2px 10px;border-radius:999px;font-size:11px;">{_h_opp.escape(area_opp)}</span>' if area_opp else "")}
-                      </div>
-                      <div style="font-size:0.78rem;color:var(--ink-secondary);">
-                        💰 {_h_opp.escape(valor_opp)}
-                      </div>
-                      <div style="margin-top:4px;">
-                        <span style="display:inline-flex;align-items:center;gap:5px;
-                                     background:{'#fecaca' if _prazo_proximo else '#f1f5f9'};
-                                     color:{'#b91c1c' if _prazo_proximo else '#374151'};
-                                     border:1px solid {'#fca5a5' if _prazo_proximo else '#e2e8f0'};
-                                     border-radius:6px;padding:4px 10px;
-                                     font-size:0.82rem;font-weight:700;letter-spacing:0.01em;">
-                          📅 Prazo de submissão: {_h_opp.escape(prazo_opp)}{_h_opp.escape(_prazo_label_extra)}
-                        </span>
-                      </div>
-                      <div style="font-size:0.75rem;color:var(--ink-muted);margin-top:2px;">
-                        Identificado em {_h_opp.escape(data_id)}
-                      </div>
-                      <div style="margin-top:2px;">{link_html}</div>
-                    </div>
-                  </div>
-                </div>
+                <style>
+                  div[data-testid="stExpander"]:has(div[data-opp-id="{row.get('id','')}"]) {{
+                      border: 1px solid {card_border} !important;
+                      border-radius: 10px !important;
+                      background: {card_bg} !important;
+                      {card_opacity}
+                      margin-bottom: 6px !important;
+                  }}
+                </style>
                 """, unsafe_allow_html=True)
+
+                with st.expander(_label_exp, expanded=False):
+                    # marcador oculto para o seletor CSS acima
+                    st.markdown(f'<span data-opp-id="{row.get("id","")}" style="display:none"></span>',
+                                unsafe_allow_html=True)
+
+                    # ── Linha de badges ───────────────────────────────────────
+                    st.markdown(f"""
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+                      <span style="background:{bg_s};color:{fg_s};padding:3px 12px;
+                                   border-radius:999px;font-size:12px;font-weight:700;">
+                        {_h_opp.escape(status_opp)}
+                      </span>
+                      <span style="background:{bg_pr};color:{fg_pr};padding:3px 12px;
+                                   border-radius:999px;font-size:12px;font-weight:700;">
+                        Perfil {_h_opp.escape(perf_opp)}
+                      </span>
+                      {(f'<span style="background:#f0f9ff;color:#0369a1;padding:3px 12px;border-radius:999px;font-size:12px;font-weight:600;">{_h_opp.escape(area_opp)}</span>' if area_opp else "")}
+                      <span style="display:inline-flex;align-items:center;gap:4px;
+                                   background:{'#fecaca' if _prazo_proximo else '#f1f5f9'};
+                                   color:{'#b91c1c' if _prazo_proximo else '#374151'};
+                                   border:1px solid {'#fca5a5' if _prazo_proximo else '#e2e8f0'};
+                                   border-radius:6px;padding:3px 12px;
+                                   font-size:12px;font-weight:700;">
+                        📅 Prazo de submissão: {_h_opp.escape(prazo_opp)}{_h_opp.escape(_prazo_label_extra)}
+                      </span>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    # ── Detalhes em colunas ───────────────────────────────────
+                    d1, d2 = st.columns(2)
+
+                    with d1:
+                        st.markdown("**Órgão / Publicador**")
+                        st.write(orgao_opp)
+
+                        st.markdown("**Macro Escopo**")
+                        st.write(escopo_opp or "—")
+
+                        st.markdown("**Valor do Financiamento**")
+                        st.write(valor_opp)
+
+                    with d2:
+                        st.markdown("**Data de Identificação**")
+                        st.write(data_id)
+
+                        semana_opp = _fmt_data(row.get("semana_referencia", ""))
+                        st.markdown("**Semana de Referência**")
+                        st.write(semana_opp)
+
+                        st.markdown("**Importado por**")
+                        st.write(str(row.get("importado_por","") or "—"))
+
+                    if escopo_opp and len(escopo_opp) > 180:
+                        st.markdown("**Descrição completa do escopo**")
+                        st.info(escopo_opp)
+
+                    if link_opp.startswith("http"):
+                        st.markdown(
+                            f'<a href="{_h_opp.escape(link_opp)}" target="_blank" '
+                            f'style="font-size:0.85rem;font-weight:600;">🔗 Acessar edital</a>',
+                            unsafe_allow_html=True
+                        )
 
             # Botão exportar
             if pode_baixar_arquivos(perfil):
