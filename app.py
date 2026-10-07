@@ -4269,7 +4269,7 @@ def pagina_oportunidades():
                                      border:1px solid {'#fca5a5' if _prazo_proximo else '#e2e8f0'};
                                      border-radius:6px;padding:4px 10px;
                                      font-size:0.82rem;font-weight:700;letter-spacing:0.01em;">
-                          📅 {_h_opp.escape(prazo_opp)}{_h_opp.escape(_prazo_label_extra)}
+                          📅 Prazo de submissão: {_h_opp.escape(prazo_opp)}{_h_opp.escape(_prazo_label_extra)}
                         </span>
                       </div>
                       <div style="font-size:0.75rem;color:var(--ink-muted);margin-top:2px;">
