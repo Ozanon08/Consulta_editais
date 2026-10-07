@@ -2386,7 +2386,8 @@ def menu_sidebar():
         if perfil in ("ADMIN", "PMO"):
             grupo_consulta += ["Análise de Prazos"]
         grupo_consulta.append("Projetos Concluídos")
-        grupo_consulta.append("Oportunidades")
+        if perfil in ("ADMIN", "PMO", "COORDENADOR"):
+            grupo_consulta.append("Oportunidades")
 
         grupo_operacional = []
         if perfil in ("ADMIN", "PMO", "COORDENADOR"):
@@ -3951,11 +3952,8 @@ def importar_oportunidades(arquivo, area_importacao: str, usuario: str):
 
     xl = pd.ExcelFile(arquivo)
     sheet = xl.sheet_names[0]
-    # Tenta header=2 (modelo com título/instrução), cai para header=0
-    df = pd.read_excel(arquivo, sheet_name=sheet, header=2)
-    cols_conhecidas = set(COLUMN_MAP_OPP.keys())
-    if not cols_conhecidas.intersection(set(df.columns.astype(str))):
-        df = pd.read_excel(arquivo, sheet_name=sheet, header=0)
+    # Primeira linha já é o cabeçalho (header=0)
+    df = pd.read_excel(arquivo, sheet_name=sheet, header=0)
     df = df[[c for c in df.columns if not str(c).startswith("Unnamed:")]]
     df = df.rename(columns=COLUMN_MAP_OPP)
 
@@ -4202,8 +4200,8 @@ def pagina_oportunidades():
     with tab_import:
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
 
-        if not pode_substituir_base(perfil):
-            st.warning("Importação disponível para perfis ADMIN e PMO.")
+        if perfil != "ADMIN":
+            st.warning("Importação disponível apenas para o perfil ADMIN.")
             st.markdown('</div>', unsafe_allow_html=True)
         else:
             st.markdown("""
@@ -4215,13 +4213,10 @@ def pagina_oportunidades():
             Registros já existentes (mesma área + tema + órgão + data) são ignorados automaticamente.
             """)
 
-            # Seleção de área para importação (ADMIN/PMO podem escolher; outros veem a própria)
-            if perfil in ("ADMIN", "PMO"):
-                area_import = st.selectbox("Área desta importação *",
-                                           AREAS_DISPONIVEIS, key="opp_import_area")
-            else:
-                area_import = area_usr
-                st.info(f"Importando para a área: **{area_usr or '(não definida)'}**")
+            # Área para importação — texto livre
+            area_import = st.text_input("Área desta importação *",
+                                        placeholder="Ex.: Celog, ECMI, PMO...",
+                                        key="opp_import_area")
 
             arq_opp = st.file_uploader("Selecione a planilha (Excel)",
                                        type=["xlsx","xls"], key="opp_upload")
@@ -4233,11 +4228,8 @@ def pagina_oportunidades():
 
                 # Preview
                 try:
-                    _df_prev = pd.read_excel(_BIO(_bytes_opp), header=2, nrows=5)
+                    _df_prev = pd.read_excel(_BIO(_bytes_opp), header=0, nrows=5)
                     cols_prev = [c for c in _df_prev.columns if not str(c).startswith("Unnamed:")]
-                    if len(cols_prev) < 3:
-                        _df_prev = pd.read_excel(_BIO(_bytes_opp), nrows=5)
-                        cols_prev = [c for c in _df_prev.columns if not str(c).startswith("Unnamed:")]
                     with st.expander("Pré-visualização (5 primeiras linhas)"):
                         st.dataframe(_df_prev[cols_prev], use_container_width=True)
                 except Exception:
@@ -4374,12 +4366,10 @@ def pagina_usuarios():
                 if not is_self and not is_admin:
                     cc1, cc2, cc3, cc4 = st.columns([2, 1, 1, 1])
                     with cc2:
-                        areas_opts = [""] + AREAS_DISPONIVEIS
-                        idx_area = areas_opts.index(uarea) if uarea in areas_opts else 0
-                        nova_area = st.selectbox("Área", areas_opts,
-                                                 index=idx_area,
-                                                 key=f"area_{uid}",
-                                                 label_visibility="collapsed")
+                        nova_area = st.text_input("Área", value=uarea or "",
+                                                  key=f"area_{uid}",
+                                                  placeholder="Ex.: Celog",
+                                                  label_visibility="collapsed")
                         if nova_area != uarea:
                             atualizar_area_usuario(uid, nova_area)
                             st.cache_data.clear()
@@ -4411,8 +4401,8 @@ def pagina_usuarios():
                 perfil_novo = st.selectbox("Perfil *", ["GERAL","COORDENADOR","PMO","ADMIN"])
             c3, c4 = st.columns(2)
             with c3:
-                area_nova = st.selectbox("Área", [""] + AREAS_DISPONIVEIS,
-                                         help="Define quais oportunidades o usuário visualiza")
+                area_nova = st.text_input("Área", placeholder="Ex.: Celog, ECMI, PMO...",
+                                          help="Define quais oportunidades o usuário visualiza")
             criar = st.form_submit_button("Criar usuário", type="primary",
                                           use_container_width=True)
 
