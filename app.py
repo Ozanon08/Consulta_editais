@@ -1339,9 +1339,13 @@ def processar_upload_planilha(arquivo):
         "Min": "valor_min", "Máx": "valor_max",
         "Metodo de Calculo": "metodo_calculo",
         "Método de Cálculo": "metodo_calculo",
-        # Colunas da Planilha Modelo das áreas
+        # Colunas da Planilha Modelo das áreas (com asterisco de obrigatoriedade)
+        "Tema *": "tema", "Subtema *": "subtema",
         "Objetivo do Projeto": "descricao",
         "Nome Edital/Projeto": "nome_edital",
+        "Nome Edital/Projeto *": "nome_edital",
+        "URL / Fonte": "fonte_dado",
+        "Custo de Execução (R$)": "custo_execucao",
         "1º Parâmetro para verificação do prazo": "esforco",
         "Unidade de medida do 1º Parâmetro ": "unidade",
         "Unidade de medida do 1º Parâmetro": "unidade",
@@ -1351,14 +1355,23 @@ def processar_upload_planilha(arquivo):
         "Prazo de execução\n(meses)": "prazo_meses",
         "Prazo de execução (meses)": "prazo_meses",
         "Data edital/projeto (mês/ano)": "data_edital",
+        "Data de Início do Projeto": "data_inicio",
         "Data de Início do Projeto (Caso concluído)": "data_inicio",
+        "Data de Término do Projeto": "data_conclusao",
         "Data de Término do Projeto (Caso concluído)": "data_conclusao",
     }
 
     # Aceita aba "Base" ou usa a primeira aba disponível
     xl = pd.ExcelFile(arquivo)
     sheet = "Base" if "Base" in xl.sheet_names else xl.sheet_names[0]
-    df = pd.read_excel(arquivo, sheet_name=sheet)
+    # Planilha modelo tem: linha 1=título, linha 2=instrução, linha 3=cabeçalhos (índice 2)
+    df = pd.read_excel(arquivo, sheet_name=sheet, header=2)
+    colunas_conhecidas = set(COLUMN_MAP.keys())
+    if not colunas_conhecidas.intersection(set(df.columns.astype(str))):
+        # Fallback: tenta sem pular linhas (header=0)
+        df = pd.read_excel(arquivo, sheet_name=sheet, header=0)
+    # Remove colunas sem nome (Unnamed: X) geradas por células vazias
+    df = df[[c for c in df.columns if not str(c).startswith("Unnamed:")]]
     df = df.rename(columns=COLUMN_MAP)
     for col in df.columns:
         if df[col].dtype == object:
@@ -1571,8 +1584,13 @@ def processar_upload_planilha_incremental(arquivo):
         "Custo de Execução": "custo_execucao", "Data edital (mês/ano)": "data_edital",
         "Valor Mínimo": "valor_min", "Valor Máximo": "valor_max",
         "Esforço 2": "esforco2", "Método de Cálculo": "metodo_calculo",
+        # Colunas com asterisco de obrigatoriedade
+        "Tema *": "tema", "Subtema *": "subtema",
         "Objetivo do Projeto": "descricao",
         "Nome Edital/Projeto": "nome_edital",
+        "Nome Edital/Projeto *": "nome_edital",
+        "URL / Fonte": "fonte_dado",
+        "Custo de Execução (R$)": "custo_execucao",
         "1º Parâmetro para verificação do prazo": "esforco",
         "Unidade de medida do 1º Parâmetro ": "unidade",
         "Unidade de medida do 1º Parâmetro": "unidade",
@@ -1582,13 +1600,21 @@ def processar_upload_planilha_incremental(arquivo):
         "Prazo de execução\n(meses)": "prazo_meses",
         "Prazo de execução (meses)": "prazo_meses",
         "Data edital/projeto (mês/ano)": "data_edital",
+        "Data de Início do Projeto": "data_inicio",
         "Data de Início do Projeto (Caso concluído)": "data_inicio",
+        "Data de Término do Projeto": "data_conclusao",
         "Data de Término do Projeto (Caso concluído)": "data_conclusao",
     }
 
     xl = pd.ExcelFile(arquivo)
     sheet = "Base" if "Base" in xl.sheet_names else xl.sheet_names[0]
-    df = pd.read_excel(arquivo, sheet_name=sheet)
+    # Planilha modelo tem: linha 1=título, linha 2=instrução, linha 3=cabeçalhos (índice 2)
+    df = pd.read_excel(arquivo, sheet_name=sheet, header=2)
+    colunas_conhecidas = set(COLUMN_MAP.keys())
+    if not colunas_conhecidas.intersection(set(df.columns.astype(str))):
+        df = pd.read_excel(arquivo, sheet_name=sheet, header=0)
+    # Remove colunas sem nome (Unnamed: X)
+    df = df[[c for c in df.columns if not str(c).startswith("Unnamed:")]]
     df = df.rename(columns=COLUMN_MAP)
     for col in df.columns:
         if df[col].dtype == object:
@@ -2475,10 +2501,10 @@ def carregar_stats_dashboard():
             FROM upload_historico ORDER BY criado_em DESC LIMIT 10
         """)
 
-        # Editais por mes
+        # Editais por mes (usa data_edital, que existe na tabela edital)
         stats["editais_por_mes"] = q("""
-            SELECT DATE_TRUNC('month', criado_em::timestamp) AS mes, COUNT(*)
-            FROM edital WHERE criado_em IS NOT NULL
+            SELECT DATE_TRUNC('month', (data_edital || '-01')::date) AS mes, COUNT(*)
+            FROM edital WHERE data_edital IS NOT NULL AND data_edital ~ '^\d{4}-\d{2}$'
             GROUP BY 1 ORDER BY 1 DESC LIMIT 12
         """)
 
