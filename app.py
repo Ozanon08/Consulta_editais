@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import logging
 import threading
+import warnings
 import bcrypt
 import smtplib
 import base64
@@ -16,6 +17,9 @@ from email.mime.multipart import MIMEMultipart
 import pandas as pd
 import psycopg2
 import streamlit as st
+
+# Suprime aviso do pandas sobre conexoes psycopg2 diretas (comportamento funcional, nao critico)
+warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy connectable")
 
 # =========================================================
 # CONFIG
@@ -667,6 +671,8 @@ def aplicar_estilo(modo="light"):
 # =========================================================
 def get_conn():
     return psycopg2.connect(DATABASE_URL)
+
+
 
 
 def hash_senha(senha: str) -> str:
@@ -2476,6 +2482,10 @@ def listar_oportunidades(area: str = None, perfil_usuario: str = None):
                 "SELECT * FROM editais_oportunidades WHERE area = %s ORDER BY data_identificacao DESC, id DESC",
                 conn, params=(area,)
             )
+        # Normaliza colunas de data para string ISO para evitar erros de serialização Arrow
+        for col in ("prazo_submissao", "data_identificacao", "semana_referencia"):
+            if col in df.columns:
+                df[col] = df[col].apply(lambda v: str(v) if v is not None and str(v) not in ("None", "NaT", "nan", "") else None)
     except Exception:
         df = pd.DataFrame()
     finally:
@@ -2488,13 +2498,28 @@ def _parse_data_oportunidade(val):
     import math
     from datetime import date as _date, datetime as _datetime, timedelta as _timedelta
     import pandas as _pd
+    # None explícito
     if val is None:
         return None
+    # pd.NaT e outros NA do pandas (deve ser verificado antes de qualquer str())
     try:
         if _pd.isnull(val):
             return None
     except Exception:
         pass
+    # String vazia / marcadores de ausência — verificar ANTES de tentar converter
+    if isinstance(val, str):
+        s = val.strip()
+        if s in ("", "nan", "None", "NaT", "NaN", "NAT", "N/A", "NA", "-"):
+            return None
+        # Tentar parse direto
+        try:
+            parsed = _pd.to_datetime(s, dayfirst=False, errors="coerce")
+            if _pd.isnull(parsed):
+                return None
+            return parsed.date().isoformat()
+        except Exception:
+            return None
     try:
         if isinstance(val, _datetime):
             return val.date().isoformat()
@@ -2505,8 +2530,9 @@ def _parse_data_oportunidade(val):
             if math.isnan(fval):
                 return None
             return (_date(1899, 12, 30) + _timedelta(days=int(fval))).isoformat()
+        # Fallback: converter para string e tentar
         s = str(val).strip()
-        if s in ("", "nan", "None", "NaT", "NaN"):
+        if s in ("", "nan", "None", "NaT", "NaN", "NAT", "N/A", "NA", "-"):
             return None
         parsed = _pd.to_datetime(s, dayfirst=False, errors="coerce")
         if _pd.isnull(parsed):
