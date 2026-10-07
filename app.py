@@ -1552,6 +1552,238 @@ def processar_upload_planilha(arquivo):
     conn.close()
 
 
+def processar_upload_planilha_incremental(arquivo):
+    """Adiciona registros da planilha à base sem apagar os existentes.
+    Usa os mesmos mapeamentos de colunas de processar_upload_planilha.
+    Registros com mesmo nome_edital + data_edital + tema são ignorados (ON CONFLICT).
+    Retorna (inseridos, ignorados).
+    """
+    import pandas as pd
+
+    COLUMN_MAP = {
+        "Tema": "tema", "Subtema": "subtema", "Serviços": "servicos",
+        "País": "pais", "Estado": "estado", "Município": "municipio",
+        "Nome Edital": "nome_edital", "Descrição": "descricao", "Esforço": "esforco",
+        "Unidade": "unidade", "Prazo (meses)": "prazo_meses",
+        "Tipo de Edital": "tipo_edital", "Código Planilha": "codigo_planilha",
+        "Fonte de Dados": "fonte_dado", "OBS": "observacao",
+        "Custo de Execução": "custo_execucao", "Data edital (mês/ano)": "data_edital",
+        "Valor Mínimo": "valor_min", "Valor Máximo": "valor_max",
+        "Esforço 2": "esforco2", "Método de Cálculo": "metodo_calculo",
+        "Objetivo do Projeto": "descricao",
+        "Nome Edital/Projeto": "nome_edital",
+        "1º Parâmetro para verificação do prazo": "esforco",
+        "Unidade de medida do 1º Parâmetro ": "unidade",
+        "Unidade de medida do 1º Parâmetro": "unidade",
+        "2º Parâmetro para verificação do prazo": "esforco2",
+        "Unidade de medida do 2º Parâmetro ": "unidade2",
+        "Unidade de medida do 2º Parâmetro": "unidade2",
+        "Prazo de execução\n(meses)": "prazo_meses",
+        "Prazo de execução (meses)": "prazo_meses",
+        "Data edital/projeto (mês/ano)": "data_edital",
+        "Data de Início do Projeto (Caso concluído)": "data_inicio",
+        "Data de Término do Projeto (Caso concluído)": "data_conclusao",
+    }
+
+    xl = pd.ExcelFile(arquivo)
+    sheet = "Base" if "Base" in xl.sheet_names else xl.sheet_names[0]
+    df = pd.read_excel(arquivo, sheet_name=sheet)
+    df = df.rename(columns=COLUMN_MAP)
+    for col in df.columns:
+        if df[col].dtype == object:
+            df[col] = df[col].astype(str).str.strip().replace({"nan": None, "None": None, "": None})
+    for col in ["prazo_meses", "custo_execucao", "valor_min", "valor_max"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    if "data_edital" in df.columns:
+        dt = pd.to_datetime(df["data_edital"], errors="coerce", dayfirst=True)
+        mask = dt.notna()
+        df.loc[mask, "data_edital"] = dt.loc[mask].dt.strftime("%Y-%m")
+
+    conn = get_conn()
+    conn.autocommit = False
+    cur = conn.cursor()
+
+    def limpar(val):
+        if val is None:
+            return None
+        import math
+        try:
+            if isinstance(val, float) and math.isnan(val):
+                return None
+        except Exception:
+            pass
+        s = str(val).strip()
+        return None if s in ("", "-", "nan", "None", "NaN", "<NA>") else s
+
+    def upsert_lookup(table, nome):
+        _TABELAS_PERMITIDAS = {
+            "tema", "subtema", "pais", "estado", "municipio",
+            "tipo_edital", "unidade", "fonte_dado", "servico"
+        }
+        if table not in _TABELAS_PERMITIDAS:
+            raise ValueError(f"Tabela não permitida: {table}")
+        nome = limpar(nome)
+        if not nome:
+            return None
+        cur.execute(f"SELECT id FROM {table} WHERE nome = %s", (nome,))
+        row = cur.fetchone()
+        if row:
+            return row[0]
+        cur.execute(f"INSERT INTO {table} (nome) VALUES (%s) RETURNING id", (nome,))
+        return cur.fetchone()[0]
+
+    def safe_float(v):
+        if v is None:
+            return None
+        try:
+            if pd.isna(v):
+                return None
+        except Exception:
+            pass
+        s = str(v).strip()
+        if s in ("", "-", "nan", "None", "NaN"):
+            return None
+        if "," in s and "." in s:
+            s = s.replace(".", "").replace(",", ".")
+        elif "," in s:
+            s = s.replace(",", ".")
+        s = s.replace(" ", "")
+        try:
+            return float(s)
+        except Exception:
+            return None
+
+    tema_map, subtema_map, pais_map, estado_map = {}, {}, {}, {}
+    municipio_map, tipo_map, unidade_map, fonte_map, servico_map = {}, {}, {}, {}, {}
+
+    inseridos = 0
+    ignorados = 0
+
+    for _, row in df.iterrows():
+        tema_id = None
+        v = limpar(row.get("tema"))
+        if v:
+            tema_id = tema_map.get(v) or upsert_lookup("tema", v)
+            tema_map[v] = tema_id
+
+        subtema_id = None
+        v = limpar(row.get("subtema"))
+        if v:
+            key = (tema_id, v)
+            if key not in subtema_map:
+                cur.execute("SELECT id FROM subtema WHERE tema_id IS NOT DISTINCT FROM %s AND nome = %s", (tema_id, v))
+                found = cur.fetchone()
+                subtema_map[key] = found[0] if found else None
+                if not found:
+                    cur.execute("INSERT INTO subtema (tema_id, nome) VALUES (%s, %s) RETURNING id", (tema_id, v))
+                    subtema_map[key] = cur.fetchone()[0]
+            subtema_id = subtema_map[key]
+
+        pais_id = None
+        v = limpar(row.get("pais"))
+        if v:
+            pais_id = pais_map.get(v) or upsert_lookup("pais", v)
+            pais_map[v] = pais_id
+
+        estado_id = None
+        v = limpar(row.get("estado"))
+        if v:
+            if v not in estado_map:
+                cur.execute("SELECT id FROM estado WHERE nome = %s", (v,))
+                found = cur.fetchone()
+                if found:
+                    estado_map[v] = found[0]
+                else:
+                    cur.execute("INSERT INTO estado (pais_id, nome) VALUES (%s, %s) RETURNING id", (pais_id, v))
+                    estado_map[v] = cur.fetchone()[0]
+            estado_id = estado_map[v]
+
+        municipio_id = None
+        v = limpar(row.get("municipio"))
+        if v:
+            key = (estado_id, v)
+            if key not in municipio_map:
+                cur.execute("SELECT id FROM municipio WHERE estado_id IS NOT DISTINCT FROM %s AND nome = %s", (estado_id, v))
+                found = cur.fetchone()
+                if found:
+                    municipio_map[key] = found[0]
+                else:
+                    cur.execute("INSERT INTO municipio (estado_id, nome) VALUES (%s, %s) RETURNING id", (estado_id, v))
+                    municipio_map[key] = cur.fetchone()[0]
+            municipio_id = municipio_map[key]
+
+        tipo_id = None
+        v = limpar(row.get("tipo_edital"))
+        if v:
+            tipo_id = tipo_map.get(v) or upsert_lookup("tipo_edital", v)
+            tipo_map[v] = tipo_id
+
+        unidade_id = None
+        v = limpar(row.get("unidade"))
+        if v:
+            unidade_id = unidade_map.get(v) or upsert_lookup("unidade", v)
+            unidade_map[v] = unidade_id
+
+        fonte_id = None
+        v = limpar(row.get("fonte_dado"))
+        if v:
+            fonte_id = fonte_map.get(v) or upsert_lookup("fonte_dado", v)
+            fonte_map[v] = fonte_id
+
+        unidade2_id = None
+        v_u2 = limpar(row.get("unidade2"))
+        if v_u2:
+            unidade2_id = unidade_map.get(v_u2) or upsert_lookup("unidade", v_u2)
+            unidade_map[v_u2] = unidade2_id
+
+        # Checa duplicata: mesmo nome_edital + data_edital + tema_id
+        nome_edital_val = limpar(row.get("nome_edital"))
+        data_edital_val = limpar(row.get("data_edital"))
+        cur.execute("""
+            SELECT id FROM edital
+            WHERE nome_edital IS NOT DISTINCT FROM %s
+              AND data_edital IS NOT DISTINCT FROM %s
+              AND tema_id IS NOT DISTINCT FROM %s
+        """, (nome_edital_val, data_edital_val, tema_id))
+        if cur.fetchone():
+            ignorados += 1
+            continue
+
+        cur.execute("""
+            INSERT INTO edital (
+                tema_id, subtema_id, pais_id, estado_id, municipio_id, nome_edital,
+                descricao, esforco, unidade_id, esforco2, unidade2_id, prazo_meses,
+                tipo_edital_id, codigo_planilha, fonte_dado_id, observacao,
+                custo_execucao, data_edital, metodo_calculo, valor_min, valor_max
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            RETURNING id
+        """, (
+            tema_id, subtema_id, pais_id, estado_id, municipio_id,
+            nome_edital_val, limpar(row.get("descricao")),
+            limpar(row.get("esforco")), unidade_id,
+            limpar(row.get("esforco2")), unidade2_id,
+            safe_float(row.get("prazo_meses")), tipo_id,
+            limpar(row.get("codigo_planilha")), fonte_id,
+            limpar(row.get("observacao")), safe_float(row.get("custo_execucao")),
+            data_edital_val, limpar(row.get("metodo_calculo")),
+            safe_float(row.get("valor_min")), safe_float(row.get("valor_max")),
+        ))
+        edital_id = cur.fetchone()[0]
+        inseridos += 1
+
+        for serv in normalizar_servicos(row.get("servicos")):
+            servico_id = servico_map.get(serv) or upsert_lookup("servico", serv)
+            servico_map[serv] = servico_id
+            cur.execute(
+                "INSERT INTO edital_servico (edital_id, servico_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                (edital_id, servico_id)
+            )
+
+    conn.commit()
+    conn.close()
+    return inseridos, ignorados
+
 
 def enviar_email(destinatarios, assunto: str, corpo_html: str):
     if not destinatarios:
@@ -3117,13 +3349,6 @@ def pagina_base():
     # ── TAB: Importar planilha ──
     if tab_import:
         with tab_import:
-            st.markdown("""
-            <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:10px;
-                        padding:14px 16px;margin-bottom:16px;font-size:0.85rem;color:#1e40af;">
-                <strong>Atenção:</strong> O upload <strong>substitui toda a base</strong> de editais/projetos 
-                pelos dados da nova planilha. Usuários e solicitações não são afetados.
-            </div>
-            """, unsafe_allow_html=True)
 
             # Download do modelo
             col_dl, _ = st.columns([1, 3])
@@ -3139,6 +3364,35 @@ def pagina_base():
                 except Exception as _e:
                     logger.error("Erro ao gerar modelo base: %s", _e)
 
+            # Modo de importação
+            modo_import = st.radio(
+                "Modo de importação",
+                options=["➕ Incrementar (adicionar novos registros)", "🔄 Substituir (apagar e reimportar tudo)"],
+                index=0,
+                key="modo_import_base",
+                horizontal=True,
+            )
+            _modo_substituir = "Substituir" in modo_import
+
+            if _modo_substituir:
+                st.markdown("""
+                <div style="background:#fff5f5;border:1px solid #fecaca;border-radius:10px;
+                            padding:14px 16px;margin-bottom:16px;font-size:0.85rem;color:#991b1b;">
+                    <strong>Atenção:</strong> O modo <strong>Substituir</strong> apaga <em>todos</em> os editais
+                    existentes e reimporta a planilha do zero. Usuários e solicitações não são afetados.
+                    Esta operação não pode ser desfeita.
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:10px;
+                            padding:14px 16px;margin-bottom:16px;font-size:0.85rem;color:#1e40af;">
+                    <strong>Modo Incrementar:</strong> Apenas novos registros serão adicionados.
+                    Editais com mesmo <em>Nome + Data + Tema</em> já existentes na base serão ignorados
+                    automaticamente.
+                </div>
+                """, unsafe_allow_html=True)
+
             arquivo = st.file_uploader("Selecione a planilha (Excel ou CSV)",
                                        type=["xlsx", "xls", "csv"], key="base_upload")
             if arquivo is not None:
@@ -3153,7 +3407,7 @@ def pagina_base():
                     st.markdown(f"""
                     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;
                                 padding:12px 16px;margin-bottom:12px;font-size:0.84rem;color:#166534;">
-                        <strong>{arquivo.name}</strong> detectado - 
+                        <strong>{arquivo.name}</strong> detectado —
                         aba <em>{sheet}</em>, {n_cols} colunas identificadas.
                     </div>
                     """, unsafe_allow_html=True)
@@ -3162,24 +3416,42 @@ def pagina_base():
                 except Exception:
                     arquivo.seek(0)
 
-                st.markdown(f"""
-                <div style="background:#fff5f5;border:1px solid #fecaca;border-radius:10px;
-                            padding:12px 16px;margin:8px 0;font-size:0.84rem;color:#991b1b;">
-                    <strong>Atencao:</strong> Esta acao substituira <strong>todos os registros atuais</strong> da base.
-                    Esta operacao nao pode ser desfeita.
-                </div>
-                """, unsafe_allow_html=True)
-                confirmar_upload = st.checkbox("Confirmo que desejo substituir toda a base de dados", key="confirm_base_upload")
-                if st.button("Processar e atualizar base", type="primary",
+                if _modo_substituir:
+                    confirmar_upload = st.checkbox(
+                        "Confirmo que desejo substituir toda a base de dados",
+                        key="confirm_base_upload"
+                    )
+                else:
+                    confirmar_upload = True
+
+                label_btn = "Substituir base" if _modo_substituir else "Adicionar à base"
+                if st.button(label_btn, type="primary",
                              use_container_width=True, disabled=not confirmar_upload):
-                    with st.spinner("Processando planilha e atualizando o banco..."):
+                    with st.spinner("Processando planilha..."):
                         try:
-                            processar_upload_planilha(arquivo)
-                            try:
-                                registrar_upload_historico("base", len(pd.read_excel(arquivo)), st.session_state.usuario)
-                            except Exception:
-                                pass
-                            st.success("Base atualizada com sucesso!")
+                            if _modo_substituir:
+                                processar_upload_planilha(arquivo)
+                                try:
+                                    registrar_upload_historico("base", len(pd.read_excel(arquivo)), st.session_state.usuario)
+                                except Exception:
+                                    pass
+                                st.success("Base substituída com sucesso!")
+                            else:
+                                inseridos, ignorados = processar_upload_planilha_incremental(arquivo)
+                                try:
+                                    registrar_upload_historico("base", inseridos, st.session_state.usuario)
+                                except Exception:
+                                    pass
+                                if inseridos == 0:
+                                    st.warning(
+                                        f"Nenhum registro novo encontrado. "
+                                        f"{ignorados} registro(s) já existiam na base e foram ignorados."
+                                    )
+                                else:
+                                    st.success(
+                                        f"✅ {inseridos} registro(s) adicionado(s) com sucesso! "
+                                        f"{ignorados} ignorado(s) por já existirem na base."
+                                    )
                             st.cache_data.clear()
                             st.rerun()
                         except Exception as e:
