@@ -4230,85 +4230,78 @@ def pagina_oportunidades():
                     'style="font-size:0.78rem;color:var(--ink-secondary);"'
                 )
 
-                semana_opp   = _fmt_data(row.get("semana_referencia", ""))
-                importado_por = str(row.get("importado_por","") or "—")
+                semana_opp = _fmt_data(row.get("semana_referencia", ""))
 
-                st.markdown(f"""
-                <div style="border:1px solid {card_border};border-radius:10px;
-                            padding:14px 16px;background:{card_bg};margin-bottom:8px;{card_opacity}">
-                  <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;">
-                    <div style="flex:1;min-width:200px;">
-                      <div style="font-weight:700;font-size:0.92rem;color:var(--ink-primary);
-                                  margin-bottom:4px;">
-                        {_h_opp.escape(tema_opp)}
-                      </div>
-                      <div style="font-size:0.8rem;color:var(--ink-secondary);margin-bottom:6px;">
-                        {_h_opp.escape(orgao_opp)}
-                      </div>
-                      <div style="font-size:0.78rem;color:var(--ink-muted);">
-                        {_h_opp.escape(escopo_opp[:180] + ("…" if len(escopo_opp)>180 else ""))}
+                # Label curto para o cabeçalho do expander (tema + órgão)
+                _exp_label = f"{tema_opp[:70]}{'…' if len(tema_opp)>70 else ''}  ·  {orgao_opp[:40]}{'…' if len(orgao_opp)>40 else ''}"
+
+                with st.expander(_exp_label, expanded=False):
+                    # ── Card visual completo dentro do expander ───────────────
+                    st.markdown(f"""
+                    <div style="border:1px solid {card_border};border-radius:10px;
+                                padding:14px 16px;background:{card_bg};margin-bottom:10px;{card_opacity}">
+                      <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:200px;">
+                          <div style="font-weight:700;font-size:0.92rem;color:var(--ink-primary);
+                                      margin-bottom:4px;">
+                            {_h_opp.escape(tema_opp)}
+                          </div>
+                          <div style="font-size:0.8rem;color:var(--ink-secondary);margin-bottom:6px;">
+                            {_h_opp.escape(orgao_opp)}
+                          </div>
+                          <div style="font-size:0.78rem;color:var(--ink-muted);">
+                            {_h_opp.escape(escopo_opp[:180] + ("…" if len(escopo_opp)>180 else ""))}
+                          </div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;
+                                    min-width:180px;text-align:right;">
+                          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+                            <span style="background:{bg_s};color:{fg_s};padding:2px 10px;
+                                         border-radius:999px;font-size:11px;font-weight:600;">
+                              {_h_opp.escape(status_opp)}
+                            </span>
+                            <span style="background:{bg_pr};color:{fg_pr};padding:2px 10px;
+                                         border-radius:999px;font-size:11px;font-weight:600;">
+                              Perf. {_h_opp.escape(perf_opp)}
+                            </span>
+                            {(f'<span style="background:#f0f9ff;color:#0369a1;padding:2px 10px;border-radius:999px;font-size:11px;">{_h_opp.escape(area_opp)}</span>' if area_opp else "")}
+                          </div>
+                          <div style="font-size:0.78rem;color:var(--ink-secondary);">
+                            💰 {_h_opp.escape(valor_opp)}
+                          </div>
+                          <div style="margin-top:4px;">
+                            <span style="display:inline-flex;align-items:center;gap:5px;
+                                         background:{'#fecaca' if _prazo_proximo else '#f1f5f9'};
+                                         color:{'#b91c1c' if _prazo_proximo else '#374151'};
+                                         border:1px solid {'#fca5a5' if _prazo_proximo else '#e2e8f0'};
+                                         border-radius:6px;padding:4px 10px;
+                                         font-size:0.82rem;font-weight:700;letter-spacing:0.01em;">
+                              📅 Prazo de submissão: {_h_opp.escape(prazo_opp)}{_h_opp.escape(_prazo_label_extra)}
+                            </span>
+                          </div>
+                          <div style="font-size:0.75rem;color:var(--ink-muted);margin-top:2px;">
+                            Identificado em {_h_opp.escape(data_id)}
+                          </div>
+                          <div style="margin-top:2px;">{link_html}</div>
+                        </div>
                       </div>
                     </div>
-                    <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;
-                                min-width:180px;text-align:right;">
-                      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
-                        <span style="background:{bg_s};color:{fg_s};padding:2px 10px;
-                                     border-radius:999px;font-size:11px;font-weight:600;">
-                          {_h_opp.escape(status_opp)}
-                        </span>
-                        <span style="background:{bg_pr};color:{fg_pr};padding:2px 10px;
-                                     border-radius:999px;font-size:11px;font-weight:600;">
-                          Perf. {_h_opp.escape(perf_opp)}
-                        </span>
-                        {(f'<span style="background:#f0f9ff;color:#0369a1;padding:2px 10px;border-radius:999px;font-size:11px;">{_h_opp.escape(area_opp)}</span>' if area_opp else "")}
-                      </div>
-                      <div style="font-size:0.78rem;color:var(--ink-secondary);">
-                        💰 {_h_opp.escape(valor_opp)}
-                      </div>
-                      <div style="margin-top:4px;">
-                        <span style="display:inline-flex;align-items:center;gap:5px;
-                                     background:{'#fecaca' if _prazo_proximo else '#f1f5f9'};
-                                     color:{'#b91c1c' if _prazo_proximo else '#374151'};
-                                     border:1px solid {'#fca5a5' if _prazo_proximo else '#e2e8f0'};
-                                     border-radius:6px;padding:4px 10px;
-                                     font-size:0.82rem;font-weight:700;letter-spacing:0.01em;">
-                          📅 Prazo de submissão: {_h_opp.escape(prazo_opp)}{_h_opp.escape(_prazo_label_extra)}
-                        </span>
-                      </div>
-                      <div style="font-size:0.75rem;color:var(--ink-muted);margin-top:2px;">
-                        Identificado em {_h_opp.escape(data_id)}
-                      </div>
-                      <div style="margin-top:2px;">{link_html}</div>
-                    </div>
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
 
-                # ── Detalhes expansíveis ──────────────────────────────────────
-                with st.expander("Ver mais detalhes", expanded=False):
+                    # ── Detalhes adicionais ───────────────────────────────────
+                    st.markdown("""<hr style="margin:4px 0 12px 0;border:none;border-top:1px solid #e2e8f0;">""",
+                                unsafe_allow_html=True)
                     d1, d2 = st.columns(2)
                     with d1:
                         st.markdown("**Macro Escopo completo**")
                         st.write(escopo_opp or "—")
-                        st.markdown("**Valor do Financiamento**")
-                        st.write(valor_opp)
                         st.markdown("**Semana de Referência**")
                         st.write(semana_opp)
                     with d2:
                         st.markdown("**Data de Identificação**")
                         st.write(data_id)
-                        st.markdown("**Prazo de Submissão**")
-                        prazo_texto = f"{prazo_opp}{_prazo_label_extra}" if prazo_opp != "—" else "—"
-                        st.markdown(
-                            f'<span style="background:{"#fecaca" if _prazo_proximo else "#f1f5f9"};'
-                            f'color:{"#b91c1c" if _prazo_proximo else "#374151"};'
-                            f'border:1px solid {"#fca5a5" if _prazo_proximo else "#e2e8f0"};'
-                            f'border-radius:6px;padding:3px 10px;font-size:0.85rem;font-weight:700;">'
-                            f'{_h_opp.escape(prazo_texto)}</span>',
-                            unsafe_allow_html=True
-                        )
-                        st.markdown("**Importado por**")
-                        st.write(importado_por)
+                        st.markdown("**Valor do Financiamento**")
+                        st.write(valor_opp)
                     if link_opp.startswith("http"):
                         st.markdown(
                             f'<a href="{_h_opp.escape(link_opp)}" target="_blank" '
