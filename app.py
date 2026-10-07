@@ -3473,7 +3473,7 @@ def pagina_base():
             # Modo de importação
             modo_import = st.radio(
                 "Modo de importação",
-                options=["Incrementar (adicionar novos registros)", "Substituir (apagar e reimportar tudo)"],
+                options=["➕ Incrementar (adicionar novos registros)", "🔄 Substituir (apagar e reimportar tudo)"],
                 index=0,
                 key="modo_import_base",
                 horizontal=True,
@@ -4091,7 +4091,7 @@ def pagina_oportunidades():
     st.markdown('</div>', unsafe_allow_html=True)
 
     # ── Abas ──
-    tab_base, tab_import = st.tabs(["Base de Editais", "Importação"])
+    tab_base, tab_import = st.tabs(["📋 Base de Editais", "⬆️ Importação"])
 
     # ═══════════════════════════════════════════
     # ABA BASE DE EDITAIS
@@ -4162,11 +4162,23 @@ def pagina_oportunidades():
                 perf_opp   = str(row.get("perfil_aderencia","") or "")
                 area_opp   = str(row.get("area","") or "")
                 valor_opp  = str(row.get("valor_financiamento","") or "—")
-                prazo_opp  = str(row.get("prazo_submissao","") or "—")
-                if prazo_opp not in ("—", "None", "nan", "NaT"):
-                    prazo_opp = str(prazo_opp)[:10]
+                def _fmt_data(val):
+                    """Converte YYYY-MM-DD (ou similar) para DD/MM/AAAA."""
+                    s = str(val or "").strip()
+                    if s in ("", "None", "nan", "NaT", "—"):
+                        return "—"
+                    try:
+                        import pandas as _pd2
+                        parsed = _pd2.to_datetime(s[:10], errors="coerce")
+                        if _pd2.isnull(parsed):
+                            return s[:10]
+                        return parsed.strftime("%d/%m/%Y")
+                    except Exception:
+                        return s[:10]
+
+                prazo_opp  = _fmt_data(row.get("prazo_submissao",""))
                 link_opp   = str(row.get("link","") or "")
-                data_id    = str(row.get("data_identificacao","") or "")[:10]
+                data_id    = _fmt_data(row.get("data_identificacao",""))
 
                 st_key = status_opp.lower()
                 bg_s, fg_s = COR_STATUS.get(st_key, ("#f8fafc","#475569"))
@@ -4179,9 +4191,11 @@ def pagina_oportunidades():
                 _encerrado = "encerrado" in st_key
                 _prazo_proximo = False
                 _prazo_label_extra = ""
-                if not _encerrado and prazo_opp not in ("—", "None", "nan", "NaT", ""):
+                # Usa o valor bruto ISO para calcular dias (prazo_opp já está em DD/MM/AAAA)
+                _prazo_raw = str(row.get("prazo_submissao","") or "").strip()[:10]
+                if not _encerrado and _prazo_raw not in ("", "None", "nan", "NaT", "—"):
                     try:
-                        _prazo_date = _today_date.fromisoformat(prazo_opp[:10])
+                        _prazo_date = _today_date.fromisoformat(_prazo_raw)
                         _dias_rest = (_prazo_date - _hoje).days
                         if _dias_rest < 0:
                             # prazo já passou mas não está marcado como encerrado
