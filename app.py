@@ -4262,10 +4262,20 @@ def pagina_oportunidades():
                       <div style="font-size:0.78rem;color:var(--ink-secondary);">
                         💰 {_h_opp.escape(valor_opp)}
                       </div>
-                      <div {prazo_style}>
-                        📅 Prazo: {_h_opp.escape(prazo_opp + _prazo_label_extra)} &nbsp;|&nbsp; Identificado: {_h_opp.escape(data_id)}
+                      <div style="margin-top:4px;">
+                        <span style="display:inline-flex;align-items:center;gap:5px;
+                                     background:{'#fecaca' if _prazo_proximo else '#f1f5f9'};
+                                     color:{'#b91c1c' if _prazo_proximo else '#374151'};
+                                     border:1px solid {'#fca5a5' if _prazo_proximo else '#e2e8f0'};
+                                     border-radius:6px;padding:4px 10px;
+                                     font-size:0.82rem;font-weight:700;letter-spacing:0.01em;">
+                          📅 {_h_opp.escape(prazo_opp)}{_h_opp.escape(_prazo_label_extra)}
+                        </span>
                       </div>
-                      <div>{link_html}</div>
+                      <div style="font-size:0.75rem;color:var(--ink-muted);margin-top:2px;">
+                        Identificado em {_h_opp.escape(data_id)}
+                      </div>
+                      <div style="margin-top:2px;">{link_html}</div>
                     </div>
                   </div>
                 </div>
