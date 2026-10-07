@@ -1093,18 +1093,49 @@ def agora_str() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
+AREAS_DISPONIVEIS = ["Celog", "ECMI", "PMO", "Outra"]
+
+
 def init_db():
-    """Garante que o usuário ADMIN existe. Tabelas já criadas via schema_supabase.sql."""
+    """Garante que o usuário ADMIN existe e que as colunas/tabelas extras estão criadas."""
     if not DATABASE_URL:
         st.error("Variável DATABASE_URL não configurada. Defina-a nas configurações do Streamlit Cloud.")
         st.stop()
     conn = get_conn()
     cur = conn.cursor()
+
+    # Migração: adiciona coluna 'area' em usuarios se não existir
+    cur.execute("""
+        ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS area TEXT
+    """)
+
+    # Cria tabela de oportunidades se não existir
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS editais_oportunidades (
+            id              SERIAL PRIMARY KEY,
+            area            TEXT,
+            perfil_aderencia TEXT,
+            tema            TEXT,
+            orgao           TEXT,
+            macro_escopo    TEXT,
+            prazo_submissao DATE,
+            valor_financiamento TEXT,
+            status          TEXT,
+            link            TEXT,
+            data_identificacao DATE,
+            semana_referencia  DATE,
+            criado_em       TEXT,
+            importado_por   TEXT
+        )
+    """)
+
+    # Garante ADMIN
     cur.execute("SELECT COUNT(*) FROM usuarios WHERE username = 'ADMIN'")
     exists = cur.fetchone()[0]
     if exists == 0:
         senha_inicial = os.environ.get("ADMIN_INITIAL_PASSWORD", "")
         if not senha_inicial:
+            conn.commit()
             conn.close()
             st.error("Defina ADMIN_INITIAL_PASSWORD nas variáveis de ambiente do Streamlit Cloud.")
             st.stop()
@@ -1137,7 +1168,7 @@ def autenticar(username: str, senha: str):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
-        SELECT username, perfil, ativo, email, senha_hash
+        SELECT username, perfil, ativo, email, senha_hash, COALESCE(area, '') AS area
         FROM usuarios
         WHERE UPPER(username) = UPPER(%s)
     """, (username,))
@@ -1158,7 +1189,8 @@ def autenticar(username: str, senha: str):
                        (novo_hash, row[0]))
             conn.commit()
         conn.close()
-        return {"username": row[0], "perfil": row[1], "email": row[3] if len(row) > 3 else ""}
+        return {"username": row[0], "perfil": row[1], "email": row[3] if len(row) > 3 else "",
+                "area": row[5] if len(row) > 5 else ""}
 
     conn.close()
     return None
@@ -1167,7 +1199,8 @@ def autenticar(username: str, senha: str):
 def listar_usuarios():
     conn = get_conn()
     df = pd.read_sql_query("""
-        SELECT id, username, COALESCE(email, '') AS email, perfil, ativo, criado_em
+        SELECT id, username, COALESCE(email, '') AS email, perfil,
+               COALESCE(area, '') AS area, ativo, criado_em
         FROM usuarios
         ORDER BY username
     """, conn)
@@ -1187,13 +1220,22 @@ def validar_senha(senha: str) -> tuple[bool, str]:
     return True, ""
 
 
-def criar_usuario(username: str, email: str, senha: str, perfil: str):
+def criar_usuario(username: str, email: str, senha: str, perfil: str, area: str = ""):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
-        INSERT INTO usuarios (username, email, senha_hash, perfil, ativo, criado_em, atualizado_em)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-    """, (username.strip(), email.strip(), hash_senha(senha), perfil, 1, agora_str(), agora_str()))
+        INSERT INTO usuarios (username, email, senha_hash, perfil, area, ativo, criado_em, atualizado_em)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    """, (username.strip(), email.strip(), hash_senha(senha), perfil, area or None, 1, agora_str(), agora_str()))
+    conn.commit()
+    conn.close()
+
+
+def atualizar_area_usuario(user_id: int, area: str):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE usuarios SET area = %s, atualizado_em = %s WHERE id = %s",
+                (area or None, agora_str(), user_id))
     conn.commit()
     conn.close()
 
@@ -2311,6 +2353,7 @@ def tela_login():
             st.session_state.usuario = user["username"]
             st.session_state.perfil = user["perfil"]
             st.session_state.email = user.get("email")
+            st.session_state.area = user.get("area", "")
             # Redireciona para Dashboard se ADMIN/PMO, Base de Prazos para demais
             st.session_state.menu = "Dashboard" if user["perfil"] in ("ADMIN", "PMO") else "Base de Prazos"
             st.rerun()
@@ -2343,6 +2386,7 @@ def menu_sidebar():
         if perfil in ("ADMIN", "PMO"):
             grupo_consulta += ["Análise de Prazos"]
         grupo_consulta.append("Projetos Concluídos")
+        grupo_consulta.append("Oportunidades")
 
         grupo_operacional = []
         if perfil in ("ADMIN", "PMO", "COORDENADOR"):
@@ -3844,6 +3888,383 @@ def pagina_minha_conta():
 # =========================================================
 # USUÁRIOS
 # =========================================================
+def listar_oportunidades(area: str = None, perfil_usuario: str = None):
+    """Retorna DataFrame com editais_oportunidades. ADMIN/PMO veem tudo; demais filtram por área."""
+    conn = get_conn()
+    try:
+        if perfil_usuario in ("ADMIN", "PMO") or not area:
+            df = pd.read_sql_query(
+                "SELECT * FROM editais_oportunidades ORDER BY data_identificacao DESC, id DESC", conn
+            )
+        else:
+            df = pd.read_sql_query(
+                "SELECT * FROM editais_oportunidades WHERE area = %s ORDER BY data_identificacao DESC, id DESC",
+                conn, params=(area,)
+            )
+    except Exception:
+        df = pd.DataFrame()
+    finally:
+        conn.close()
+    return df
+
+
+def _parse_data_oportunidade(val):
+    """Converte número serial Excel ou string para date (ou None)."""
+    import math
+    from datetime import date as _date, timedelta as _timedelta
+    if val is None:
+        return None
+    try:
+        if isinstance(val, (int, float)) and not math.isnan(float(val)):
+            # Serial date Excel: dias desde 1899-12-30
+            return (_date(1899, 12, 30) + _timedelta(days=int(val))).isoformat()
+        s = str(val).strip()
+        if s in ("", "nan", "None", "NaT"):
+            return None
+        return pd.to_datetime(s, dayfirst=True, errors="coerce").date().isoformat()
+    except Exception:
+        return None
+
+
+def importar_oportunidades(arquivo, area_importacao: str, usuario: str):
+    """Lê planilha Controle-Oportunidades e insere registros em editais_oportunidades.
+    Deduplicação por (area, tema, orgao, data_identificacao).
+    Retorna (inseridos, ignorados, erros).
+    """
+    import pandas as pd
+    from io import BytesIO
+
+    COLUMN_MAP_OPP = {
+        "Área": "area",
+        "Perfil (A/B/C)": "perfil_aderencia",
+        "Tema do edital": "tema",
+        "Órgão/empresa publicador": "orgao",
+        "Macro escopo do projeto": "macro_escopo",
+        "Prazo para submissão": "prazo_submissao",
+        "Valor do financiamento (quando disponível)": "valor_financiamento",
+        "Status (Novo/Atualização/Encerrado)": "status",
+        "Status": "status",
+        "Link direto": "link",
+        "Data de identificação": "data_identificacao",
+        "Semana de referência": "semana_referencia",
+    }
+
+    xl = pd.ExcelFile(arquivo)
+    sheet = xl.sheet_names[0]
+    # Tenta header=2 (modelo com título/instrução), cai para header=0
+    df = pd.read_excel(arquivo, sheet_name=sheet, header=2)
+    cols_conhecidas = set(COLUMN_MAP_OPP.keys())
+    if not cols_conhecidas.intersection(set(df.columns.astype(str))):
+        df = pd.read_excel(arquivo, sheet_name=sheet, header=0)
+    df = df[[c for c in df.columns if not str(c).startswith("Unnamed:")]]
+    df = df.rename(columns=COLUMN_MAP_OPP)
+
+    # Descarta linhas completamente vazias
+    df = df.dropna(how="all")
+
+    conn = get_conn()
+    conn.autocommit = False
+    cur = conn.cursor()
+    inseridos = ignorados = erros = 0
+
+    for _, row in df.iterrows():
+        try:
+            r_area = str(row.get("area", "") or area_importacao or "").strip() or area_importacao
+            r_tema = str(row.get("tema", "") or "").strip() or None
+            r_orgao = str(row.get("orgao", "") or "").strip() or None
+            r_data_id = _parse_data_oportunidade(row.get("data_identificacao"))
+            r_semana = _parse_data_oportunidade(row.get("semana_referencia"))
+            r_prazo = _parse_data_oportunidade(row.get("prazo_submissao"))
+
+            if not r_tema:
+                ignorados += 1
+                continue
+
+            # Deduplicação
+            cur.execute("""
+                SELECT id FROM editais_oportunidades
+                WHERE area IS NOT DISTINCT FROM %s
+                  AND tema IS NOT DISTINCT FROM %s
+                  AND orgao IS NOT DISTINCT FROM %s
+                  AND data_identificacao IS NOT DISTINCT FROM %s
+            """, (r_area, r_tema, r_orgao, r_data_id))
+            if cur.fetchone():
+                ignorados += 1
+                continue
+
+            cur.execute("""
+                INSERT INTO editais_oportunidades
+                    (area, perfil_aderencia, tema, orgao, macro_escopo,
+                     prazo_submissao, valor_financiamento, status, link,
+                     data_identificacao, semana_referencia, criado_em, importado_por)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (
+                r_area,
+                str(row.get("perfil_aderencia", "") or "").strip() or None,
+                r_tema,
+                r_orgao,
+                str(row.get("macro_escopo", "") or "").strip() or None,
+                r_prazo,
+                str(row.get("valor_financiamento", "") or "").strip() or None,
+                str(row.get("status", "") or "").strip() or None,
+                str(row.get("link", "") or "").strip() or None,
+                r_data_id,
+                r_semana,
+                agora_str(),
+                usuario,
+            ))
+            inseridos += 1
+        except Exception as e:
+            logger.warning("Erro ao importar linha de oportunidades: %s", e)
+            erros += 1
+            continue
+
+    conn.commit()
+    conn.close()
+    return inseridos, ignorados, erros
+
+
+def pagina_oportunidades():
+    import html as _h_opp
+    header_principal()
+
+    perfil   = st.session_state.perfil
+    area_usr = st.session_state.get("area", "") or ""
+
+    st.markdown('<div class="section-card">', unsafe_allow_html=True)
+
+    df_opp = listar_oportunidades(area=area_usr, perfil_usuario=perfil)
+
+    # ── Indicadores de topo ──
+    if not df_opp.empty:
+        # Status
+        status_aberto  = df_opp["status"].astype(str).str.lower().isin(["novo", "atualização", "atualiz", "open"])
+        n_abertos = int(status_aberto.sum())
+        n_encerrados = int(df_opp["status"].astype(str).str.lower().str.contains("encerrado").sum())
+        # Aderência alta = perfil A
+        n_alta = int(df_opp["perfil_aderencia"].astype(str).str.strip().str.upper().eq("A").sum())
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Total de editais", len(df_opp))
+        m2.metric("Em aberto", n_abertos)
+        m3.metric("Encerrados", n_encerrados)
+        m4.metric("Aderência alta (A)", n_alta)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Abas ──
+    tab_base, tab_import = st.tabs(["📋 Base de Editais", "⬆️ Importação"])
+
+    # ═══════════════════════════════════════════
+    # ABA BASE DE EDITAIS
+    # ═══════════════════════════════════════════
+    with tab_base:
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+
+        if df_opp.empty:
+            st.info("Nenhum edital cadastrado. Use a aba **Importação** para carregar a planilha.")
+            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            # ── Filtros ──
+            fa, fb, fc, fd = st.columns([2, 1, 1, 1])
+            with fa:
+                busca_opp = st.text_input("Buscar", placeholder="Tema, órgão ou escopo...",
+                                          key="opp_busca", label_visibility="collapsed")
+            with fb:
+                status_opts = ["Todos"] + sorted(df_opp["status"].dropna().unique().tolist())
+                filtro_status = st.selectbox("Status", status_opts, key="opp_status",
+                                             label_visibility="collapsed")
+            with fc:
+                perfil_opts = ["Todos"] + sorted(df_opp["perfil_aderencia"].dropna().unique().tolist())
+                filtro_perfil_opp = st.selectbox("Aderência", perfil_opts, key="opp_perfil",
+                                                 label_visibility="collapsed")
+            with fd:
+                # ADMIN/PMO podem filtrar por área
+                if perfil in ("ADMIN", "PMO"):
+                    areas_disp = ["Todas"] + sorted(df_opp["area"].dropna().unique().tolist())
+                    filtro_area_opp = st.selectbox("Área", areas_disp, key="opp_area",
+                                                   label_visibility="collapsed")
+                else:
+                    filtro_area_opp = "Todas"
+
+            df_view = df_opp.copy()
+            if busca_opp:
+                mask = (
+                    df_view["tema"].astype(str).str.contains(busca_opp, case=False, na=False) |
+                    df_view["orgao"].astype(str).str.contains(busca_opp, case=False, na=False) |
+                    df_view["macro_escopo"].astype(str).str.contains(busca_opp, case=False, na=False)
+                )
+                df_view = df_view[mask]
+            if filtro_status != "Todos":
+                df_view = df_view[df_view["status"] == filtro_status]
+            if filtro_perfil_opp != "Todos":
+                df_view = df_view[df_view["perfil_aderencia"] == filtro_perfil_opp]
+            if filtro_area_opp != "Todas":
+                df_view = df_view[df_view["area"] == filtro_area_opp]
+
+            st.caption(f"{len(df_view)} edital(is) exibido(s)")
+
+            # Cores por status
+            COR_STATUS = {
+                "novo":        ("#dcfce7","#166534"),
+                "atualização": ("#dbeafe","#1e40af"),
+                "encerrado":   ("#f1f5f9","#64748b"),
+            }
+            COR_PERF = {"A": ("#fef3c7","#92400e"), "B": ("#ede9fe","#5b21b6"), "C": ("#f0f9ff","#0369a1")}
+
+            for _, row in df_view.iterrows():
+                tema_opp   = str(row.get("tema","") or "—")
+                orgao_opp  = str(row.get("orgao","") or "—")
+                escopo_opp = str(row.get("macro_escopo","") or "")
+                status_opp = str(row.get("status","") or "")
+                perf_opp   = str(row.get("perfil_aderencia","") or "")
+                area_opp   = str(row.get("area","") or "")
+                valor_opp  = str(row.get("valor_financiamento","") or "—")
+                prazo_opp  = str(row.get("prazo_submissao","") or "—")
+                if prazo_opp not in ("—", "None", "nan", "NaT"):
+                    prazo_opp = str(prazo_opp)[:10]
+                link_opp   = str(row.get("link","") or "")
+                data_id    = str(row.get("data_identificacao","") or "")[:10]
+
+                st_key = status_opp.lower()
+                bg_s, fg_s = COR_STATUS.get(st_key, ("#f8fafc","#475569"))
+                bg_pr, fg_pr = COR_PERF.get(perf_opp.upper(), ("#f8fafc","#64748b"))
+
+                link_html = (f'<a href="{_h_opp.escape(link_opp)}" target="_blank" '
+                             f'style="color:var(--accent-primary);font-size:0.78rem;">🔗 Ver edital</a>'
+                             if link_opp.startswith("http") else "")
+
+                st.markdown(f"""
+                <div style="border:1px solid var(--border-subtle);border-radius:10px;
+                            padding:14px 16px;background:var(--surface-1);margin-bottom:8px;">
+                  <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:200px;">
+                      <div style="font-weight:700;font-size:0.92rem;color:var(--ink-primary);
+                                  margin-bottom:4px;">
+                        {_h_opp.escape(tema_opp)}
+                      </div>
+                      <div style="font-size:0.8rem;color:var(--ink-secondary);margin-bottom:6px;">
+                        {_h_opp.escape(orgao_opp)}
+                      </div>
+                      <div style="font-size:0.78rem;color:var(--ink-muted);">
+                        {_h_opp.escape(escopo_opp[:180] + ("…" if len(escopo_opp)>180 else ""))}
+                      </div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;
+                                min-width:180px;text-align:right;">
+                      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+                        <span style="background:{bg_s};color:{fg_s};padding:2px 10px;
+                                     border-radius:999px;font-size:11px;font-weight:600;">
+                          {_h_opp.escape(status_opp)}
+                        </span>
+                        <span style="background:{bg_pr};color:{fg_pr};padding:2px 10px;
+                                     border-radius:999px;font-size:11px;font-weight:600;">
+                          Perf. {_h_opp.escape(perf_opp)}
+                        </span>
+                        {(f'<span style="background:#f0f9ff;color:#0369a1;padding:2px 10px;border-radius:999px;font-size:11px;">{_h_opp.escape(area_opp)}</span>' if area_opp else "")}
+                      </div>
+                      <div style="font-size:0.78rem;color:var(--ink-secondary);">
+                        💰 {_h_opp.escape(valor_opp)}
+                      </div>
+                      <div style="font-size:0.78rem;color:var(--ink-secondary);">
+                        📅 Prazo: {_h_opp.escape(prazo_opp)} &nbsp;|&nbsp; Identificado: {_h_opp.escape(data_id)}
+                      </div>
+                      <div>{link_html}</div>
+                    </div>
+                  </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # Botão exportar
+            if pode_baixar_arquivos(perfil):
+                st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
+                cols_export = {
+                    "area": "Área", "perfil_aderencia": "Perfil",
+                    "tema": "Tema", "orgao": "Órgão",
+                    "macro_escopo": "Macro Escopo",
+                    "prazo_submissao": "Prazo Submissão",
+                    "valor_financiamento": "Valor Financiamento",
+                    "status": "Status", "link": "Link",
+                    "data_identificacao": "Data Identificação",
+                    "semana_referencia": "Semana Referência",
+                }
+                df_exp = df_view[[c for c in cols_export if c in df_view.columns]].rename(columns=cols_export)
+                from io import BytesIO as _BIO
+                _buf = _BIO()
+                df_exp.to_excel(_buf, index=False)
+                st.download_button("⬇️ Exportar Excel", _buf.getvalue(),
+                                   file_name="oportunidades_export.xlsx",
+                                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # ═══════════════════════════════════════════
+    # ABA IMPORTAÇÃO
+    # ═══════════════════════════════════════════
+    with tab_import:
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+
+        if not pode_substituir_base(perfil):
+            st.warning("Importação disponível para perfis ADMIN e PMO.")
+            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            **Formato esperado:** planilha no modelo *Controle-Oportunidades-FGV*, com as colunas:
+            `Área`, `Perfil (A/B/C)`, `Tema do edital`, `Órgão/empresa publicador`,
+            `Macro escopo do projeto`, `Prazo para submissão`, `Valor do financiamento`,
+            `Status`, `Link direto`, `Data de identificação`, `Semana de referência`.
+
+            Registros já existentes (mesma área + tema + órgão + data) são ignorados automaticamente.
+            """)
+
+            # Seleção de área para importação (ADMIN/PMO podem escolher; outros veem a própria)
+            if perfil in ("ADMIN", "PMO"):
+                area_import = st.selectbox("Área desta importação *",
+                                           AREAS_DISPONIVEIS, key="opp_import_area")
+            else:
+                area_import = area_usr
+                st.info(f"Importando para a área: **{area_usr or '(não definida)'}**")
+
+            arq_opp = st.file_uploader("Selecione a planilha (Excel)",
+                                       type=["xlsx","xls"], key="opp_upload")
+            _bytes_opp = arq_opp.read() if arq_opp is not None else None
+
+            if _bytes_opp is not None:
+                from io import BytesIO as _BIO
+                st.info(f"Arquivo carregado: **{arq_opp.name}** ({len(_bytes_opp):,} bytes)")
+
+                # Preview
+                try:
+                    _df_prev = pd.read_excel(_BIO(_bytes_opp), header=2, nrows=5)
+                    cols_prev = [c for c in _df_prev.columns if not str(c).startswith("Unnamed:")]
+                    if len(cols_prev) < 3:
+                        _df_prev = pd.read_excel(_BIO(_bytes_opp), nrows=5)
+                        cols_prev = [c for c in _df_prev.columns if not str(c).startswith("Unnamed:")]
+                    with st.expander("Pré-visualização (5 primeiras linhas)"):
+                        st.dataframe(_df_prev[cols_prev], use_container_width=True)
+                except Exception:
+                    pass
+
+                if st.button("▶️ Importar oportunidades", type="primary", key="btn_import_opp"):
+                    with st.spinner("Importando..."):
+                        try:
+                            ins, ign, err = importar_oportunidades(
+                                _BIO(_bytes_opp), area_import,
+                                st.session_state.usuario
+                            )
+                            if ins > 0:
+                                st.success(f"✅ {ins} edital(is) importado(s).")
+                            if ign > 0:
+                                st.info(f"ℹ️ {ign} registro(s) já existentes — ignorados.")
+                            if err > 0:
+                                st.warning(f"⚠️ {err} linha(s) com erro e ignoradas.")
+                            st.cache_data.clear()
+                            st.rerun()
+                        except Exception as e:
+                            logger.error("Erro import oportunidades: %s", e)
+                            st.error(f"Erro ao importar: {e}")
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
 def pagina_usuarios():
     import html as _h_usr
     header_principal()
@@ -3903,6 +4324,7 @@ def pagina_usuarios():
                 uname    = str(row.get("username",""))
                 uemail   = str(row.get("email","") or "-")
                 uperfil  = str(row.get("perfil",""))
+                uarea    = str(row.get("area","") or "")
                 uativo   = row.get("ativo", 1)
                 inicial  = uname[0].upper() if uname else "U"
                 bg_p, fg_p, cor_av = cores_perfil.get(uperfil, ("#f1f5f9","#475569","#94a3b8"))
@@ -3916,6 +4338,11 @@ def pagina_usuarios():
                 perfil_badge = (
                     f'<span style="background:{bg_p};color:{fg_p};padding:2px 10px;'
                     f'border-radius:999px;font-size:11px;font-weight:600;">{_h_usr.escape(uperfil)}</span>'
+                )
+                area_badge = (
+                    f'<span style="background:#f0f9ff;color:#0369a1;padding:2px 10px;'
+                    f'border-radius:999px;font-size:11px;font-weight:500;">{_h_usr.escape(uarea)}</span>'
+                    if uarea else ""
                 )
                 st.markdown(f"""
                 <div style="display:flex;align-items:center;gap:14px;
@@ -3935,8 +4362,8 @@ def pagina_usuarios():
                             {_h_usr.escape(uemail)}
                         </div>
                     </div>
-                    <div style="display:flex;gap:6px;align-items:center;">
-                        {perfil_badge} {status_badge}
+                    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                        {perfil_badge} {area_badge} {status_badge}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -3945,15 +4372,26 @@ def pagina_usuarios():
                 is_self  = uname.upper() == st.session_state.usuario.upper()
                 is_admin = uname.upper() == "ADMIN"
                 if not is_self and not is_admin:
-                    cc1, cc2, cc3 = st.columns([3, 1, 1])
+                    cc1, cc2, cc3, cc4 = st.columns([2, 1, 1, 1])
                     with cc2:
+                        areas_opts = [""] + AREAS_DISPONIVEIS
+                        idx_area = areas_opts.index(uarea) if uarea in areas_opts else 0
+                        nova_area = st.selectbox("Área", areas_opts,
+                                                 index=idx_area,
+                                                 key=f"area_{uid}",
+                                                 label_visibility="collapsed")
+                        if nova_area != uarea:
+                            atualizar_area_usuario(uid, nova_area)
+                            st.cache_data.clear()
+                            st.rerun()
+                    with cc3:
                         novo_status = 0 if uativo else 1
                         label_btn = "Desativar" if uativo else "Ativar"
                         if st.button(label_btn, key=f"ativ_{uid}", use_container_width=True):
                             alterar_status_usuario(uid, novo_status)
                             st.cache_data.clear()
                             st.rerun()
-                    with cc3:
+                    with cc4:
                         if st.button("Excluir", key=f"excl_{uid}", use_container_width=True):
                             excluir_usuario(uid)
                             st.cache_data.clear()
@@ -3971,6 +4409,10 @@ def pagina_usuarios():
             with c2:
                 nova_senha = st.text_input("Senha *", type="password")
                 perfil_novo = st.selectbox("Perfil *", ["GERAL","COORDENADOR","PMO","ADMIN"])
+            c3, c4 = st.columns(2)
+            with c3:
+                area_nova = st.selectbox("Área", [""] + AREAS_DISPONIVEIS,
+                                         help="Define quais oportunidades o usuário visualiza")
             criar = st.form_submit_button("Criar usuário", type="primary",
                                           use_container_width=True)
 
@@ -3985,7 +4427,7 @@ def pagina_usuarios():
                     st.warning(msg_senha)
                 else:
                     try:
-                        criar_usuario(novo_user, novo_email, nova_senha, perfil_novo)
+                        criar_usuario(novo_user, novo_email, nova_senha, perfil_novo, area_nova)
                         st.success(f"Usuário '{novo_user}' criado com sucesso.")
                         st.cache_data.clear()
                         st.rerun()
@@ -6662,6 +7104,8 @@ def main():
         pagina_minha_conta()
     elif st.session_state.menu == "Usuários":
         pagina_usuarios()
+    elif st.session_state.menu == "Oportunidades":
+        pagina_oportunidades()
 
 
 if __name__ == "__main__":
