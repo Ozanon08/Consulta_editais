@@ -118,29 +118,23 @@ def aplicar_estilo_dark():
     button[kind="headerNoPadding"],
     #stDecoration { display: none !important; }
     footer { display: none !important; }
-    /* Oculta toolbar mas fixa o botão de sidebar no canto */
+    /* Toolbar — oculta tudo exceto o botão de sidebar */
     div[data-testid="stToolbar"] {
         background: transparent !important;
-        pointer-events: none !important;
     }
-    div[data-testid="stToolbar"] > * {
+    div[data-testid="stToolbar"] > *:not(:has(button[data-testid="manage-app-button"])),
+    div[data-testid="stToolbar"] > div:not(:has(button[data-testid="manage-app-button"])) {
         display: none !important;
     }
-    /* Botão de reabrir sidebar — fixado no topo esquerdo */
-    button[data-testid="manage-app-button"],
-    button._terminalButton_rix23_138 {
+    /* Botão de toggle da sidebar — sempre visível e clicável */
+    button[data-testid="manage-app-button"] {
         display: flex !important;
         visibility: visible !important;
         opacity: 1 !important;
         pointer-events: all !important;
         cursor: pointer !important;
-        position: fixed !important;
-        top: 14px !important;
-        left: 0 !important;
-        z-index: 99999 !important;
         background: rgba(11,31,58,0.90) !important;
         border: 1px solid rgba(255,255,255,0.18) !important;
-        border-left: none !important;
         border-radius: 0 8px 8px 0 !important;
         padding: 8px 7px !important;
         width: 28px !important;
@@ -152,13 +146,16 @@ def aplicar_estilo_dark():
         line-height: 0 !important;
         box-shadow: 2px 0 8px rgba(0,0,0,0.3) !important;
     }
-    button[data-testid="manage-app-button"] svg,
-    button._terminalButton_rix23_138 svg {
+    button[data-testid="manage-app-button"] svg {
         display: block !important;
         visibility: visible !important;
         flex-shrink: 0 !important;
         width: 8px !important;
         height: 12px !important;
+    }
+    button[data-testid="manage-app-button"] span,
+    button[data-testid="manage-app-button"] p {
+        display: none !important;
     }
     div[data-testid="stBottom"] { display: none !important; }
     #branding { display: none !important; }
@@ -940,29 +937,23 @@ def aplicar_estilo_light():
     button[kind="headerNoPadding"],
     #stDecoration { display: none !important; }
     footer { display: none !important; }
-    /* Oculta toolbar mas fixa o botão de sidebar no canto */
+    /* Toolbar — oculta tudo exceto o botão de sidebar */
     div[data-testid="stToolbar"] {
         background: transparent !important;
-        pointer-events: none !important;
     }
-    div[data-testid="stToolbar"] > * {
+    div[data-testid="stToolbar"] > *:not(:has(button[data-testid="manage-app-button"])),
+    div[data-testid="stToolbar"] > div:not(:has(button[data-testid="manage-app-button"])) {
         display: none !important;
     }
-    /* Botão de reabrir sidebar — fixado no topo esquerdo */
-    button[data-testid="manage-app-button"],
-    button._terminalButton_rix23_138 {
+    /* Botão de toggle da sidebar — sempre visível e clicável */
+    button[data-testid="manage-app-button"] {
         display: flex !important;
         visibility: visible !important;
         opacity: 1 !important;
         pointer-events: all !important;
         cursor: pointer !important;
-        position: fixed !important;
-        top: 14px !important;
-        left: 0 !important;
-        z-index: 99999 !important;
         background: rgba(11,31,58,0.90) !important;
         border: 1px solid rgba(255,255,255,0.18) !important;
-        border-left: none !important;
         border-radius: 0 8px 8px 0 !important;
         padding: 8px 7px !important;
         width: 28px !important;
@@ -974,13 +965,16 @@ def aplicar_estilo_light():
         line-height: 0 !important;
         box-shadow: 2px 0 8px rgba(0,0,0,0.3) !important;
     }
-    button[data-testid="manage-app-button"] svg,
-    button._terminalButton_rix23_138 svg {
+    button[data-testid="manage-app-button"] svg {
         display: block !important;
         visibility: visible !important;
         flex-shrink: 0 !important;
         width: 8px !important;
         height: 12px !important;
+    }
+    button[data-testid="manage-app-button"] span,
+    button[data-testid="manage-app-button"] p {
+        display: none !important;
     }
     div[data-testid="stBottom"] { display: none !important; }
     #branding { display: none !important; }
@@ -7594,49 +7588,6 @@ def main():
 
     menu_sidebar()
 
-    # Injeta botão JS para reabrir sidebar quando ela está fechada
-    st.components.v1.html("""
-<script>
-(function() {
-    function injectSidebarToggle() {
-        var old = document.getElementById('_fgv_sb_toggle');
-        var sidebar = null;
-        try {
-            sidebar = window.parent.document.querySelector('[data-testid="stSidebar"]');
-        } catch(e) {}
-        if (!sidebar) return;
-
-        var isCollapsed = sidebar.getAttribute('aria-expanded') === 'false' ||
-            sidebar.getBoundingClientRect().width < 50;
-
-        if (isCollapsed) {
-            if (old) return; // já existe
-            var btn = window.parent.document.createElement('button');
-            btn.id = '_fgv_sb_toggle';
-            btn.innerHTML = '<svg width="8" height="14" viewBox="0 0 8 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1L7 7L1 13" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-            btn.style.cssText = 'position:fixed;top:50%;left:0;transform:translateY(-50%);z-index:999999;background:rgba(11,31,58,0.92);border:1px solid rgba(255,255,255,0.2);border-left:none;border-radius:0 8px 8px 0;width:26px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:2px 0 10px rgba(0,0,0,0.4);transition:background 0.2s;';
-            btn.onmouseenter = function() { btn.style.background = 'rgba(41,121,212,0.9)'; };
-            btn.onmouseleave = function() { btn.style.background = 'rgba(11,31,58,0.92)'; };
-            btn.onclick = function() {
-                var nativeBtn = window.parent.document.querySelector('button[data-testid="manage-app-button"]') ||
-                                window.parent.document.querySelector('[data-testid="collapsedControl"]');
-                if (nativeBtn) nativeBtn.click();
-                btn.remove();
-            };
-            window.parent.document.body.appendChild(btn);
-        } else {
-            if (old) old.remove();
-        }
-    }
-
-    var observer = new MutationObserver(injectSidebarToggle);
-    try {
-        observer.observe(window.parent.document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-expanded', 'style'] });
-    } catch(e) {}
-    setInterval(injectSidebarToggle, 800);
-})();
-</script>
-""", height=0)
 
     if st.session_state.menu == "Dashboard":
         pagina_dashboard()
