@@ -77,6 +77,9 @@ def aplicar_estilo_dark():
     .stApp { background: var(--surface-0) !important; color: var(--ink-primary) !important; font-family: var(--font) !important; }
     .block-container { padding: 0 !important; max-width: 100% !important; color: var(--ink-primary) !important; }
     header[data-testid="stHeader"] { background: transparent !important; height: 0 !important; }
+    div[data-testid="stToolbar"],
+    div[data-testid="stDecoration"],
+    #stDecoration { display: none !important; }
     section.main > div { padding-top: 0 !important; }
     div[data-testid="stVerticalBlock"] > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
     * { font-family: var(--font) !important; }
@@ -729,6 +732,9 @@ def aplicar_estilo_light():
     .stApp { background: var(--surface-0) !important; color: var(--ink-primary) !important; font-family: var(--font) !important; }
     .block-container { padding: 0 !important; max-width: 100% !important; color: var(--ink-primary) !important; }
     header[data-testid="stHeader"] { background: transparent !important; height: 0 !important; }
+    div[data-testid="stToolbar"],
+    div[data-testid="stDecoration"],
+    #stDecoration { display: none !important; }
     section.main > div { padding-top: 0 !important; }
     div[data-testid="stVerticalBlock"] > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
     * { font-family: var(--font) !important; }
