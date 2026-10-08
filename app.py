@@ -462,7 +462,7 @@ def aplicar_estilo_dark():
         box-shadow: 0 1px 0 rgba(41,121,212,.25), 0 4px 24px rgba(0,0,0,.2);
         position: relative; overflow: hidden;
         margin-top: -60px;
-        padding-top: 60px;
+        padding-top: 72px;
         box-sizing: content-box;
         height: 68px;
     }
@@ -849,7 +849,7 @@ def aplicar_estilo_light():
         box-shadow: 0 1px 0 rgba(41,121,212,.25), 0 4px 24px rgba(0,0,0,.2);
         position: relative; overflow: hidden;
         margin-top: -60px;
-        padding-top: 60px;
+        padding-top: 72px;
         box-sizing: content-box;
         height: 68px;
     }
