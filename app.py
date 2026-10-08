@@ -92,7 +92,7 @@ def aplicar_estilo_dark():
     }
     section[data-testid="stSidebar"] * { color: #fff !important; }
     section[data-testid="stSidebar"] .block-container { padding: 0 0.75rem !important; }
-    section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] > div:first-child { margin-top: -14px !important; }
+    section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] > div:first-child { margin-top: -40px !important; }
     .theme-toggle-mini { margin: -6px 4px 2px !important; }
 
     /* Theme toggle buttons */
@@ -713,7 +713,7 @@ def aplicar_estilo_light():
     }
     section[data-testid="stSidebar"] * { color: #fff !important; }
     section[data-testid="stSidebar"] .block-container { padding: 0 0.75rem !important; }
-    section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] > div:first-child { margin-top: -14px !important; }
+    section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] > div:first-child { margin-top: -40px !important; }
     .theme-toggle-mini { margin: -6px 4px 2px !important; }
 
     /* Theme toggle buttons */
@@ -2373,7 +2373,7 @@ def menu_sidebar():
         perfil = st.session_state.perfil
         menu_atual = st.session_state.menu
 
-        # Logo via st.logo() — funciona em todos os temas nativamente
+        # Logo via st.logo()
         import os as _os
         _paths = ["assets/FGV_PMO_LOGO_COMPLETO.png", "assets/fgv pmo logo.png"]
         _img_path = next((p for p in _paths if _os.path.exists(p)), None)
@@ -2381,83 +2381,76 @@ def menu_sidebar():
             st.logo(_img_path, size="large")
         st.markdown('<div class="sb-divider" style="margin-top:4px;"></div>', unsafe_allow_html=True)
 
-        # Monta grupos
-        grupo_consulta = []
-        if perfil in ("ADMIN", "PMO"):
-            grupo_consulta.append("Dashboard")
-        grupo_consulta.append("Base de Prazos")
-        if perfil in ("ADMIN", "PMO"):
-            grupo_consulta += ["Análise de Prazos"]
-        grupo_consulta.append("Projetos Concluídos")
-        if perfil in ("ADMIN", "PMO", "COORDENADOR"):
-            grupo_consulta.append("Oportunidades")
+        def _nav_btn(label, key_suffix=None):
+            """Renderiza botão de nav e retorna True se clicado."""
+            k = f"nav_{key_suffix or label}"
+            clicked = st.button(label, key=k, use_container_width=True)
+            if clicked:
+                # Normaliza label sem contador
+                target = label.split(" (")[0] if " (" in label else label
+                if st.session_state.menu != target:
+                    st.session_state.menu = target
+                    st.rerun()
 
-        grupo_operacional = []
+        # ── Helper: verifica se algum item do grupo está ativo
+        def _grupo_ativo(itens):
+            for it in itens:
+                base = it.split(" (")[0] if " (" in it else it
+                if menu_atual == base or menu_atual.startswith(base + " ("):
+                    return True
+            return False
+
+        # ═══════════════════════════════════════
+        # EDITAIS EM ABERTO
+        # ═══════════════════════════════════════
+        _itens_aberto = []
+        # Solicitações
         if perfil in ("ADMIN", "PMO", "COORDENADOR"):
             if perfil in ("ADMIN", "PMO"):
                 try:
                     df_pend = listar_solicitacoes()
                     n_pend = len(df_pend[df_pend["status"] == "PENDENTE"])
-                    grupo_operacional.append(f"Solicitações ({n_pend})" if n_pend > 0 else "Solicitações")
+                    _itens_aberto.append(f"Solicitações ({n_pend})" if n_pend > 0 else "Solicitações")
                 except Exception:
-                    grupo_operacional.append("Solicitações")
+                    _itens_aberto.append("Solicitações")
             else:
-                grupo_operacional.append("Solicitações")
+                _itens_aberto.append("Solicitações")
+        # Oportunidades
+        if perfil in ("ADMIN", "PMO", "COORDENADOR"):
+            _itens_aberto.append("Oportunidades")
+
+        with st.expander("Editais em Aberto", expanded=_grupo_ativo(_itens_aberto)):
+            for _item in _itens_aberto:
+                _nav_btn(_item)
+
+        # ═══════════════════════════════════════
+        # EDITAIS CONCLUÍDOS
+        # ═══════════════════════════════════════
+        _itens_concluidos = ["Base de Prazos", "Projetos Concluídos"]
+
+        with st.expander("Editais Concluídos", expanded=_grupo_ativo(_itens_concluidos)):
+            for _item in _itens_concluidos:
+                _nav_btn(_item)
+
+        # ═══════════════════════════════════════
+        # CONTROLE
+        # ═══════════════════════════════════════
+        _itens_controle = []
         if perfil in ("ADMIN", "PMO"):
-            grupo_operacional.append("Base de dados")
-
-        grupo_conta = ["Minha conta"]
+            _itens_controle.append("Análise de Prazos")
+        if perfil in ("ADMIN", "PMO"):
+            _itens_controle.append("Base de dados")
+        _itens_controle.append("Minha conta")
         if perfil == "ADMIN":
-            grupo_conta.append("Usuários")
+            _itens_controle.append("Usuários")
 
-        grupos = [
-            ("Consulta", grupo_consulta),
-            ("Gestão", grupo_operacional),
-            ("Configurações", grupo_conta),
-        ]
+        with st.expander("Controle", expanded=_grupo_ativo(_itens_controle)):
+            for _item in _itens_controle:
+                _nav_btn(_item)
 
-        all_opcoes = []
-        for _, grupo_itens in grupos:
-            all_opcoes.extend(grupo_itens)
-
-        for opcao in all_opcoes:
-            if st.button(opcao, key=f"nav_{opcao}", use_container_width=True):
-                if st.session_state.menu != opcao:
-                    st.session_state.menu = opcao
-                    st.rerun()
-
-        # JS para destacar botão ativo (injeta menu_atual como valor real)
-        import html as _h_sb
-        menu_safe = _h_sb.escape(repr(menu_atual))
-        st.markdown(f"""
-        <script>
-        (function(){{
-            var active = {menu_safe};
-            function hi(){{
-                var sb = document.querySelector('[data-testid="stSidebar"]');
-                if(!sb){{setTimeout(hi,150);return;}}
-                sb.querySelectorAll('button').forEach(function(b){{
-                    var t=(b.innerText||'').trim();
-                    if(t===active){{
-                        b.style.setProperty('background','rgba(255,255,255,0.12)','important');
-                        b.style.setProperty('color','#fff','important');
-                        b.style.setProperty('-webkit-text-fill-color','#fff','important');
-                        b.style.setProperty('font-weight','600','important');
-                        b.style.setProperty('border-left','2px solid #4d9fff','important');
-                        b.style.setProperty('border-radius','0 7px 7px 0','important');
-                    }} else {{
-                        b.style.removeProperty('border-left');
-                        b.style.removeProperty('border-radius');
-                        b.style.removeProperty('font-weight');
-                    }}
-                }});
-            }}
-            hi();setTimeout(hi,400);
-        }})();
-        </script>
-        """, unsafe_allow_html=True)
-
-        # Rodapé
+        # ═══════════════════════════════════════
+        # RODAPÉ
+        # ═══════════════════════════════════════
         st.markdown('<div class="sb-footer-sep"></div>', unsafe_allow_html=True)
         fc1, fc2, fc3 = st.columns([1, 1, 2])
         with fc1:
@@ -4105,7 +4098,7 @@ def pagina_oportunidades():
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
 
         if df_opp.empty:
-            st.info("Nenhum edital cadastrado. Caso deseje o acompanhamento entre em contato com FGV PMO.")
+            st.info("Nenhum edital cadastrado. Caso deseje o acompanhamento registre uma solicitação.")
             st.markdown('</div>', unsafe_allow_html=True)
         else:
             # ── Filtros ──
