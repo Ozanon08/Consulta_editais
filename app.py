@@ -138,8 +138,8 @@ def aplicar_estilo_dark():
     * { font-family: var(--font) !important; }
     p, li { color: var(--ink-primary) !important; }
 
-    /* Oculta botão de colapso da sidebar */
-    div[data-testid="stSidebarHeader"] {
+    /* Oculta apenas o botão de colapso, mantém o header visível */
+    div[data-testid="stSidebarHeader"] button {
         display: none !important;
     }
     div[data-testid="stSidebarHeader"] button svg,
@@ -900,8 +900,8 @@ def aplicar_estilo_light():
     * { font-family: var(--font) !important; }
     p, li { color: var(--ink-primary) !important; }
 
-    /* Oculta botão de colapso da sidebar */
-    div[data-testid="stSidebarHeader"] {
+    /* Oculta apenas o botão de colapso, mantém o header visível */
+    div[data-testid="stSidebarHeader"] button {
         display: none !important;
     }
     div[data-testid="stSidebarHeader"] button svg,
