@@ -118,37 +118,47 @@ def aplicar_estilo_dark():
     button[kind="headerNoPadding"],
     #stDecoration { display: none !important; }
     footer { display: none !important; }
-    /* Toolbar visível para permitir colapso da sidebar */
+    /* Oculta toolbar mas fixa o botão de sidebar no canto */
     div[data-testid="stToolbar"] {
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        z-index: 9999 !important;
+        background: transparent !important;
+        pointer-events: none !important;
     }
-    /* Oculta tudo dentro do toolbar EXCETO o botão manage-app */
-    div[data-testid="stToolbar"] > *:not(button[data-testid="manage-app-button"]) {
+    div[data-testid="stToolbar"] > * {
         display: none !important;
     }
-    /* Estiliza o botão como ícone discreto sem texto */
-    button[data-testid="manage-app-button"] {
+    /* Botão de reabrir sidebar — fixado no topo esquerdo */
+    button[data-testid="manage-app-button"],
+    button._terminalButton_rix23_138 {
         display: flex !important;
         visibility: visible !important;
         opacity: 1 !important;
         pointer-events: all !important;
         cursor: pointer !important;
-        background: rgba(11,31,58,0.85) !important;
-        border: 1px solid rgba(255,255,255,0.15) !important;
+        position: fixed !important;
+        top: 14px !important;
+        left: 0 !important;
+        z-index: 99999 !important;
+        background: rgba(11,31,58,0.90) !important;
+        border: 1px solid rgba(255,255,255,0.18) !important;
+        border-left: none !important;
         border-radius: 0 8px 8px 0 !important;
-        padding: 10px 8px !important;
-        overflow: hidden !important;
+        padding: 8px 7px !important;
         width: 28px !important;
+        min-width: 28px !important;
+        height: 32px !important;
+        overflow: hidden !important;
         color: transparent !important;
         font-size: 0 !important;
+        line-height: 0 !important;
+        box-shadow: 2px 0 8px rgba(0,0,0,0.3) !important;
     }
-    button[data-testid="manage-app-button"] svg {
+    button[data-testid="manage-app-button"] svg,
+    button._terminalButton_rix23_138 svg {
         display: block !important;
         visibility: visible !important;
         flex-shrink: 0 !important;
+        width: 8px !important;
+        height: 12px !important;
     }
     div[data-testid="stBottom"] { display: none !important; }
     #branding { display: none !important; }
@@ -930,37 +940,47 @@ def aplicar_estilo_light():
     button[kind="headerNoPadding"],
     #stDecoration { display: none !important; }
     footer { display: none !important; }
-    /* Toolbar visível para permitir colapso da sidebar */
+    /* Oculta toolbar mas fixa o botão de sidebar no canto */
     div[data-testid="stToolbar"] {
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        z-index: 9999 !important;
+        background: transparent !important;
+        pointer-events: none !important;
     }
-    /* Oculta tudo dentro do toolbar EXCETO o botão manage-app */
-    div[data-testid="stToolbar"] > *:not(button[data-testid="manage-app-button"]) {
+    div[data-testid="stToolbar"] > * {
         display: none !important;
     }
-    /* Estiliza o botão como ícone discreto sem texto */
-    button[data-testid="manage-app-button"] {
+    /* Botão de reabrir sidebar — fixado no topo esquerdo */
+    button[data-testid="manage-app-button"],
+    button._terminalButton_rix23_138 {
         display: flex !important;
         visibility: visible !important;
         opacity: 1 !important;
         pointer-events: all !important;
         cursor: pointer !important;
-        background: rgba(11,31,58,0.85) !important;
-        border: 1px solid rgba(255,255,255,0.15) !important;
+        position: fixed !important;
+        top: 14px !important;
+        left: 0 !important;
+        z-index: 99999 !important;
+        background: rgba(11,31,58,0.90) !important;
+        border: 1px solid rgba(255,255,255,0.18) !important;
+        border-left: none !important;
         border-radius: 0 8px 8px 0 !important;
-        padding: 10px 8px !important;
-        overflow: hidden !important;
+        padding: 8px 7px !important;
         width: 28px !important;
+        min-width: 28px !important;
+        height: 32px !important;
+        overflow: hidden !important;
         color: transparent !important;
         font-size: 0 !important;
+        line-height: 0 !important;
+        box-shadow: 2px 0 8px rgba(0,0,0,0.3) !important;
     }
-    button[data-testid="manage-app-button"] svg {
+    button[data-testid="manage-app-button"] svg,
+    button._terminalButton_rix23_138 svg {
         display: block !important;
         visibility: visible !important;
         flex-shrink: 0 !important;
+        width: 8px !important;
+        height: 12px !important;
     }
     div[data-testid="stBottom"] { display: none !important; }
     #branding { display: none !important; }
