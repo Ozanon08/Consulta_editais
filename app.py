@@ -457,6 +457,9 @@ def aplicar_estilo_dark():
         border-bottom: 1px solid rgba(255,255,255,.07);
         box-shadow: 0 1px 0 rgba(41,121,212,.25), 0 4px 24px rgba(0,0,0,.2);
         position: relative; overflow: hidden;
+        margin-top: -60px;
+        padding-top: 60px;
+        box-sizing: content-box;
     }
     .header-full-width::before {
         content: "";
@@ -835,6 +838,9 @@ def aplicar_estilo_light():
         border-bottom: 1px solid rgba(255,255,255,.07);
         box-shadow: 0 1px 0 rgba(41,121,212,.25), 0 4px 24px rgba(0,0,0,.2);
         position: relative; overflow: hidden;
+        margin-top: -60px;
+        padding-top: 60px;
+        box-sizing: content-box;
     }
     .header-full-width::before {
         content: "";
