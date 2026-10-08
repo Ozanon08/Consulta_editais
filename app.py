@@ -134,6 +134,31 @@ def aplicar_estilo_dark():
         fill: rgba(255,255,255,0.8) !important;
         stroke: rgba(255,255,255,0.8) !important;
     }
+    /* Botão para REABRIR a sidebar (fica no main quando sidebar está fechada) */
+    button[data-testid="stSidebarOpenButton"],
+    div[data-testid="stSidebarOpenButton"],
+    section[data-testid="stSidebarOpenButton"],
+    [data-testid="stSidebarOpenButton"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: all !important;
+        cursor: pointer !important;
+        z-index: 9999 !important;
+        position: fixed !important;
+        top: 12px !important;
+        left: 12px !important;
+        background: rgba(11,31,58,0.85) !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        border-radius: 8px !important;
+        padding: 6px !important;
+    }
+    [data-testid="stSidebarOpenButton"] svg {
+        display: block !important;
+        visibility: visible !important;
+        fill: rgba(255,255,255,0.9) !important;
+        stroke: rgba(255,255,255,0.9) !important;
+    }
     [class*="keyboard_double_arrow"] { display: none !important; }
 
     /*  SIDEBAR  */
@@ -854,6 +879,31 @@ def aplicar_estilo_light():
         visibility: visible !important;
         fill: rgba(255,255,255,0.8) !important;
         stroke: rgba(255,255,255,0.8) !important;
+    }
+    /* Botão para REABRIR a sidebar (fica no main quando sidebar está fechada) */
+    button[data-testid="stSidebarOpenButton"],
+    div[data-testid="stSidebarOpenButton"],
+    section[data-testid="stSidebarOpenButton"],
+    [data-testid="stSidebarOpenButton"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: all !important;
+        cursor: pointer !important;
+        z-index: 9999 !important;
+        position: fixed !important;
+        top: 12px !important;
+        left: 12px !important;
+        background: rgba(11,31,58,0.85) !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        border-radius: 8px !important;
+        padding: 6px !important;
+    }
+    [data-testid="stSidebarOpenButton"] svg {
+        display: block !important;
+        visibility: visible !important;
+        fill: rgba(255,255,255,0.9) !important;
+        stroke: rgba(255,255,255,0.9) !important;
     }
     [class*="keyboard_double_arrow"] { display: none !important; }
 
