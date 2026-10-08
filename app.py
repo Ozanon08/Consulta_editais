@@ -469,7 +469,7 @@ def aplicar_estilo_dark():
         box-shadow: 0 1px 0 rgba(41,121,212,.25), 0 4px 24px rgba(0,0,0,.2);
         position: relative; overflow: hidden;
         margin-top: -60px;
-        padding-top: 72px;
+        padding-top: 80px;
         box-sizing: content-box;
         height: 68px;
     }
@@ -876,7 +876,7 @@ def aplicar_estilo_light():
         box-shadow: 0 1px 0 rgba(41,121,212,.25), 0 4px 24px rgba(0,0,0,.2);
         position: relative; overflow: hidden;
         margin-top: -60px;
-        padding-top: 72px;
+        padding-top: 80px;
         box-sizing: content-box;
         height: 68px;
     }
@@ -2566,7 +2566,7 @@ def menu_sidebar():
         if perfil in ("ADMIN", "PMO", "COORDENADOR"):
             _itens_aberto.append("Oportunidades")
 
-        with st.expander("📂 Editais em Aberto", expanded=_grupo_ativo(_itens_aberto)):
+        with st.expander("Editais em Aberto", expanded=_grupo_ativo(_itens_aberto)):
             for _item in _itens_aberto:
                 _nav_btn(_item)
 
@@ -2575,7 +2575,7 @@ def menu_sidebar():
         # ═══════════════════════════════════════
         _itens_concluidos = ["Base de Prazos", "Projetos Concluídos"]
 
-        with st.expander("✅ Editais Concluídos", expanded=_grupo_ativo(_itens_concluidos)):
+        with st.expander("Editais Concluídos", expanded=_grupo_ativo(_itens_concluidos)):
             for _item in _itens_concluidos:
                 _nav_btn(_item)
 
@@ -2591,7 +2591,7 @@ def menu_sidebar():
         if perfil == "ADMIN":
             _itens_controle.append("Usuários")
 
-        with st.expander("⚙️ Controle", expanded=_grupo_ativo(_itens_controle)):
+        with st.expander("Controle", expanded=_grupo_ativo(_itens_controle)):
             for _item in _itens_controle:
                 _nav_btn(_item)
 
@@ -2599,7 +2599,7 @@ def menu_sidebar():
         # RODAPÉ
         # ═══════════════════════════════════════
         st.markdown('<div class="sb-footer-sep"></div>', unsafe_allow_html=True)
-        if st.button("🚪 Sair", use_container_width=True, key="btn_sair_sidebar"):
+        if st.button("Sair", use_container_width=True, key="btn_sair_sidebar"):
             logout()
 
 # =========================================================
@@ -4221,9 +4221,9 @@ def pagina_oportunidades():
     # ── Abas ──
     _pode_importar = perfil in ("ADMIN", "PMO")
     if _pode_importar:
-        tab_base, tab_import = st.tabs(["📋 Base de Editais", "⬆️ Importação"])
+        tab_base, tab_import = st.tabs(["Base de Editais", "Importação"])
     else:
-        tab_base = st.tabs(["📋 Base de Editais"])[0]
+        tab_base = st.tabs(["Base de Editais"])[0]
         tab_import = None
 
     # ═══════════════════════════════════════════
