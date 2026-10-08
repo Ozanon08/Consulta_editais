@@ -93,6 +93,44 @@ def aplicar_estilo_dark():
     section[data-testid="stSidebar"] * { color: #fff !important; }
     section[data-testid="stSidebar"] .block-container { padding: 0 0.75rem !important; }
     section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] > div:first-child { margin-top: -40px !important; }
+    /* ── Expanders na sidebar ── */
+    section[data-testid="stSidebar"] details {
+        background: rgba(255,255,255,0.05) !important;
+        border: 1px solid rgba(255,255,255,0.12) !important;
+        border-radius: 8px !important;
+        margin-bottom: 4px !important;
+    }
+    section[data-testid="stSidebar"] details summary {
+        background: transparent !important;
+        color: rgba(255,255,255,0.9) !important;
+        -webkit-text-fill-color: rgba(255,255,255,0.9) !important;
+        font-size: 0.82rem !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.04em !important;
+        padding: 8px 10px !important;
+        border-radius: 7px !important;
+        cursor: pointer !important;
+    }
+    section[data-testid="stSidebar"] details summary:hover {
+        background: rgba(255,255,255,0.08) !important;
+    }
+    section[data-testid="stSidebar"] details > div {
+        background: transparent !important;
+        padding: 2px 4px 4px !important;
+    }
+    /* Oculta espaço reservado pelo st.logo no topo da sidebar */
+    section[data-testid="stSidebar"] [data-testid="stLogoSpacer"],
+    section[data-testid="stSidebar"] [data-testid="stSidebarHeader"],
+    section[data-testid="stSidebar"] div[class*="logoContainer"],
+    section[data-testid="stSidebar"] div[class*="logo"] {
+        display: none !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: hidden !important;
+    }
+
     .theme-toggle-mini { margin: -6px 4px 2px !important; }
 
     /* Theme toggle buttons */
@@ -714,6 +752,44 @@ def aplicar_estilo_light():
     section[data-testid="stSidebar"] * { color: #fff !important; }
     section[data-testid="stSidebar"] .block-container { padding: 0 0.75rem !important; }
     section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] > div:first-child { margin-top: -40px !important; }
+    /* ── Expanders na sidebar ── */
+    section[data-testid="stSidebar"] details {
+        background: rgba(255,255,255,0.05) !important;
+        border: 1px solid rgba(255,255,255,0.12) !important;
+        border-radius: 8px !important;
+        margin-bottom: 4px !important;
+    }
+    section[data-testid="stSidebar"] details summary {
+        background: transparent !important;
+        color: rgba(255,255,255,0.9) !important;
+        -webkit-text-fill-color: rgba(255,255,255,0.9) !important;
+        font-size: 0.82rem !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.04em !important;
+        padding: 8px 10px !important;
+        border-radius: 7px !important;
+        cursor: pointer !important;
+    }
+    section[data-testid="stSidebar"] details summary:hover {
+        background: rgba(255,255,255,0.08) !important;
+    }
+    section[data-testid="stSidebar"] details > div {
+        background: transparent !important;
+        padding: 2px 4px 4px !important;
+    }
+    /* Oculta espaço reservado pelo st.logo no topo da sidebar */
+    section[data-testid="stSidebar"] [data-testid="stLogoSpacer"],
+    section[data-testid="stSidebar"] [data-testid="stSidebarHeader"],
+    section[data-testid="stSidebar"] div[class*="logoContainer"],
+    section[data-testid="stSidebar"] div[class*="logo"] {
+        display: none !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: hidden !important;
+    }
+
     .theme-toggle-mini { margin: -6px 4px 2px !important; }
 
     /* Theme toggle buttons */
@@ -2419,7 +2495,7 @@ def menu_sidebar():
         if perfil in ("ADMIN", "PMO", "COORDENADOR"):
             _itens_aberto.append("Oportunidades")
 
-        with st.expander("Editais em Aberto", expanded=_grupo_ativo(_itens_aberto)):
+        with st.expander("📂 Editais em Aberto", expanded=_grupo_ativo(_itens_aberto)):
             for _item in _itens_aberto:
                 _nav_btn(_item)
 
@@ -2428,7 +2504,7 @@ def menu_sidebar():
         # ═══════════════════════════════════════
         _itens_concluidos = ["Base de Prazos", "Projetos Concluídos"]
 
-        with st.expander("Editais Concluídos", expanded=_grupo_ativo(_itens_concluidos)):
+        with st.expander("✅ Editais Concluídos", expanded=_grupo_ativo(_itens_concluidos)):
             for _item in _itens_concluidos:
                 _nav_btn(_item)
 
@@ -2444,7 +2520,7 @@ def menu_sidebar():
         if perfil == "ADMIN":
             _itens_controle.append("Usuários")
 
-        with st.expander("Controle", expanded=_grupo_ativo(_itens_controle)):
+        with st.expander("⚙️ Controle", expanded=_grupo_ativo(_itens_controle)):
             for _item in _itens_controle:
                 _nav_btn(_item)
 
