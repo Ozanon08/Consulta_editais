@@ -118,45 +118,7 @@ def aplicar_estilo_dark():
     button[kind="headerNoPadding"],
     #stDecoration { display: none !important; }
     footer { display: none !important; }
-    /* Toolbar — oculta tudo exceto o botão de sidebar */
-    div[data-testid="stToolbar"] {
-        background: transparent !important;
-    }
-    div[data-testid="stToolbar"] > *:not(:has(button[data-testid="manage-app-button"])),
-    div[data-testid="stToolbar"] > div:not(:has(button[data-testid="manage-app-button"])) {
-        display: none !important;
-    }
-    /* Botão de toggle da sidebar — sempre visível e clicável */
-    button[data-testid="manage-app-button"] {
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        pointer-events: all !important;
-        cursor: pointer !important;
-        background: rgba(11,31,58,0.90) !important;
-        border: 1px solid rgba(255,255,255,0.18) !important;
-        border-radius: 0 8px 8px 0 !important;
-        padding: 8px 7px !important;
-        width: 28px !important;
-        min-width: 28px !important;
-        height: 32px !important;
-        overflow: hidden !important;
-        color: transparent !important;
-        font-size: 0 !important;
-        line-height: 0 !important;
-        box-shadow: 2px 0 8px rgba(0,0,0,0.3) !important;
-    }
-    button[data-testid="manage-app-button"] svg {
-        display: block !important;
-        visibility: visible !important;
-        flex-shrink: 0 !important;
-        width: 8px !important;
-        height: 12px !important;
-    }
-    button[data-testid="manage-app-button"] span,
-    button[data-testid="manage-app-button"] p {
-        display: none !important;
-    }
+
     div[data-testid="stBottom"] { display: none !important; }
     #branding { display: none !important; }
     a[href*="streamlit.io"] { display: none !important; }
@@ -937,45 +899,7 @@ def aplicar_estilo_light():
     button[kind="headerNoPadding"],
     #stDecoration { display: none !important; }
     footer { display: none !important; }
-    /* Toolbar — oculta tudo exceto o botão de sidebar */
-    div[data-testid="stToolbar"] {
-        background: transparent !important;
-    }
-    div[data-testid="stToolbar"] > *:not(:has(button[data-testid="manage-app-button"])),
-    div[data-testid="stToolbar"] > div:not(:has(button[data-testid="manage-app-button"])) {
-        display: none !important;
-    }
-    /* Botão de toggle da sidebar — sempre visível e clicável */
-    button[data-testid="manage-app-button"] {
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        pointer-events: all !important;
-        cursor: pointer !important;
-        background: rgba(11,31,58,0.90) !important;
-        border: 1px solid rgba(255,255,255,0.18) !important;
-        border-radius: 0 8px 8px 0 !important;
-        padding: 8px 7px !important;
-        width: 28px !important;
-        min-width: 28px !important;
-        height: 32px !important;
-        overflow: hidden !important;
-        color: transparent !important;
-        font-size: 0 !important;
-        line-height: 0 !important;
-        box-shadow: 2px 0 8px rgba(0,0,0,0.3) !important;
-    }
-    button[data-testid="manage-app-button"] svg {
-        display: block !important;
-        visibility: visible !important;
-        flex-shrink: 0 !important;
-        width: 8px !important;
-        height: 12px !important;
-    }
-    button[data-testid="manage-app-button"] span,
-    button[data-testid="manage-app-button"] p {
-        display: none !important;
-    }
+
     div[data-testid="stBottom"] { display: none !important; }
     #branding { display: none !important; }
     a[href*="streamlit.io"] { display: none !important; }
