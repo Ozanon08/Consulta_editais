@@ -75,6 +75,25 @@ def aplicar_estilo_dark():
 
     /*  BASE  */
     .stApp { background: var(--surface-0) !important; color: var(--ink-primary) !important; font-family: var(--font) !important; padding-top: 0 !important; margin-top: 0 !important; }
+    /* Garante que QUALQUER botão fora da sidebar fique visível e clicável */
+    .stApp > section > div > button,
+    .stApp > div > button,
+    body > div > button[aria-label],
+    button[aria-label="Open sidebar"],
+    button[aria-label="Abrir barra lateral"],
+    button[title*="sidebar"],
+    button[title*="Sidebar"],
+    button[class*="sidebar"],
+    button[class*="Sidebar"],
+    header button,
+    nav button {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: all !important;
+        cursor: pointer !important;
+        z-index: 9999 !important;
+    }
     .block-container { padding: 0 !important; max-width: 100% !important; color: var(--ink-primary) !important; }
     header[data-testid="stHeader"] { background: linear-gradient(170deg, #0b1f3a 0%, #1a3f6f 100%) !important; height: auto !important; min-height: 0 !important; }
     div[data-testid="stToolbar"],
@@ -821,6 +840,25 @@ def aplicar_estilo_light():
 
     /*  BASE  */
     .stApp { background: var(--surface-0) !important; color: var(--ink-primary) !important; font-family: var(--font) !important; padding-top: 0 !important; margin-top: 0 !important; }
+    /* Garante que QUALQUER botão fora da sidebar fique visível e clicável */
+    .stApp > section > div > button,
+    .stApp > div > button,
+    body > div > button[aria-label],
+    button[aria-label="Open sidebar"],
+    button[aria-label="Abrir barra lateral"],
+    button[title*="sidebar"],
+    button[title*="Sidebar"],
+    button[class*="sidebar"],
+    button[class*="Sidebar"],
+    header button,
+    nav button {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: all !important;
+        cursor: pointer !important;
+        z-index: 9999 !important;
+    }
     .block-container { padding: 0 !important; max-width: 100% !important; color: var(--ink-primary) !important; }
     header[data-testid="stHeader"] { background: linear-gradient(170deg, #0b1f3a 0%, #1a3f6f 100%) !important; height: auto !important; min-height: 0 !important; }
     div[data-testid="stToolbar"],
