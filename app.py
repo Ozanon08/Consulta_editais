@@ -118,23 +118,37 @@ def aplicar_estilo_dark():
     button[kind="headerNoPadding"],
     #stDecoration { display: none !important; }
     footer { display: none !important; }
-    /* Esconde o texto "Manage app" mas mantém o botão visível para reabrir sidebar */
-    button[data-testid="manage-app-button"] span,
-    button[data-testid="manage-app-button"] { 
-        font-size: 0 !important;
-        background: rgba(11,31,58,0.85) !important;
-        border: 1px solid rgba(255,255,255,0.2) !important;
-        border-radius: 0 8px 8px 0 !important;
-        padding: 10px 8px !important;
-        cursor: pointer !important;
+    /* Toolbar visível para permitir colapso da sidebar */
+    div[data-testid="stToolbar"] {
         display: flex !important;
         visibility: visible !important;
         opacity: 1 !important;
         z-index: 9999 !important;
     }
+    /* Oculta tudo dentro do toolbar EXCETO o botão manage-app */
+    div[data-testid="stToolbar"] > *:not(button[data-testid="manage-app-button"]) {
+        display: none !important;
+    }
+    /* Estiliza o botão como ícone discreto sem texto */
+    button[data-testid="manage-app-button"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: all !important;
+        cursor: pointer !important;
+        background: rgba(11,31,58,0.85) !important;
+        border: 1px solid rgba(255,255,255,0.15) !important;
+        border-radius: 0 8px 8px 0 !important;
+        padding: 10px 8px !important;
+        overflow: hidden !important;
+        width: 28px !important;
+        color: transparent !important;
+        font-size: 0 !important;
+    }
     button[data-testid="manage-app-button"] svg {
         display: block !important;
         visibility: visible !important;
+        flex-shrink: 0 !important;
     }
     div[data-testid="stBottom"] { display: none !important; }
     #branding { display: none !important; }
@@ -916,23 +930,37 @@ def aplicar_estilo_light():
     button[kind="headerNoPadding"],
     #stDecoration { display: none !important; }
     footer { display: none !important; }
-    /* Esconde o texto "Manage app" mas mantém o botão visível para reabrir sidebar */
-    button[data-testid="manage-app-button"] span,
-    button[data-testid="manage-app-button"] { 
-        font-size: 0 !important;
-        background: rgba(11,31,58,0.85) !important;
-        border: 1px solid rgba(255,255,255,0.2) !important;
-        border-radius: 0 8px 8px 0 !important;
-        padding: 10px 8px !important;
-        cursor: pointer !important;
+    /* Toolbar visível para permitir colapso da sidebar */
+    div[data-testid="stToolbar"] {
         display: flex !important;
         visibility: visible !important;
         opacity: 1 !important;
         z-index: 9999 !important;
     }
+    /* Oculta tudo dentro do toolbar EXCETO o botão manage-app */
+    div[data-testid="stToolbar"] > *:not(button[data-testid="manage-app-button"]) {
+        display: none !important;
+    }
+    /* Estiliza o botão como ícone discreto sem texto */
+    button[data-testid="manage-app-button"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: all !important;
+        cursor: pointer !important;
+        background: rgba(11,31,58,0.85) !important;
+        border: 1px solid rgba(255,255,255,0.15) !important;
+        border-radius: 0 8px 8px 0 !important;
+        padding: 10px 8px !important;
+        overflow: hidden !important;
+        width: 28px !important;
+        color: transparent !important;
+        font-size: 0 !important;
+    }
     button[data-testid="manage-app-button"] svg {
         display: block !important;
         visibility: visible !important;
+        flex-shrink: 0 !important;
     }
     div[data-testid="stBottom"] { display: none !important; }
     #branding { display: none !important; }
