@@ -138,28 +138,9 @@ def aplicar_estilo_dark():
     * { font-family: var(--font) !important; }
     p, li { color: var(--ink-primary) !important; }
 
-    /* Botão de colapso da sidebar */
+    /* Oculta botão de colapso da sidebar */
     div[data-testid="stSidebarHeader"] {
-        display: flex !important;
-        visibility: visible !important;
-        min-height: 40px !important;
-        height: auto !important;
-    }
-    div[data-testid="stSidebarHeader"] button,
-    button[data-testid="stSidebarCollapseButton"],
-    button[data-testid="collapsedControl"],
-    [data-testid="stSidebarCollapseButton"],
-    [data-testid="collapsedControl"] {
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        pointer-events: all !important;
-        cursor: pointer !important;
-        z-index: 9999 !important;
-        background: transparent !important;
-        border: none !important;
-        color: rgba(255,255,255,0.8) !important;
-        -webkit-text-fill-color: rgba(255,255,255,0.8) !important;
+        display: none !important;
     }
     div[data-testid="stSidebarHeader"] button svg,
     button[data-testid="stSidebarCollapseButton"] svg,
@@ -919,28 +900,9 @@ def aplicar_estilo_light():
     * { font-family: var(--font) !important; }
     p, li { color: var(--ink-primary) !important; }
 
-    /* Botão de colapso da sidebar */
+    /* Oculta botão de colapso da sidebar */
     div[data-testid="stSidebarHeader"] {
-        display: flex !important;
-        visibility: visible !important;
-        min-height: 40px !important;
-        height: auto !important;
-    }
-    div[data-testid="stSidebarHeader"] button,
-    button[data-testid="stSidebarCollapseButton"],
-    button[data-testid="collapsedControl"],
-    [data-testid="stSidebarCollapseButton"],
-    [data-testid="collapsedControl"] {
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        pointer-events: all !important;
-        cursor: pointer !important;
-        z-index: 9999 !important;
-        background: transparent !important;
-        border: none !important;
-        color: rgba(255,255,255,0.8) !important;
-        -webkit-text-fill-color: rgba(255,255,255,0.8) !important;
+        display: none !important;
     }
     div[data-testid="stSidebarHeader"] button svg,
     button[data-testid="stSidebarCollapseButton"] svg,
