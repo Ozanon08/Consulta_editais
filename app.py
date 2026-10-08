@@ -7588,6 +7588,93 @@ def main():
 
     aplicar_estilo("light")
 
+    # Injeta botão JS para reabrir sidebar quando ela está fechada
+    st.components.v1.html("""
+<script>
+(function() {
+    function injectSidebarToggle() {
+        // Remove botão anterior se existir
+        var old = document.getElementById('_fgv_sb_toggle');
+        if (old) old.remove();
+
+        var sidebar = document.querySelector('[data-testid="stSidebar"]');
+        var isCollapsed = !sidebar ||
+            sidebar.getAttribute('aria-expanded') === 'false' ||
+            getComputedStyle(sidebar).display === 'none' ||
+            sidebar.getBoundingClientRect().width < 50;
+
+        if (isCollapsed) {
+            var btn = document.createElement('button');
+            btn.id = '_fgv_sb_toggle';
+            btn.innerHTML = '<svg width="8" height="14" viewBox="0 0 8 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1L7 7L1 13" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+            btn.style.cssText = [
+                'position:fixed',
+                'top:50%',
+                'left:0',
+                'transform:translateY(-50%)',
+                'z-index:999999',
+                'background:rgba(11,31,58,0.92)',
+                'border:1px solid rgba(255,255,255,0.2)',
+                'border-left:none',
+                'border-radius:0 8px 8px 0',
+                'width:26px',
+                'height:44px',
+                'display:flex',
+                'align-items:center',
+                'justify-content:center',
+                'cursor:pointer',
+                'box-shadow:2px 0 10px rgba(0,0,0,0.4)',
+                'transition:background 0.2s'
+            ].join(';');
+
+            btn.onmouseenter = function() { btn.style.background = 'rgba(41,121,212,0.9)'; };
+            btn.onmouseleave = function() { btn.style.background = 'rgba(11,31,58,0.92)'; };
+
+            btn.onclick = function() {
+                // Tenta clicar no botão nativo do Streamlit
+                var nativeBtn = document.querySelector('button[data-testid="manage-app-button"]') ||
+                                document.querySelector('[data-testid="collapsedControl"]') ||
+                                document.querySelector('button[data-testid="stSidebarCollapseButton"]');
+                if (nativeBtn) {
+                    nativeBtn.click();
+                } else {
+                    // Fallback: manipula o sidebar diretamente
+                    var sb = document.querySelector('[data-testid="stSidebar"]');
+                    if (sb) {
+                        sb.style.display = 'block';
+                        sb.style.width = '';
+                        sb.setAttribute('aria-expanded', 'true');
+                    }
+                }
+                setTimeout(injectSidebarToggle, 500);
+            };
+
+            document.body.appendChild(btn);
+        }
+    }
+
+    // Observa mudanças no DOM
+    var observer = new MutationObserver(function() {
+        injectSidebarToggle();
+    });
+
+    function startObserver() {
+        observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-expanded', 'style'] });
+        injectSidebarToggle();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startObserver);
+    } else {
+        startObserver();
+    }
+    
+    // Checa periodicamente como fallback
+    setInterval(injectSidebarToggle, 1000);
+})();
+</script>
+""", height=0)
+
     if not st.session_state.logado:
         tela_login()
         return
