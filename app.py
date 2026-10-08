@@ -74,14 +74,16 @@ def aplicar_estilo_dark():
     }
 
     /*  BASE  */
-    .stApp { background: var(--surface-0) !important; color: var(--ink-primary) !important; font-family: var(--font) !important; }
+    .stApp { background: var(--surface-0) !important; color: var(--ink-primary) !important; font-family: var(--font) !important; padding-top: 0 !important; margin-top: 0 !important; }
     .block-container { padding: 0 !important; max-width: 100% !important; color: var(--ink-primary) !important; }
-    header[data-testid="stHeader"] { background: transparent !important; height: 0 !important; }
+    header[data-testid="stHeader"] { background: transparent !important; height: 0 !important; min-height: 0 !important; }
     div[data-testid="stToolbar"],
     div[data-testid="stDecoration"],
     #stDecoration { display: none !important; }
     section.main > div { padding-top: 0 !important; }
     div[data-testid="stVerticalBlock"] > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
+    div[data-testid="stAppViewContainer"] { padding-top: 0 !important; }
+    div[data-testid="stMain"] { padding-top: 0 !important; }
     * { font-family: var(--font) !important; }
     p, li { color: var(--ink-primary) !important; }
 
@@ -729,14 +731,16 @@ def aplicar_estilo_light():
     }
 
     /*  BASE  */
-    .stApp { background: var(--surface-0) !important; color: var(--ink-primary) !important; font-family: var(--font) !important; }
+    .stApp { background: var(--surface-0) !important; color: var(--ink-primary) !important; font-family: var(--font) !important; padding-top: 0 !important; margin-top: 0 !important; }
     .block-container { padding: 0 !important; max-width: 100% !important; color: var(--ink-primary) !important; }
-    header[data-testid="stHeader"] { background: transparent !important; height: 0 !important; }
+    header[data-testid="stHeader"] { background: transparent !important; height: 0 !important; min-height: 0 !important; }
     div[data-testid="stToolbar"],
     div[data-testid="stDecoration"],
     #stDecoration { display: none !important; }
     section.main > div { padding-top: 0 !important; }
     div[data-testid="stVerticalBlock"] > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
+    div[data-testid="stAppViewContainer"] { padding-top: 0 !important; }
+    div[data-testid="stMain"] { padding-top: 0 !important; }
     * { font-family: var(--font) !important; }
     p, li { color: var(--ink-primary) !important; }
 
