@@ -104,6 +104,13 @@ def aplicar_estilo_dark():
     p, li { color: var(--ink-primary) !important; }
 
     /* Botão de colapso da sidebar */
+    div[data-testid="stSidebarHeader"] {
+        display: flex !important;
+        visibility: visible !important;
+        min-height: 40px !important;
+        height: auto !important;
+    }
+    div[data-testid="stSidebarHeader"] button,
     button[data-testid="stSidebarCollapseButton"],
     button[data-testid="collapsedControl"],
     [data-testid="stSidebarCollapseButton"],
@@ -114,15 +121,18 @@ def aplicar_estilo_dark():
         pointer-events: all !important;
         cursor: pointer !important;
         z-index: 9999 !important;
-        position: fixed !important;
+        background: transparent !important;
+        border: none !important;
+        color: rgba(255,255,255,0.8) !important;
+        -webkit-text-fill-color: rgba(255,255,255,0.8) !important;
     }
+    div[data-testid="stSidebarHeader"] button svg,
     button[data-testid="stSidebarCollapseButton"] svg,
     button[data-testid="collapsedControl"] svg {
         display: block !important;
         visibility: visible !important;
         fill: rgba(255,255,255,0.8) !important;
         stroke: rgba(255,255,255,0.8) !important;
-        color: rgba(255,255,255,0.8) !important;
     }
     [class*="keyboard_double_arrow"] { display: none !important; }
 
@@ -815,6 +825,13 @@ def aplicar_estilo_light():
     p, li { color: var(--ink-primary) !important; }
 
     /* Botão de colapso da sidebar */
+    div[data-testid="stSidebarHeader"] {
+        display: flex !important;
+        visibility: visible !important;
+        min-height: 40px !important;
+        height: auto !important;
+    }
+    div[data-testid="stSidebarHeader"] button,
     button[data-testid="stSidebarCollapseButton"],
     button[data-testid="collapsedControl"],
     [data-testid="stSidebarCollapseButton"],
@@ -825,15 +842,18 @@ def aplicar_estilo_light():
         pointer-events: all !important;
         cursor: pointer !important;
         z-index: 9999 !important;
-        position: fixed !important;
+        background: transparent !important;
+        border: none !important;
+        color: rgba(255,255,255,0.8) !important;
+        -webkit-text-fill-color: rgba(255,255,255,0.8) !important;
     }
+    div[data-testid="stSidebarHeader"] button svg,
     button[data-testid="stSidebarCollapseButton"] svg,
     button[data-testid="collapsedControl"] svg {
         display: block !important;
         visibility: visible !important;
         fill: rgba(255,255,255,0.8) !important;
         stroke: rgba(255,255,255,0.8) !important;
-        color: rgba(255,255,255,0.8) !important;
     }
     [class*="keyboard_double_arrow"] { display: none !important; }
 
@@ -2560,7 +2580,7 @@ def menu_sidebar():
             with open(_img_path, "rb") as _f:
                 _logo_b64 = _b64.b64encode(_f.read()).decode()
             st.markdown(
-                f'<div style="padding:0px 8px 6px 8px;text-align:center;">'
+                f'<div style="padding:0;margin-top:-8px;text-align:center;">'
                 f'<img src="data:image/png;base64,{_logo_b64}" '
                 f'style="max-width:160px;width:100%;filter:brightness(0) invert(1);opacity:0.92;"/>'
                 f'</div>',
