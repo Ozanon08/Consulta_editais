@@ -92,45 +92,37 @@ def aplicar_estilo_dark():
     }
     section[data-testid="stSidebar"] * { color: #fff !important; }
     section[data-testid="stSidebar"] .block-container { padding: 0 0.75rem !important; }
-    section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] > div:first-child { margin-top: -40px !important; }
-    /* ── Expanders na sidebar (Streamlit usa stExpander) ── */
+    section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] > div:first-child { margin-top: 0 !important; }
+    /* ── Expanders na sidebar ── */
     section[data-testid="stSidebar"] div[data-testid="stExpander"] {
         background: rgba(255,255,255,0.05) !important;
         border: 1px solid rgba(255,255,255,0.12) !important;
         border-radius: 8px !important;
         margin-bottom: 4px !important;
     }
-    section[data-testid="stSidebar"] div[data-testid="stExpander"] > details > summary {
+    section[data-testid="stSidebar"] div[data-testid="stExpander"] summary {
         background: transparent !important;
         padding: 8px 10px !important;
+        list-style: none !important;
     }
-    section[data-testid="stSidebar"] div[data-testid="stExpander"] > details > summary:hover {
+    section[data-testid="stSidebar"] div[data-testid="stExpander"] summary:hover {
         background: rgba(255,255,255,0.08) !important;
+        border-radius: 6px !important;
     }
-    section[data-testid="stSidebar"] div[data-testid="stExpander"] > details > summary p,
-    section[data-testid="stSidebar"] div[data-testid="stExpander"] > details > summary span,
-    section[data-testid="stSidebar"] div[data-testid="stExpander"] > details > summary svg {
-        color: rgba(255,255,255,0.9) !important;
-        -webkit-text-fill-color: rgba(255,255,255,0.9) !important;
+    section[data-testid="stSidebar"] div[data-testid="stExpander"] summary *,
+    section[data-testid="stSidebar"] div[data-testid="stExpander"] summary {
+        color: rgba(255,255,255,0.92) !important;
+        -webkit-text-fill-color: rgba(255,255,255,0.92) !important;
         font-size: 0.82rem !important;
-        font-weight: 600 !important;
-        fill: rgba(255,255,255,0.9) !important;
+        font-weight: 700 !important;
+        fill: rgba(255,255,255,0.92) !important;
+        stroke: rgba(255,255,255,0.92) !important;
     }
-    section[data-testid="stSidebar"] div[data-testid="stExpander"] > details > div {
+    section[data-testid="stSidebar"] div[data-testid="stExpander"] details > div {
         background: transparent !important;
-        padding: 2px 4px 4px !important;
+        padding: 2px 4px 6px !important;
     }
-    /* Oculta espaço reservado pelo st.logo no topo da sidebar */
-    section[data-testid="stSidebar"] [data-testid="stLogoSpacer"],
-    section[data-testid="stSidebar"] [data-testid="stSidebarHeader"],
-    section[data-testid="stSidebar"] div[class*="logoContainer"] {
-        display: none !important;
-        height: 0 !important;
-        min-height: 0 !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        overflow: hidden !important;
-    }
+
 
     .theme-toggle-mini { margin: -6px 4px 2px !important; }
 
@@ -752,45 +744,37 @@ def aplicar_estilo_light():
     }
     section[data-testid="stSidebar"] * { color: #fff !important; }
     section[data-testid="stSidebar"] .block-container { padding: 0 0.75rem !important; }
-    section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] > div:first-child { margin-top: -40px !important; }
-    /* ── Expanders na sidebar (Streamlit usa stExpander) ── */
+    section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] > div:first-child { margin-top: 0 !important; }
+    /* ── Expanders na sidebar ── */
     section[data-testid="stSidebar"] div[data-testid="stExpander"] {
         background: rgba(255,255,255,0.05) !important;
         border: 1px solid rgba(255,255,255,0.12) !important;
         border-radius: 8px !important;
         margin-bottom: 4px !important;
     }
-    section[data-testid="stSidebar"] div[data-testid="stExpander"] > details > summary {
+    section[data-testid="stSidebar"] div[data-testid="stExpander"] summary {
         background: transparent !important;
         padding: 8px 10px !important;
+        list-style: none !important;
     }
-    section[data-testid="stSidebar"] div[data-testid="stExpander"] > details > summary:hover {
+    section[data-testid="stSidebar"] div[data-testid="stExpander"] summary:hover {
         background: rgba(255,255,255,0.08) !important;
+        border-radius: 6px !important;
     }
-    section[data-testid="stSidebar"] div[data-testid="stExpander"] > details > summary p,
-    section[data-testid="stSidebar"] div[data-testid="stExpander"] > details > summary span,
-    section[data-testid="stSidebar"] div[data-testid="stExpander"] > details > summary svg {
-        color: rgba(255,255,255,0.9) !important;
-        -webkit-text-fill-color: rgba(255,255,255,0.9) !important;
+    section[data-testid="stSidebar"] div[data-testid="stExpander"] summary *,
+    section[data-testid="stSidebar"] div[data-testid="stExpander"] summary {
+        color: rgba(255,255,255,0.92) !important;
+        -webkit-text-fill-color: rgba(255,255,255,0.92) !important;
         font-size: 0.82rem !important;
-        font-weight: 600 !important;
-        fill: rgba(255,255,255,0.9) !important;
+        font-weight: 700 !important;
+        fill: rgba(255,255,255,0.92) !important;
+        stroke: rgba(255,255,255,0.92) !important;
     }
-    section[data-testid="stSidebar"] div[data-testid="stExpander"] > details > div {
+    section[data-testid="stSidebar"] div[data-testid="stExpander"] details > div {
         background: transparent !important;
-        padding: 2px 4px 4px !important;
+        padding: 2px 4px 6px !important;
     }
-    /* Oculta espaço reservado pelo st.logo no topo da sidebar */
-    section[data-testid="stSidebar"] [data-testid="stLogoSpacer"],
-    section[data-testid="stSidebar"] [data-testid="stSidebarHeader"],
-    section[data-testid="stSidebar"] div[class*="logoContainer"] {
-        display: none !important;
-        height: 0 !important;
-        min-height: 0 !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        overflow: hidden !important;
-    }
+
 
     .theme-toggle-mini { margin: -6px 4px 2px !important; }
 
@@ -2451,13 +2435,21 @@ def menu_sidebar():
         perfil = st.session_state.perfil
         menu_atual = st.session_state.menu
 
-        # Logo via st.logo()
-        import os as _os
+        # Logo como imagem normal (evita o espaço fixo do st.logo)
+        import os as _os, base64 as _b64
         _paths = ["assets/FGV_PMO_LOGO_COMPLETO.png", "assets/fgv pmo logo.png"]
         _img_path = next((p for p in _paths if _os.path.exists(p)), None)
         if _img_path:
-            st.logo(_img_path, size="large")
-        st.markdown('<div class="sb-divider" style="margin-top:4px;"></div>', unsafe_allow_html=True)
+            with open(_img_path, "rb") as _f:
+                _logo_b64 = _b64.b64encode(_f.read()).decode()
+            st.markdown(
+                f'<div style="padding:14px 8px 8px 8px;text-align:center;">'
+                f'<img src="data:image/png;base64,{_logo_b64}" '
+                f'style="max-width:160px;width:100%;filter:brightness(0) invert(1);opacity:0.92;"/>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+        st.markdown('<div class="sb-divider" style="margin-top:0;"></div>', unsafe_allow_html=True)
 
         def _nav_btn(label, key_suffix=None):
             """Renderiza botão de nav e retorna True se clicado."""
