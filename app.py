@@ -4091,7 +4091,12 @@ def pagina_oportunidades():
     st.markdown('</div>', unsafe_allow_html=True)
 
     # ── Abas ──
-    tab_base, tab_import = st.tabs(["📋 Base de Editais", "⬆️ Importação"])
+    _pode_importar = perfil in ("ADMIN", "PMO")
+    if _pode_importar:
+        tab_base, tab_import = st.tabs(["📋 Base de Editais", "⬆️ Importação"])
+    else:
+        tab_base = st.tabs(["📋 Base de Editais"])[0]
+        tab_import = None
 
     # ═══════════════════════════════════════════
     # ABA BASE DE EDITAIS
@@ -4100,7 +4105,7 @@ def pagina_oportunidades():
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
 
         if df_opp.empty:
-            st.info("Nenhum edital cadastrado. Use a aba **Importação** para carregar a planilha.")
+            st.info("Nenhum edital cadastrado. Caso deseje o acompanhamento entre em contato com FGV PMO.")
             st.markdown('</div>', unsafe_allow_html=True)
         else:
             # ── Filtros ──
@@ -4304,66 +4309,67 @@ def pagina_oportunidades():
         st.markdown('</div>', unsafe_allow_html=True)
 
     # ═══════════════════════════════════════════
-    # ABA IMPORTAÇÃO
+    # ABA IMPORTAÇÃO (apenas ADMIN / PMO)
     # ═══════════════════════════════════════════
-    with tab_import:
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
-
-        if perfil != "ADMIN":
-            st.warning("Importação disponível apenas para o perfil ADMIN.")
+    if tab_import is not None:
+        with tab_import:
+            st.markdown('<div class="section-card">', unsafe_allow_html=True)
+    
+            if perfil != "ADMIN":
+                st.warning("Importação disponível apenas para o perfil ADMIN.")
+                st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                **Formato esperado:** planilha no modelo *Controle-Oportunidades-FGV*, com as colunas:
+                `Área`, `Perfil (A/B/C)`, `Tema do edital`, `Órgão/empresa publicador`,
+                `Macro escopo do projeto`, `Prazo para submissão`, `Valor do financiamento`,
+                `Status`, `Link direto`, `Data de identificação`, `Semana de referência`.
+    
+                Registros já existentes (mesma área + tema + órgão + data) são ignorados automaticamente.
+                """)
+    
+                # Área para importação — texto livre
+                area_import = st.text_input("Área desta importação *",
+                                            placeholder="Ex.: Celog, ECMI, PMO...",
+                                            key="opp_import_area")
+    
+                arq_opp = st.file_uploader("Selecione a planilha (Excel)",
+                                           type=["xlsx","xls"], key="opp_upload")
+                _bytes_opp = arq_opp.read() if arq_opp is not None else None
+    
+                if _bytes_opp is not None:
+                    from io import BytesIO as _BIO
+                    st.info(f"Arquivo carregado: **{arq_opp.name}** ({len(_bytes_opp):,} bytes)")
+    
+                    # Preview
+                    try:
+                        _df_prev = pd.read_excel(_BIO(_bytes_opp), header=0, nrows=5)
+                        cols_prev = [c for c in _df_prev.columns if not str(c).startswith("Unnamed:")]
+                        with st.expander("Pré-visualização (5 primeiras linhas)"):
+                            st.dataframe(_df_prev[cols_prev], use_container_width=True)
+                    except Exception:
+                        pass
+    
+                    if st.button("▶️ Importar oportunidades", type="primary", key="btn_import_opp"):
+                        with st.spinner("Importando..."):
+                            try:
+                                ins, ign, err = importar_oportunidades(
+                                    _BIO(_bytes_opp), area_import,
+                                    st.session_state.usuario
+                                )
+                                if ins > 0:
+                                    st.success(f"✅ {ins} edital(is) importado(s).")
+                                if ign > 0:
+                                    st.info(f"ℹ️ {ign} registro(s) já existentes — ignorados.")
+                                if err > 0:
+                                    st.warning(f"⚠️ {err} linha(s) com erro e ignoradas.")
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as e:
+                                logger.error("Erro import oportunidades: %s", e)
+                                st.error(f"Erro ao importar: {e}")
+    
             st.markdown('</div>', unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            **Formato esperado:** planilha no modelo *Controle-Oportunidades-FGV*, com as colunas:
-            `Área`, `Perfil (A/B/C)`, `Tema do edital`, `Órgão/empresa publicador`,
-            `Macro escopo do projeto`, `Prazo para submissão`, `Valor do financiamento`,
-            `Status`, `Link direto`, `Data de identificação`, `Semana de referência`.
-
-            Registros já existentes (mesma área + tema + órgão + data) são ignorados automaticamente.
-            """)
-
-            # Área para importação — texto livre
-            area_import = st.text_input("Área desta importação *",
-                                        placeholder="Ex.: Celog, ECMI, PMO...",
-                                        key="opp_import_area")
-
-            arq_opp = st.file_uploader("Selecione a planilha (Excel)",
-                                       type=["xlsx","xls"], key="opp_upload")
-            _bytes_opp = arq_opp.read() if arq_opp is not None else None
-
-            if _bytes_opp is not None:
-                from io import BytesIO as _BIO
-                st.info(f"Arquivo carregado: **{arq_opp.name}** ({len(_bytes_opp):,} bytes)")
-
-                # Preview
-                try:
-                    _df_prev = pd.read_excel(_BIO(_bytes_opp), header=0, nrows=5)
-                    cols_prev = [c for c in _df_prev.columns if not str(c).startswith("Unnamed:")]
-                    with st.expander("Pré-visualização (5 primeiras linhas)"):
-                        st.dataframe(_df_prev[cols_prev], use_container_width=True)
-                except Exception:
-                    pass
-
-                if st.button("▶️ Importar oportunidades", type="primary", key="btn_import_opp"):
-                    with st.spinner("Importando..."):
-                        try:
-                            ins, ign, err = importar_oportunidades(
-                                _BIO(_bytes_opp), area_import,
-                                st.session_state.usuario
-                            )
-                            if ins > 0:
-                                st.success(f"✅ {ins} edital(is) importado(s).")
-                            if ign > 0:
-                                st.info(f"ℹ️ {ign} registro(s) já existentes — ignorados.")
-                            if err > 0:
-                                st.warning(f"⚠️ {err} linha(s) com erro e ignoradas.")
-                            st.cache_data.clear()
-                            st.rerun()
-                        except Exception as e:
-                            logger.error("Erro import oportunidades: %s", e)
-                            st.error(f"Erro ao importar: {e}")
-
-        st.markdown('</div>', unsafe_allow_html=True)
 
 
 def pagina_usuarios():
