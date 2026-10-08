@@ -86,13 +86,30 @@ def aplicar_estilo_dark():
     button[class*="sidebar"],
     button[class*="Sidebar"],
     header button,
-    nav button {
+    nav button,
+    .stAppHeader button,
+    header[class*="stAppHeader"] button,
+    div[class*="stAppHeader"] button {
         display: flex !important;
         visibility: visible !important;
         opacity: 1 !important;
         pointer-events: all !important;
         cursor: pointer !important;
         z-index: 9999 !important;
+    }
+    /* stAppHeader visível */
+    .stAppHeader,
+    header[class*="stAppHeader"],
+    div[class*="stAppHeader"] {
+        display: flex !important;
+        visibility: visible !important;
+        height: auto !important;
+        min-height: 40px !important;
+        background: transparent !important;
+        z-index: 9998 !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
     }
     .block-container { padding: 0 !important; max-width: 100% !important; color: var(--ink-primary) !important; }
     header[data-testid="stHeader"] { background: linear-gradient(170deg, #0b1f3a 0%, #1a3f6f 100%) !important; height: auto !important; min-height: 0 !important; }
@@ -851,13 +868,30 @@ def aplicar_estilo_light():
     button[class*="sidebar"],
     button[class*="Sidebar"],
     header button,
-    nav button {
+    nav button,
+    .stAppHeader button,
+    header[class*="stAppHeader"] button,
+    div[class*="stAppHeader"] button {
         display: flex !important;
         visibility: visible !important;
         opacity: 1 !important;
         pointer-events: all !important;
         cursor: pointer !important;
         z-index: 9999 !important;
+    }
+    /* stAppHeader visível */
+    .stAppHeader,
+    header[class*="stAppHeader"],
+    div[class*="stAppHeader"] {
+        display: flex !important;
+        visibility: visible !important;
+        height: auto !important;
+        min-height: 40px !important;
+        background: transparent !important;
+        z-index: 9998 !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
     }
     .block-container { padding: 0 !important; max-width: 100% !important; color: var(--ink-primary) !important; }
     header[data-testid="stHeader"] { background: linear-gradient(170deg, #0b1f3a 0%, #1a3f6f 100%) !important; height: auto !important; min-height: 0 !important; }
