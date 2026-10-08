@@ -76,7 +76,7 @@ def aplicar_estilo_dark():
     /*  BASE  */
     .stApp { background: var(--surface-0) !important; color: var(--ink-primary) !important; font-family: var(--font) !important; padding-top: 0 !important; margin-top: 0 !important; }
     .block-container { padding: 0 !important; max-width: 100% !important; color: var(--ink-primary) !important; }
-    header[data-testid="stHeader"] { background: transparent !important; height: 0 !important; min-height: 0 !important; }
+    header[data-testid="stHeader"] { background: linear-gradient(170deg, #0b1f3a 0%, #1a3f6f 100%) !important; height: auto !important; min-height: 0 !important; }
     div[data-testid="stToolbar"],
     div[data-testid="stDecoration"],
     #stDecoration { display: none !important; }
@@ -738,7 +738,7 @@ def aplicar_estilo_light():
     /*  BASE  */
     .stApp { background: var(--surface-0) !important; color: var(--ink-primary) !important; font-family: var(--font) !important; padding-top: 0 !important; margin-top: 0 !important; }
     .block-container { padding: 0 !important; max-width: 100% !important; color: var(--ink-primary) !important; }
-    header[data-testid="stHeader"] { background: transparent !important; height: 0 !important; min-height: 0 !important; }
+    header[data-testid="stHeader"] { background: linear-gradient(170deg, #0b1f3a 0%, #1a3f6f 100%) !important; height: auto !important; min-height: 0 !important; }
     div[data-testid="stToolbar"],
     div[data-testid="stDecoration"],
     #stDecoration { display: none !important; }
