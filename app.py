@@ -556,15 +556,28 @@ def aplicar_estilo_dark():
 
     /*  BUTTONS  */
     .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {
-        background: var(--fgv-accent) !important; color: #fff !important;
-        -webkit-text-fill-color: #fff !important; border: none !important;
-        border-radius: var(--radius-md) !important; font-weight: 600 !important;
-        font-family: var(--font) !important; transition: background .15s, transform .1s !important;
-        box-shadow: 0 2px 8px rgba(41,121,212,.3) !important;
+        background: linear-gradient(135deg, rgba(41,121,212,0.55) 0%, rgba(77,159,255,0.35) 100%) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        color: #fff !important;
+        -webkit-text-fill-color: #fff !important;
+        border: 1px solid rgba(255,255,255,0.18) !important;
+        border-radius: 10px !important;
+        font-weight: 600 !important;
+        font-family: var(--font) !important;
+        letter-spacing: 0.02em !important;
+        transition: background .2s, box-shadow .2s, transform .15s, border-color .2s !important;
+        box-shadow: 0 2px 12px rgba(41,121,212,0.25), inset 0 1px 0 rgba(255,255,255,0.15) !important;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.2) !important;
     }
-    .stButton > button:hover, .stDownloadButton > button:hover { background: var(--fgv-mid) !important; transform: translateY(-1px) !important; }
-    .stButton > button:active { transform: translateY(0) !important; }
-    .stButton > button:disabled { background: var(--surface-3) !important; color: var(--ink-muted) !important; -webkit-text-fill-color: var(--ink-muted) !important; box-shadow: none !important; transform: none !important; }
+    .stButton > button:hover, .stDownloadButton > button:hover {
+        background: linear-gradient(135deg, rgba(41,121,212,0.75) 0%, rgba(77,159,255,0.55) 100%) !important;
+        border-color: rgba(255,255,255,0.32) !important;
+        box-shadow: 0 4px 20px rgba(41,121,212,0.4), inset 0 1px 0 rgba(255,255,255,0.2) !important;
+        transform: translateY(-1px) !important;
+    }
+    .stButton > button:active { transform: translateY(0) !important; box-shadow: 0 1px 6px rgba(41,121,212,0.3) !important; }
+    .stButton > button:disabled { background: rgba(255,255,255,0.06) !important; color: var(--ink-muted) !important; -webkit-text-fill-color: var(--ink-muted) !important; box-shadow: none !important; transform: none !important; border-color: rgba(255,255,255,0.06) !important; }
 
 
     /*  SELECTBOX MODERNO (dark)  */
@@ -974,15 +987,28 @@ def aplicar_estilo_light():
 
     /*  BUTTONS  */
     .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button {
-        background: var(--fgv-accent) !important; color: #fff !important;
-        -webkit-text-fill-color: #fff !important; border: none !important;
-        border-radius: var(--radius-md) !important; font-weight: 600 !important;
-        font-family: var(--font) !important; transition: background .15s, transform .1s !important;
-        box-shadow: 0 2px 8px rgba(29,111,196,.25) !important;
+        background: linear-gradient(135deg, rgba(29,111,196,0.7) 0%, rgba(41,121,212,0.5) 100%) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        color: #fff !important;
+        -webkit-text-fill-color: #fff !important;
+        border: 1px solid rgba(255,255,255,0.22) !important;
+        border-radius: 10px !important;
+        font-weight: 600 !important;
+        font-family: var(--font) !important;
+        letter-spacing: 0.02em !important;
+        transition: background .2s, box-shadow .2s, transform .15s, border-color .2s !important;
+        box-shadow: 0 2px 12px rgba(29,111,196,0.2), inset 0 1px 0 rgba(255,255,255,0.2) !important;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.15) !important;
     }
-    .stButton > button:hover, .stDownloadButton > button:hover { background: var(--fgv-blue) !important; transform: translateY(-1px) !important; }
-    .stButton > button:active { transform: translateY(0) !important; }
-    .stButton > button:disabled { background: var(--surface-2) !important; color: var(--ink-muted) !important; -webkit-text-fill-color: var(--ink-muted) !important; box-shadow: none !important; transform: none !important; }
+    .stButton > button:hover, .stDownloadButton > button:hover {
+        background: linear-gradient(135deg, rgba(29,111,196,0.9) 0%, rgba(41,121,212,0.75) 100%) !important;
+        border-color: rgba(255,255,255,0.35) !important;
+        box-shadow: 0 4px 20px rgba(29,111,196,0.35), inset 0 1px 0 rgba(255,255,255,0.25) !important;
+        transform: translateY(-1px) !important;
+    }
+    .stButton > button:active { transform: translateY(0) !important; box-shadow: 0 1px 6px rgba(29,111,196,0.25) !important; }
+    .stButton > button:disabled { background: rgba(0,0,0,0.06) !important; color: var(--ink-muted) !important; -webkit-text-fill-color: var(--ink-muted) !important; box-shadow: none !important; transform: none !important; border-color: rgba(0,0,0,0.08) !important; }
 
 
     /*  SELECTBOX MODERNO (light)  */
