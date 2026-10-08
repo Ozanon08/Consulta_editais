@@ -103,7 +103,23 @@ def aplicar_estilo_dark():
     * { font-family: var(--font) !important; }
     p, li { color: var(--ink-primary) !important; }
 
-    /* Esconde apenas o texto "keyboard_double_arrow" dentro do botão de colapso */
+    /* Botão de colapso da sidebar */
+    button[data-testid="stSidebarCollapseButton"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: all !important;
+        z-index: 999 !important;
+        position: relative !important;
+    }
+    button[data-testid="stSidebarCollapseButton"] svg {
+        fill: rgba(255,255,255,0.7) !important;
+        stroke: rgba(255,255,255,0.7) !important;
+    }
+    button[data-testid="stSidebarCollapseButton"]:hover svg {
+        fill: #fff !important;
+        stroke: #fff !important;
+    }
     [class*="keyboard_double_arrow"] { display: none !important; }
 
     /*  SIDEBAR  */
@@ -794,7 +810,23 @@ def aplicar_estilo_light():
     * { font-family: var(--font) !important; }
     p, li { color: var(--ink-primary) !important; }
 
-    /* Esconde apenas o texto "keyboard_double_arrow" dentro do botão de colapso */
+    /* Botão de colapso da sidebar */
+    button[data-testid="stSidebarCollapseButton"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: all !important;
+        z-index: 999 !important;
+        position: relative !important;
+    }
+    button[data-testid="stSidebarCollapseButton"] svg {
+        fill: rgba(255,255,255,0.7) !important;
+        stroke: rgba(255,255,255,0.7) !important;
+    }
+    button[data-testid="stSidebarCollapseButton"]:hover svg {
+        fill: #fff !important;
+        stroke: #fff !important;
+    }
     [class*="keyboard_double_arrow"] { display: none !important; }
 
     /*  SIDEBAR  */
@@ -2520,7 +2552,7 @@ def menu_sidebar():
             with open(_img_path, "rb") as _f:
                 _logo_b64 = _b64.b64encode(_f.read()).decode()
             st.markdown(
-                f'<div style="padding:14px 8px 8px 8px;text-align:center;">'
+                f'<div style="padding:4px 8px 8px 8px;text-align:center;">'
                 f'<img src="data:image/png;base64,{_logo_b64}" '
                 f'style="max-width:160px;width:100%;filter:brightness(0) invert(1);opacity:0.92;"/>'
                 f'</div>',
