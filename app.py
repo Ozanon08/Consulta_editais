@@ -113,13 +113,29 @@ def aplicar_estilo_dark():
     }
     .block-container { padding: 0 !important; max-width: 100% !important; color: var(--ink-primary) !important; }
     header[data-testid="stHeader"] { background: linear-gradient(170deg, #0b1f3a 0%, #1a3f6f 100%) !important; height: auto !important; min-height: 0 !important; }
-    div[data-testid="stToolbar"],
     div[data-testid="stDecoration"],
     div[data-testid="stStatusWidget"],
     button[kind="headerNoPadding"],
     #stDecoration { display: none !important; }
-    div[class*="toolbar"] { display: none !important; }
     footer { display: none !important; }
+    /* Esconde o texto "Manage app" mas mantém o botão visível para reabrir sidebar */
+    button[data-testid="manage-app-button"] span,
+    button[data-testid="manage-app-button"] { 
+        font-size: 0 !important;
+        background: rgba(11,31,58,0.85) !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        border-radius: 0 8px 8px 0 !important;
+        padding: 10px 8px !important;
+        cursor: pointer !important;
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        z-index: 9999 !important;
+    }
+    button[data-testid="manage-app-button"] svg {
+        display: block !important;
+        visibility: visible !important;
+    }
     div[data-testid="stBottom"] { display: none !important; }
     #branding { display: none !important; }
     a[href*="streamlit.io"] { display: none !important; }
@@ -895,13 +911,29 @@ def aplicar_estilo_light():
     }
     .block-container { padding: 0 !important; max-width: 100% !important; color: var(--ink-primary) !important; }
     header[data-testid="stHeader"] { background: linear-gradient(170deg, #0b1f3a 0%, #1a3f6f 100%) !important; height: auto !important; min-height: 0 !important; }
-    div[data-testid="stToolbar"],
     div[data-testid="stDecoration"],
     div[data-testid="stStatusWidget"],
     button[kind="headerNoPadding"],
     #stDecoration { display: none !important; }
-    div[class*="toolbar"] { display: none !important; }
     footer { display: none !important; }
+    /* Esconde o texto "Manage app" mas mantém o botão visível para reabrir sidebar */
+    button[data-testid="manage-app-button"] span,
+    button[data-testid="manage-app-button"] { 
+        font-size: 0 !important;
+        background: rgba(11,31,58,0.85) !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        border-radius: 0 8px 8px 0 !important;
+        padding: 10px 8px !important;
+        cursor: pointer !important;
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        z-index: 9999 !important;
+    }
+    button[data-testid="manage-app-button"] svg {
+        display: block !important;
+        visibility: visible !important;
+    }
     div[data-testid="stBottom"] { display: none !important; }
     #branding { display: none !important; }
     a[href*="streamlit.io"] { display: none !important; }
