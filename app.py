@@ -200,19 +200,19 @@ def aplicar_estilo_dark():
         margin: 0 auto !important;
     }
     section[data-testid="stSidebar"] .stButton > button {
-        background: rgba(255,255,255,0.06) !important;
-        color: rgba(255,255,255,0.85) !important;
-        -webkit-text-fill-color: rgba(255,255,255,0.85) !important;
-        border: 1px solid rgba(255,255,255,0.08) !important;
-        border-radius: var(--radius-md) !important;
-        text-align: center !important;
-        justify-content: center !important;
-        padding: 9px 14px !important;
-        font-size: 0.88rem !important;
+        background: transparent !important;
+        color: rgba(255,255,255,0.75) !important;
+        -webkit-text-fill-color: rgba(255,255,255,0.75) !important;
+        border: none !important;
+        border-radius: 8px !important;
+        text-align: left !important;
+        justify-content: flex-start !important;
+        padding: 8px 12px !important;
+        font-size: 0.85rem !important;
         font-weight: 400 !important;
         box-shadow: none !important;
         transform: none !important;
-        transition: background .12s, color .12s, border-color .12s !important;
+        transition: background .15s, color .15s, padding-left .15s !important;
         letter-spacing: 0.01em !important;
         width: 100% !important;
         display: flex !important;
@@ -220,10 +220,10 @@ def aplicar_estilo_dark():
         opacity: 1 !important;
     }
     section[data-testid="stSidebar"] .stButton > button:hover {
-        background: rgba(255,255,255,0.14) !important;
+        background: rgba(255,255,255,0.08) !important;
         color: #fff !important;
         -webkit-text-fill-color: #fff !important;
-        border-color: rgba(255,255,255,0.2) !important;
+        padding-left: 16px !important;
         transform: none !important;
     }
 
@@ -316,19 +316,19 @@ def aplicar_estilo_dark():
         margin: 4px 0 10px;
     }
     section[data-testid="stSidebar"] .stButton > button {
-        background: rgba(255,255,255,0.06) !important;
-        color: rgba(255,255,255,0.85) !important;
-        -webkit-text-fill-color: rgba(255,255,255,0.85) !important;
-        border: 1px solid rgba(255,255,255,0.08) !important;
-        border-radius: var(--radius-md) !important;
-        text-align: center !important;
-        justify-content: center !important;
-        padding: 9px 14px !important;
-        font-size: 0.88rem !important;
+        background: transparent !important;
+        color: rgba(255,255,255,0.75) !important;
+        -webkit-text-fill-color: rgba(255,255,255,0.75) !important;
+        border: none !important;
+        border-radius: 8px !important;
+        text-align: left !important;
+        justify-content: flex-start !important;
+        padding: 8px 12px !important;
+        font-size: 0.85rem !important;
         font-weight: 400 !important;
         box-shadow: none !important;
         transform: none !important;
-        transition: background .12s, color .12s, border-color .12s !important;
+        transition: background .15s, color .15s, padding-left .15s !important;
         letter-spacing: 0.01em !important;
         width: 100% !important;
         display: flex !important;
@@ -336,10 +336,10 @@ def aplicar_estilo_dark():
         opacity: 1 !important;
     }
     section[data-testid="stSidebar"] .stButton > button:hover {
-        background: rgba(255,255,255,0.14) !important;
+        background: rgba(255,255,255,0.08) !important;
         color: #fff !important;
         -webkit-text-fill-color: #fff !important;
-        border-color: rgba(255,255,255,0.2) !important;
+        padding-left: 16px !important;
         transform: none !important;
     }
     .sb-group-label {
@@ -2483,7 +2483,6 @@ def tela_login():
 # =========================================================
 def menu_sidebar():
     with st.sidebar:
-        tema_atual = st.session_state.get("tema_visual", "Light")
         perfil = st.session_state.perfil
         menu_atual = st.session_state.menu
 
@@ -2541,7 +2540,7 @@ def menu_sidebar():
         if perfil in ("ADMIN", "PMO", "COORDENADOR"):
             _itens_aberto.append("Oportunidades")
 
-        with st.expander("Editais em Aberto", expanded=_grupo_ativo(_itens_aberto)):
+        with st.expander("📂 Editais em Aberto", expanded=_grupo_ativo(_itens_aberto)):
             for _item in _itens_aberto:
                 _nav_btn(_item)
 
@@ -2550,7 +2549,7 @@ def menu_sidebar():
         # ═══════════════════════════════════════
         _itens_concluidos = ["Base de Prazos", "Projetos Concluídos"]
 
-        with st.expander("Editais Concluídos", expanded=_grupo_ativo(_itens_concluidos)):
+        with st.expander("✅ Editais Concluídos", expanded=_grupo_ativo(_itens_concluidos)):
             for _item in _itens_concluidos:
                 _nav_btn(_item)
 
@@ -2566,7 +2565,7 @@ def menu_sidebar():
         if perfil == "ADMIN":
             _itens_controle.append("Usuários")
 
-        with st.expander("Controle", expanded=_grupo_ativo(_itens_controle)):
+        with st.expander("⚙️ Controle", expanded=_grupo_ativo(_itens_controle)):
             for _item in _itens_controle:
                 _nav_btn(_item)
 
@@ -2574,20 +2573,8 @@ def menu_sidebar():
         # RODAPÉ
         # ═══════════════════════════════════════
         st.markdown('<div class="sb-footer-sep"></div>', unsafe_allow_html=True)
-        fc1, fc2, fc3 = st.columns([1, 1, 2])
-        with fc1:
-            if st.button("●" if tema_atual == "Light" else "○", key="btn_light", use_container_width=True):
-                if tema_atual != "Light":
-                    st.session_state.tema_visual = "Light"
-                    st.rerun()
-        with fc2:
-            if st.button("●" if tema_atual == "Dark" else "○", key="btn_dark", use_container_width=True):
-                if tema_atual != "Dark":
-                    st.session_state.tema_visual = "Dark"
-                    st.rerun()
-        with fc3:
-            if st.button("Sair", use_container_width=True, key="btn_sair_sidebar"):
-                logout()
+        if st.button("🚪 Sair", use_container_width=True, key="btn_sair_sidebar"):
+            logout()
 
 # =========================================================
 # CONSULTA
@@ -7311,8 +7298,7 @@ def main():
     init_db()
     init_session()
 
-    tema_visual = st.session_state.get("tema_visual", "Light")
-    aplicar_estilo("dark" if tema_visual == "Dark" else "light")
+    aplicar_estilo("light")
 
     if not st.session_state.logado:
         tela_login()
