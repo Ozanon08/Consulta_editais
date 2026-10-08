@@ -2541,7 +2541,7 @@ def menu_sidebar():
         if perfil in ("ADMIN", "PMO", "COORDENADOR"):
             _itens_aberto.append("Oportunidades")
 
-        with st.expander("📂 Editais em Aberto", expanded=_grupo_ativo(_itens_aberto)):
+        with st.expander("Editais em Aberto", expanded=_grupo_ativo(_itens_aberto)):
             for _item in _itens_aberto:
                 _nav_btn(_item)
 
@@ -2550,7 +2550,7 @@ def menu_sidebar():
         # ═══════════════════════════════════════
         _itens_concluidos = ["Base de Prazos", "Projetos Concluídos"]
 
-        with st.expander("✅ Editais Concluídos", expanded=_grupo_ativo(_itens_concluidos)):
+        with st.expander("Editais Concluídos", expanded=_grupo_ativo(_itens_concluidos)):
             for _item in _itens_concluidos:
                 _nav_btn(_item)
 
@@ -2566,7 +2566,7 @@ def menu_sidebar():
         if perfil == "ADMIN":
             _itens_controle.append("Usuários")
 
-        with st.expander("⚙️ Controle", expanded=_grupo_ativo(_itens_controle)):
+        with st.expander("Controle", expanded=_grupo_ativo(_itens_controle)):
             for _item in _itens_controle:
                 _nav_btn(_item)
 
