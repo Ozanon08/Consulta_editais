@@ -82,8 +82,13 @@ def aplicar_estilo_dark():
     #stDecoration { display: none !important; }
     section.main > div { padding-top: 0 !important; }
     div[data-testid="stVerticalBlock"] > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
-    div[data-testid="stAppViewContainer"] { padding-top: 0 !important; }
-    div[data-testid="stMain"] { padding-top: 0 !important; }
+    div[data-testid="stAppViewContainer"] { padding-top: 0 !important; margin-top: 0 !important; }
+    div[data-testid="stMain"] { padding-top: 0 !important; margin-top: 0 !important; }
+    div[data-testid="stMain"] > div { padding-top: 0 !important; margin-top: 0 !important; }
+    div[data-testid="stMainBlockContainer"] { padding-top: 0 !important; margin-top: 0 !important; }
+    .main .block-container { padding-top: 0 !important; margin-top: 0 !important; }
+    section[data-testid="stMain"] > div:first-child { padding-top: 0 !important; margin-top: 0 !important; }
+    iframe[title="streamlit_analytics"] { display: none !important; }
     * { font-family: var(--font) !important; }
     p, li { color: var(--ink-primary) !important; }
 
@@ -739,8 +744,13 @@ def aplicar_estilo_light():
     #stDecoration { display: none !important; }
     section.main > div { padding-top: 0 !important; }
     div[data-testid="stVerticalBlock"] > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
-    div[data-testid="stAppViewContainer"] { padding-top: 0 !important; }
-    div[data-testid="stMain"] { padding-top: 0 !important; }
+    div[data-testid="stAppViewContainer"] { padding-top: 0 !important; margin-top: 0 !important; }
+    div[data-testid="stMain"] { padding-top: 0 !important; margin-top: 0 !important; }
+    div[data-testid="stMain"] > div { padding-top: 0 !important; margin-top: 0 !important; }
+    div[data-testid="stMainBlockContainer"] { padding-top: 0 !important; margin-top: 0 !important; }
+    .main .block-container { padding-top: 0 !important; margin-top: 0 !important; }
+    section[data-testid="stMain"] > div:first-child { padding-top: 0 !important; margin-top: 0 !important; }
+    iframe[title="streamlit_analytics"] { display: none !important; }
     * { font-family: var(--font) !important; }
     p, li { color: var(--ink-primary) !important; }
 
