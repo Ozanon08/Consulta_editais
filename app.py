@@ -5425,6 +5425,49 @@ def excluir_projeto_concluido(proj_id: int):
     conn.close()
 
 
+def atualizar_projeto_concluido(proj_id: int, nome, tema, subtema, pais=None,
+                                 estado=None, municipio=None,
+                                 data_inicio=None, data_conclusao=None,
+                                 custo_contratado=None, custo_final=None,
+                                 observacoes=None, esforco=None, unidade=None,
+                                 esforco2=None, unidade2=None):
+    from datetime import date as _date
+    def _to_str(d):
+        if d is None: return None
+        if isinstance(d, _date): return d.isoformat()
+        return str(d) or None
+
+    di = _to_str(data_inicio)
+    dc = _to_str(data_conclusao)
+    prazo_real = None
+    if di and dc:
+        try:
+            from datetime import datetime as _dtt
+            _d0 = _dtt.fromisoformat(di)
+            _d1 = _dtt.fromisoformat(dc)
+            prazo_real = (_d1 - _d0).days / 30.44
+        except Exception:
+            pass
+
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        UPDATE projetos_concluidos
+        SET nome_projeto=%s, tema=%s, subtema=%s, pais=%s, estado=%s,
+            municipio=%s, data_inicio=%s, data_conclusao=%s,
+            prazo_real_meses=%s, custo_contratado=%s, custo_final=%s,
+            observacoes=%s, esforco=%s, unidade=%s, esforco2=%s, unidade2=%s
+        WHERE id=%s
+    """, (nome, tema or None, subtema or None, pais or None,
+          estado or None, municipio or None, di, dc,
+          prazo_real, custo_contratado or None, custo_final or None,
+          observacoes or None, esforco or None, unidade or None,
+          esforco2 or None, unidade2 or None, proj_id))
+    conn.commit()
+    conn.close()
+    return prazo_real
+
+
 @st.cache_data(ttl=300, show_spinner=False)
 def kerzner_total_para_projeto(subtema: str, esforco) -> dict | None:
     """
@@ -6434,11 +6477,13 @@ def pagina_projetos_concluidos():
 
                               # Gráfico 1: Barras
                               fig1 = go.Figure()
+                              _indices_prazo = [str(i+1) for i in range(len(projetos_nomes))]
                               fig1.add_trace(go.Bar(
-                                  x=projetos_nomes, y=prazos_reais, name="Prazo real",
+                                  x=_indices_prazo, y=prazos_reais, name="Prazo real",
                                   marker_color=["#10b981" if t_min<=p<=t_max else "#ef4444"
                                                 for p in prazos_reais],
-                                  hovertemplate="<b>%{x}</b><br>Prazo real: %{y:.1f} m<extra></extra>"
+                                  customdata=projetos_nomes,
+                                  hovertemplate="<b>%{customdata}</b><br>Prazo real: %{y:.1f} m<extra></extra>"
                               ))
                               for y_val, dash, cor, label in [
                                   (t_min,   "dash", "#3b82f6", f"Kerzner mín.: {t_min:.1f}m"),
@@ -6450,8 +6495,9 @@ def pagina_projetos_concluidos():
                                                  annotation_position="top right")
                               fig1.update_layout(
                                   title=f"Prazo real por projeto - {subtema_comp}",
-                                  xaxis_title="Projeto", yaxis_title="Meses",
-                                  height=380, template="plotly_white", showlegend=False)
+                                  xaxis_title="Projeto (nº)", yaxis_title="Meses",
+                                  height=380, template="plotly_white", showlegend=False,
+                                  xaxis=dict(tickfont=dict(size=11)))
                               st.plotly_chart(fig1, use_container_width=True)
                               _figs_export = [fig1]
 
@@ -6485,19 +6531,26 @@ def pagina_projetos_concluidos():
                               # Gráfico 3: Custo
                               df_custo = df_comp.dropna(subset=["custo_contratado","custo_final"])
                               if not df_custo.empty:
+                                  _nomes_custo = df_custo["nome_projeto"].tolist()
+                                  _idx_custo   = [str(i+1) for i in range(len(_nomes_custo))]
                                   fig3 = go.Figure()
                                   fig3.add_trace(go.Bar(name="Contratado",
-                                      x=df_custo["nome_projeto"].tolist(),
+                                      x=_idx_custo,
                                       y=df_custo["custo_contratado"].tolist(),
+                                      customdata=_nomes_custo,
+                                      hovertemplate="<b>%{customdata}</b><br>Contratado: R$ %{y:,.2f}<extra></extra>",
                                       marker_color="#3b82f6"))
                                   fig3.add_trace(go.Bar(name="Realizado",
-                                      x=df_custo["nome_projeto"].tolist(),
+                                      x=_idx_custo,
                                       y=df_custo["custo_final"].tolist(),
+                                      customdata=_nomes_custo,
+                                      hovertemplate="<b>%{customdata}</b><br>Realizado: R$ %{y:,.2f}<extra></extra>",
                                       marker_color="#ef4444"))
                                   fig3.update_layout(
                                       title="Custo contratado vs. realizado",
-                                      xaxis_title="Projeto", yaxis_title="R$",
-                                      barmode="group", height=340, template="plotly_white")
+                                      xaxis_title="Projeto (nº)", yaxis_title="R$",
+                                      barmode="group", height=340, template="plotly_white",
+                                      xaxis=dict(tickfont=dict(size=11)))
                                   st.plotly_chart(fig3, use_container_width=True)
                                   _figs_export.append(fig3)
                               else:
@@ -6533,8 +6586,8 @@ def pagina_projetos_concluidos():
     # =========================================================
     if tab_gerenciar:
         with tab_gerenciar:
-            sub_import, sub_manual, sub_excluir = st.tabs([
-                "Importar planilha", "Cadastrar manualmente", "Excluir projeto"
+            sub_import, sub_manual, sub_editar, sub_excluir = st.tabs([
+                "Importar planilha", "Cadastrar manualmente", "Editar projeto", "Excluir projeto"
             ])
 
             # ── Sub-aba: Importar ──
@@ -6666,6 +6719,132 @@ def pagina_projetos_concluidos():
                         st.success(f"Projeto registrado!{prazo_msg}")
                         st.cache_data.clear()
                         st.rerun()
+
+            # ── Sub-aba: Editar ──
+            with sub_editar:
+                if df_proj.empty:
+                    st.info("Nenhum projeto cadastrado.")
+                else:
+                    proj_id_edit = st.selectbox(
+                        "Selecione o projeto para editar",
+                        df_proj["id"].tolist(),
+                        format_func=lambda x: (
+                            f"{x} — "
+                            f"{df_proj.loc[df_proj['id']==x,'nome_projeto'].values[0]}"
+                        ),
+                        key="pc_edit_select"
+                    )
+                    _row_edit = df_proj[df_proj["id"] == proj_id_edit].iloc[0]
+
+                    # Helpers para valores iniciais
+                    def _dv(col):
+                        v = _row_edit.get(col)
+                        if v is None or (isinstance(v, float) and pd.isna(v)):
+                            return None
+                        return v
+
+                    def _date_val(col):
+                        v = _dv(col)
+                        if v is None: return None
+                        try:
+                            from datetime import date as _d
+                            if isinstance(v, _d): return v
+                            return _d.fromisoformat(str(v)[:10])
+                        except Exception:
+                            return None
+
+                    def _float_val(col):
+                        v = _dv(col)
+                        try: return float(v) if v else 0.0
+                        except Exception: return 0.0
+
+                    def _str_val(col):
+                        v = _dv(col)
+                        return str(v) if v else ""
+
+                    _tema_e    = st.text_input("Tema",    value=_str_val("tema"),    key="edit_tema")
+                    _subtema_e = st.text_input("Subtema", value=_str_val("subtema"), key="edit_subtema")
+
+                    with st.form("form_edit_proj", clear_on_submit=False):
+                        st.markdown("""
+                        <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;
+                                    text-transform:uppercase;color:#64748b;
+                                    border-bottom:1px solid #e2e8f0;padding-bottom:6px;
+                                    margin-bottom:12px;">Identificação</div>
+                        """, unsafe_allow_html=True)
+                        ec1, ec2, ec3 = st.columns(3)
+                        with ec1:
+                            _nome_e  = st.text_input("Nome do projeto *", value=_str_val("nome_projeto"))
+                            _pais_e  = st.text_input("País", value=_str_val("pais") or "Brasil")
+                        with ec2:
+                            _estado_e    = st.text_input("Estado",    value=_str_val("estado"))
+                            _municipio_e = st.text_input("Município", value=_str_val("municipio"))
+                        with ec3:
+                            _di_e = st.date_input("Data de início",    value=_date_val("data_inicio"),    format="DD/MM/YYYY")
+                            _dc_e = st.date_input("Data de conclusão", value=_date_val("data_conclusao"), format="DD/MM/YYYY")
+
+                        st.markdown("""
+                        <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;
+                                    text-transform:uppercase;color:#64748b;
+                                    border-bottom:1px solid #e2e8f0;padding-bottom:6px;
+                                    margin-bottom:12px;margin-top:8px;">Parâmetros</div>
+                        """, unsafe_allow_html=True)
+                        ep1, ep2, ep3, ep4 = st.columns(4)
+                        with ep1:
+                            _esf_e  = st.text_input("1º Parâmetro", value=_str_val("esforco"))
+                        with ep2:
+                            _uni_e  = st.text_input("Unidade",       value=_str_val("unidade"))
+                        with ep3:
+                            _esf2_e = st.text_input("2º Parâmetro", value=_str_val("esforco2"))
+                        with ep4:
+                            _uni2_e = st.text_input("Unidade 2",     value=_str_val("unidade2"))
+
+                        st.markdown("""
+                        <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;
+                                    text-transform:uppercase;color:#64748b;
+                                    border-bottom:1px solid #e2e8f0;padding-bottom:6px;
+                                    margin-bottom:12px;margin-top:8px;">Custos</div>
+                        """, unsafe_allow_html=True)
+                        ecc1, ecc2 = st.columns(2)
+                        with ecc1:
+                            _cc_e = st.number_input("Custo da Execução (R$)",    value=_float_val("custo_contratado"), min_value=0.0, step=1000.0, format="%.2f")
+                        with ecc2:
+                            _cf_e = st.number_input("Custo final realizado (R$)", value=_float_val("custo_final"),       min_value=0.0, step=1000.0, format="%.2f")
+
+                        _obs_e   = st.text_area("Observações", value=_str_val("observacoes"), height=70)
+                        _salvar_e = st.form_submit_button("💾 Salvar alterações", type="primary", use_container_width=True)
+
+                    if _salvar_e:
+                        if not _nome_e.strip():
+                            st.warning("Informe o nome do projeto.")
+                        else:
+                            try:
+                                prazo_atualizado = atualizar_projeto_concluido(
+                                    proj_id=proj_id_edit,
+                                    nome=_nome_e.strip(),
+                                    tema=_tema_e or None,
+                                    subtema=_subtema_e or None,
+                                    pais=_pais_e or None,
+                                    estado=_estado_e or None,
+                                    municipio=_municipio_e or None,
+                                    data_inicio=_di_e,
+                                    data_conclusao=_dc_e,
+                                    custo_contratado=_cc_e or None,
+                                    custo_final=_cf_e or None,
+                                    observacoes=_obs_e or None,
+                                    esforco=_esf_e or None,
+                                    unidade=_uni_e or None,
+                                    esforco2=_esf2_e or None,
+                                    unidade2=_uni2_e or None,
+                                )
+                                prazo_msg = (f" Prazo real recalculado: **{prazo_atualizado:.1f} meses**."
+                                             if prazo_atualizado else "")
+                                st.success(f"Projeto atualizado com sucesso!{prazo_msg}")
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as _e_edit:
+                                logger.error("Erro ao atualizar projeto: %s", _e_edit)
+                                st.error("Erro ao salvar. Tente novamente.")
 
             # ── Sub-aba: Excluir ──
             with sub_excluir:
