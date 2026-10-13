@@ -3094,11 +3094,10 @@ def pagina_dashboard():
                 try:
                     _pd_c = _cal_date.fromisoformat(_prazo_c)
                     if _pd_c.year == _ano_ref and _pd_c.month == _mes_ref:
-                        _tema_c = str(_row_c.get("tema","") or "").strip() or "Sem tema"
-                        _orgao_c = str(_row_c.get("orgao","") or "").strip()
-                        _label_c = (_tema_c[:50] + ("…" if len(_tema_c) > 50 else ""))
-                        if _orgao_c:
-                            _label_c += " (" + (_orgao_c[:30] + ("…" if len(_orgao_c) > 30 else "")) + ")"
+                        _area_c  = str(_row_c.get("area","") or "").strip()
+                        _tema_c  = str(_row_c.get("tema","") or "").strip() or "Sem tema"
+                        _tema_tr = _tema_c[:50] + ("…" if len(_tema_c) > 50 else "")
+                        _label_c = (_area_c + " — " if _area_c else "") + _tema_tr
                         _editais_por_dia.setdefault(_pd_c.day, []).append(_label_c)
                 except Exception:
                     pass
@@ -3177,17 +3176,17 @@ def pagina_dashboard():
 
     with col_funil:
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
-        st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:10px;">Funil por aderencia</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:10px;">Editais por área</div>', unsafe_allow_html=True)
 
         try:
             import plotly.graph_objects as _go_funil
             _df_opp_fun = listar_oportunidades()
 
             if _df_opp_fun is not None and not _df_opp_fun.empty:
-                _col_ader = None
+                _col_area = None
                 for _cc in _df_opp_fun.columns:
-                    if "ader" in _cc.lower() or "perfil" in _cc.lower():
-                        _col_ader = _cc
+                    if _cc.lower() == "area":
+                        _col_area = _cc
                         break
 
                 _col_stat = None
@@ -3196,28 +3195,37 @@ def pagina_dashboard():
                         _col_stat = _cc
                         break
 
-                if _col_ader and _col_stat:
-                    _df_fun = _df_opp_fun[[_col_ader, _col_stat]].copy()
-                    _df_fun[_col_ader] = _df_fun[_col_ader].fillna("Não def.").astype(str).str.strip()
+                if _col_area and _col_stat:
+                    _df_fun = _df_opp_fun[[_col_area, _col_stat]].copy()
+                    _df_fun[_col_area] = _df_fun[_col_area].fillna("Sem área").astype(str).str.strip()
                     _df_fun[_col_stat] = _df_fun[_col_stat].fillna("Sem status").astype(str).str.strip()
 
-                    _status_order = ["Em análise","Submetido","Aprovado","Encerrado","Recusado"]
+                    _status_order = ["Novo","Atualização","Em análise","Submetido","Aprovado","Encerrado","Recusado"]
                     _status_vals = sorted(_df_fun[_col_stat].unique(), key=lambda x: _status_order.index(x) if x in _status_order else 99)
-                    _ader_vals = sorted(_df_fun[_col_ader].unique())
+                    _area_vals = sorted(_df_fun[_col_area].unique())
 
-                    _cores_ader = {"A": "#10b981","B": "#3b82f6","C": "#f59e0b","Não def.": "#94a3b8"}
+                    _palette_area = ["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6","#ec4899","#06b6d4","#84cc16"]
+                    _cores_stat = {
+                        "Novo": "#3b82f6",
+                        "Atualização": "#06b6d4",
+                        "Em análise": "#f59e0b",
+                        "Submetido": "#8b5cf6",
+                        "Aprovado": "#10b981",
+                        "Encerrado": "#94a3b8",
+                        "Recusado": "#ef4444",
+                    }
 
                     _fig_fun = _go_funil.Figure()
-                    for _ad in _ader_vals:
+                    for _st in _status_vals:
                         _counts = []
-                        for _st in _status_vals:
-                            _n = len(_df_fun[(_df_fun[_col_ader] == _ad) & (_df_fun[_col_stat] == _st)])
+                        for _ar in _area_vals:
+                            _n = len(_df_fun[(_df_fun[_col_area] == _ar) & (_df_fun[_col_stat] == _st)])
                             _counts.append(_n)
                         _fig_fun.add_trace(_go_funil.Bar(
-                            name=_ad,
-                            x=_status_vals,
+                            name=_st,
+                            x=_area_vals,
                             y=_counts,
-                            marker_color=_cores_ader.get(_ad, "#94a3b8"),
+                            marker_color=_cores_stat.get(_st, "#94a3b8"),
                         ))
 
                     _fig_fun.update_layout(
@@ -3232,7 +3240,7 @@ def pagina_dashboard():
                     )
                     st.plotly_chart(_fig_fun, use_container_width=True)
                 else:
-                    st.caption("Colunas de aderência/status não encontradas.")
+                    st.caption("Colunas de área/status não encontradas.")
             else:
                 st.caption("Sem dados de oportunidades.")
         except ImportError:
@@ -4622,14 +4630,10 @@ def pagina_oportunidades():
         status_aberto  = df_opp["status"].astype(str).str.lower().isin(["novo", "atualização", "atualiz", "open"])
         n_abertos = int(status_aberto.sum())
         n_encerrados = int(df_opp["status"].astype(str).str.lower().str.contains("encerrado").sum())
-        # Aderência alta = perfil A
-        n_alta = int(df_opp["perfil_aderencia"].astype(str).str.strip().str.upper().eq("A").sum())
-
-        m1, m2, m3, m4 = st.columns(4)
+        m1, m2, m3 = st.columns(3)
         m1.metric("Total de editais", len(df_opp))
         m2.metric("Em aberto", n_abertos)
         m3.metric("Encerrados", n_encerrados)
-        m4.metric("Aderência alta (A)", n_alta)
     st.markdown('</div>', unsafe_allow_html=True)
 
     # ── Abas ──
@@ -4651,7 +4655,11 @@ def pagina_oportunidades():
             st.markdown('</div>', unsafe_allow_html=True)
         else:
             # ── Filtros ──
-            fa, fb, fc, fd = st.columns([2, 1, 1, 1])
+            if perfil in ("ADMIN", "PMO"):
+                fa, fb, fc = st.columns([2, 1, 1])
+            else:
+                fa, fb = st.columns([2, 1])
+                fc = None
             with fa:
                 busca_opp = st.text_input("Buscar", placeholder="Tema, órgão ou escopo...",
                                           key="opp_busca", label_visibility="collapsed")
@@ -4659,18 +4667,13 @@ def pagina_oportunidades():
                 status_opts = ["Todos"] + sorted(df_opp["status"].dropna().unique().tolist())
                 filtro_status = st.selectbox("Status", status_opts, key="opp_status",
                                              label_visibility="collapsed")
-            with fc:
-                perfil_opts = ["Todos"] + sorted(df_opp["perfil_aderencia"].dropna().unique().tolist())
-                filtro_perfil_opp = st.selectbox("Aderência", perfil_opts, key="opp_perfil",
-                                                 label_visibility="collapsed")
-            with fd:
-                # ADMIN/PMO podem filtrar por área
-                if perfil in ("ADMIN", "PMO"):
+            if perfil in ("ADMIN", "PMO") and fc is not None:
+                with fc:
                     areas_disp = ["Todas"] + sorted(df_opp["area"].dropna().unique().tolist())
                     filtro_area_opp = st.selectbox("Área", areas_disp, key="opp_area",
                                                    label_visibility="collapsed")
-                else:
-                    filtro_area_opp = "Todas"
+            else:
+                filtro_area_opp = "Todas"
 
             df_view = df_opp.copy()
             if busca_opp:
@@ -4682,8 +4685,6 @@ def pagina_oportunidades():
                 df_view = df_view[mask]
             if filtro_status != "Todos":
                 df_view = df_view[df_view["status"] == filtro_status]
-            if filtro_perfil_opp != "Todos":
-                df_view = df_view[df_view["perfil_aderencia"] == filtro_perfil_opp]
             if filtro_area_opp != "Todas":
                 df_view = df_view[df_view["area"] == filtro_area_opp]
 
