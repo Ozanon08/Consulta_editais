@@ -4415,6 +4415,62 @@ def pagina_oportunidades():
             if filtro_area_opp != "Todas":
                 df_view = df_view[df_view["area"] == filtro_area_opp]
 
+            # ── Ordenação por data ──
+            fe = st.columns([2])[0]
+            with fe:
+                _ord_opcoes = [
+                    "Prazo mais próximo primeiro",
+                    "Prazo mais distante primeiro",
+                    "Mais recente identificado",
+                ]
+                _ord_sel = st.selectbox("Ordenar por", _ord_opcoes, key="opp_ordem",
+                                        label_visibility="collapsed")
+
+            from datetime import date as _sort_date
+            import pandas as _pd_sort
+            _hoje_sort = _sort_date.today()
+
+            def _prazo_sort_key(val):
+                s = str(val or "").strip()[:10]
+                if s in ("", "None", "nan", "NaT"):
+                    return _sort_date(9999, 12, 31)
+                try:
+                    return _sort_date.fromisoformat(s)
+                except Exception:
+                    return _sort_date(9999, 12, 31)
+
+            def _is_encerrado(row):
+                return "encerrado" in str(row.get("status","")).lower()
+
+            if not df_view.empty:
+                df_view = df_view.copy()
+                df_view["_prazo_dt"] = df_view["prazo_submissao"].apply(_prazo_sort_key)
+                df_view["_encerrado"] = df_view.apply(_is_encerrado, axis=1)
+                # Grupo 0 = aberto/vencido, Grupo 1 = encerrado
+                df_view["_grupo"] = df_view["_encerrado"].astype(int)
+
+                if _ord_sel == "Prazo mais próximo primeiro":
+                    # Abertos: ordena por prazo asc (vencidos ficam antes dos sem prazo mas atrás dos futuros)
+                    # Encerrados: sempre no fim, ordenados por prazo desc
+                    df_abertos = df_view[~df_view["_encerrado"]].sort_values("_prazo_dt", ascending=True)
+                    df_enc     = df_view[df_view["_encerrado"]].sort_values("_prazo_dt", ascending=False)
+                    df_view = _pd_sort.concat([df_abertos, df_enc], ignore_index=True)
+                elif _ord_sel == "Prazo mais distante primeiro":
+                    df_abertos = df_view[~df_view["_encerrado"]].sort_values("_prazo_dt", ascending=False)
+                    df_enc     = df_view[df_view["_encerrado"]].sort_values("_prazo_dt", ascending=True)
+                    df_view = _pd_sort.concat([df_abertos, df_enc], ignore_index=True)
+                elif _ord_sel == "Mais recente identificado":
+                    def _data_id_key(val):
+                        s = str(val or "").strip()[:10]
+                        try:
+                            return _sort_date.fromisoformat(s)
+                        except Exception:
+                            return _sort_date(1900, 1, 1)
+                    df_view["_data_id_dt"] = df_view["data_identificacao"].apply(_data_id_key)
+                    df_abertos = df_view[~df_view["_encerrado"]].sort_values("_data_id_dt", ascending=False)
+                    df_enc     = df_view[df_view["_encerrado"]].sort_values("_data_id_dt", ascending=False)
+                    df_view = _pd_sort.concat([df_abertos, df_enc], ignore_index=True)
+
             st.caption(f"{len(df_view)} edital(is) exibido(s)")
 
             # Cores por status (badges)
