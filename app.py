@@ -3086,14 +3086,20 @@ def pagina_dashboard():
         except Exception:
             _df_opp_cal = None
 
-        _prazos_por_dia = {}
+        # Mapeia dia → lista de temas/órgãos
+        _editais_por_dia = {}  # dia (int) → list of str
         if _df_opp_cal is not None and not _df_opp_cal.empty:
             for _, _row_c in _df_opp_cal.iterrows():
                 _prazo_c = str(_row_c.get("prazo_submissao","") or "").strip()[:10]
                 try:
                     _pd_c = _cal_date.fromisoformat(_prazo_c)
                     if _pd_c.year == _ano_ref and _pd_c.month == _mes_ref:
-                        _prazos_por_dia[_pd_c.day] = _prazos_por_dia.get(_pd_c.day, 0) + 1
+                        _tema_c = str(_row_c.get("tema","") or "").strip() or "Sem tema"
+                        _orgao_c = str(_row_c.get("orgao","") or "").strip()
+                        _label_c = (_tema_c[:50] + ("…" if len(_tema_c) > 50 else ""))
+                        if _orgao_c:
+                            _label_c += " (" + (_orgao_c[:30] + ("…" if len(_orgao_c) > 30 else "")) + ")"
+                        _editais_por_dia.setdefault(_pd_c.day, []).append(_label_c)
                 except Exception:
                     pass
 
@@ -3117,19 +3123,31 @@ def pagina_dashboard():
             _html_cal += '<td style="padding:3px;"></td>'
             _col_idx += 1
 
+        import html as _html_esc_cal
         for _dia in range(1, _ultimo_dia + 1):
             _eh_hoje = (_dia == _hoje_cal.day and _mes_ref == _hoje_cal.month and _ano_ref == _hoje_cal.year)
-            _tem_prazo = _dia in _prazos_por_dia
-            _qtd_prazo = _prazos_por_dia.get(_dia, 0)
+            _editais_dia = _editais_por_dia.get(_dia, [])
+            _tem_prazo = len(_editais_dia) > 0
+            _qtd_prazo = len(_editais_dia)
 
             _bg_dia = "#3b82f6" if _eh_hoje else ("#fef3c7" if _tem_prazo else "transparent")
             _cor_dia = "#ffffff" if _eh_hoje else ("#92400e" if _tem_prazo else "var(--ink-primary)")
             _borda = "border:2px solid #3b82f6;" if _eh_hoje else ""
 
+            # Tooltip nativo com lista de editais
+            _tooltip = ""
+            if _editais_dia:
+                _tooltip_lines = [str(_qtd_prazo) + " edital(is):"] + ["• " + e for e in _editais_dia]
+                _tooltip = ' title="' + _html_esc_cal.escape("\n".join(_tooltip_lines)) + '"'
+
+            _cursor = ' style="cursor:pointer;"' if _tem_prazo else ""
+
             _cel = (
                 '<td style="text-align:center;padding:3px;vertical-align:top;">'
-                '<div style="border-radius:6px;' + _borda + "background:" + _bg_dia
-                + ";color:" + _cor_dia + ';min-width:28px;padding:3px 2px;">'
+                '<div' + _tooltip + _cursor
+                + ' style="border-radius:6px;' + _borda + "background:" + _bg_dia
+                + ";color:" + _cor_dia + ';min-width:28px;padding:3px 2px;'
+                + ("transition:filter 0.15s;" if _tem_prazo else "") + '">'
                 + str(_dia)
             )
             if _tem_prazo:
@@ -3149,9 +3167,9 @@ def pagina_dashboard():
 
         st.markdown(_html_cal, unsafe_allow_html=True)
 
-        if _prazos_por_dia:
-            _total_no_mes = sum(_prazos_por_dia.values())
-            st.caption(str(_total_no_mes) + " edital(is) com prazo neste mês")
+        if _editais_por_dia:
+            _total_no_mes = sum(len(v) for v in _editais_por_dia.values())
+            st.caption(str(_total_no_mes) + " edital(is) com prazo neste mês — passe o mouse sobre o dia para ver")
         else:
             st.caption("Nenhum prazo registrado neste mês")
 
