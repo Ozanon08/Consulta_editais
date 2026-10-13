@@ -6474,6 +6474,17 @@ def pagina_projetos_concluidos():
                           if HAS_PLOTLY:
                               projetos_nomes = df_comp["nome_projeto"].tolist()
                               prazos_reais   = df_comp["prazo_real_meses"].tolist()
+                              _obs_list = [
+                                  str(v).strip() if v and str(v).strip() not in ("", "nan", "None") else ""
+                                  for v in df_comp["observacoes"].tolist()
+                              ] if "observacoes" in df_comp.columns else [""] * len(projetos_nomes)
+                              # Label no título: nome + asterisco se tiver obs
+                              _labels_prazo = [
+                                  n + (" *" if o else "")
+                                  for n, o in zip(projetos_nomes, _obs_list)
+                              ]
+                              # customdata: [label_com_asterisco, texto_obs_ou_vazio]
+                              _cd_prazo = [[lbl, obs] for lbl, obs in zip(_labels_prazo, _obs_list)]
 
                               # Gráfico 1: Barras
                               fig1 = go.Figure()
@@ -6482,8 +6493,13 @@ def pagina_projetos_concluidos():
                                   x=_indices_prazo, y=prazos_reais, name="Prazo real",
                                   marker_color=["#10b981" if t_min<=p<=t_max else "#ef4444"
                                                 for p in prazos_reais],
-                                  customdata=projetos_nomes,
-                                  hovertemplate="<b>%{customdata}</b><br>Prazo real: %{y:.1f} m<extra></extra>"
+                                  customdata=_cd_prazo,
+                                  hovertemplate=(
+                                      "<b>%{customdata[0]}</b><br>"
+                                      "Prazo real: %{y:.1f} m<br>"
+                                      "%{customdata[1]}"
+                                      "<extra></extra>"
+                                  )
                               ))
                               for y_val, dash, cor, label in [
                                   (t_min,   "dash", "#3b82f6", f"Kerzner mín.: {t_min:.1f}m"),
@@ -6533,18 +6549,27 @@ def pagina_projetos_concluidos():
                               if not df_custo.empty:
                                   _nomes_custo = df_custo["nome_projeto"].tolist()
                                   _idx_custo   = [str(i+1) for i in range(len(_nomes_custo))]
+                                  _obs_custo = [
+                                      str(v).strip() if v and str(v).strip() not in ("", "nan", "None") else ""
+                                      for v in df_custo["observacoes"].tolist()
+                                  ] if "observacoes" in df_custo.columns else [""] * len(_nomes_custo)
+                                  _labels_custo = [
+                                      n + (" *" if o else "")
+                                      for n, o in zip(_nomes_custo, _obs_custo)
+                                  ]
+                                  _cd_custo = [[lbl, obs] for lbl, obs in zip(_labels_custo, _obs_custo)]
                                   fig3 = go.Figure()
                                   fig3.add_trace(go.Bar(name="Contratado",
                                       x=_idx_custo,
                                       y=df_custo["custo_contratado"].tolist(),
-                                      customdata=_nomes_custo,
-                                      hovertemplate="<b>%{customdata}</b><br>Contratado: R$ %{y:,.2f}<extra></extra>",
+                                      customdata=_cd_custo,
+                                      hovertemplate="<b>%{customdata[0]}</b><br>Contratado: R$ %{y:,.2f}<br>%{customdata[1]}<extra></extra>",
                                       marker_color="#3b82f6"))
                                   fig3.add_trace(go.Bar(name="Realizado",
                                       x=_idx_custo,
                                       y=df_custo["custo_final"].tolist(),
-                                      customdata=_nomes_custo,
-                                      hovertemplate="<b>%{customdata}</b><br>Realizado: R$ %{y:,.2f}<extra></extra>",
+                                      customdata=_cd_custo,
+                                      hovertemplate="<b>%{customdata[0]}</b><br>Realizado: R$ %{y:,.2f}<br>%{customdata[1]}<extra></extra>",
                                       marker_color="#ef4444"))
                                   fig3.update_layout(
                                       title="Custo contratado vs. realizado",
