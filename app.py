@@ -2994,6 +2994,185 @@ def pagina_dashboard():
                     st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
+    # ── Mini-calendário + Funil de aderência ──
+    col_cal, col_funil = st.columns([3, 2])
+
+    with col_cal:
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:10px;">Calendario de prazos</div>', unsafe_allow_html=True)
+
+        import calendar as _cal_mod
+        from datetime import date as _cal_date, timedelta as _cal_td
+
+        if "cal_mes_offset" not in st.session_state:
+            st.session_state.cal_mes_offset = 0
+
+        _hoje_cal = _cal_date.today()
+        _offset = st.session_state.cal_mes_offset
+        _ano_ref = _hoje_cal.year + ((_hoje_cal.month - 1 + _offset) // 12)
+        _mes_ref = ((_hoje_cal.month - 1 + _offset) % 12) + 1
+
+        _nav_prev, _nav_titulo, _nav_next = st.columns([1, 4, 1])
+        with _nav_prev:
+            if st.button("◀", key="cal_prev", use_container_width=True):
+                st.session_state.cal_mes_offset -= 1
+                st.rerun()
+        with _nav_titulo:
+            _meses_pt = ["","Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
+            st.markdown(
+                '<div style="text-align:center;font-weight:700;font-size:0.9rem;padding:4px 0;">'
+                + _meses_pt[_mes_ref] + " " + str(_ano_ref) + "</div>",
+                unsafe_allow_html=True
+            )
+        with _nav_next:
+            if st.button("▶", key="cal_next", use_container_width=True):
+                st.session_state.cal_mes_offset += 1
+                st.rerun()
+
+        # Carrega editais com prazo no mês de referência
+        try:
+            _df_opp_cal = listar_oportunidades()
+        except Exception:
+            _df_opp_cal = None
+
+        _prazos_por_dia = {}
+        if _df_opp_cal is not None and not _df_opp_cal.empty:
+            for _, _row_c in _df_opp_cal.iterrows():
+                _prazo_c = str(_row_c.get("prazo_submissao","") or "").strip()[:10]
+                try:
+                    _pd_c = _cal_date.fromisoformat(_prazo_c)
+                    if _pd_c.year == _ano_ref and _pd_c.month == _mes_ref:
+                        _prazos_por_dia[_pd_c.day] = _prazos_por_dia.get(_pd_c.day, 0) + 1
+                except Exception:
+                    pass
+
+        # Monta HTML do calendário
+        _primeiro_dia = _cal_date(_ano_ref, _mes_ref, 1)
+        _ultimo_dia = _cal_mod.monthrange(_ano_ref, _mes_ref)[1]
+        _semana_inicio = _primeiro_dia.weekday()  # 0=seg
+        _dias_semana_labels = ["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"]
+
+        _html_cal = '<table style="width:100%;border-collapse:collapse;font-size:0.78rem;">'
+        _html_cal += "<tr>"
+        for _ds in _dias_semana_labels:
+            _html_cal += (
+                '<th style="text-align:center;padding:4px 2px;color:#64748b;'
+                'font-weight:600;font-size:0.7rem;">' + _ds + "</th>"
+            )
+        _html_cal += "</tr><tr>"
+
+        _col_idx = 0
+        for _ in range(_semana_inicio):
+            _html_cal += '<td style="padding:3px;"></td>'
+            _col_idx += 1
+
+        for _dia in range(1, _ultimo_dia + 1):
+            _eh_hoje = (_dia == _hoje_cal.day and _mes_ref == _hoje_cal.month and _ano_ref == _hoje_cal.year)
+            _tem_prazo = _dia in _prazos_por_dia
+            _qtd_prazo = _prazos_por_dia.get(_dia, 0)
+
+            _bg_dia = "#3b82f6" if _eh_hoje else ("#fef3c7" if _tem_prazo else "transparent")
+            _cor_dia = "#ffffff" if _eh_hoje else ("#92400e" if _tem_prazo else "var(--ink-primary)")
+            _borda = "border:2px solid #3b82f6;" if _eh_hoje else ""
+
+            _cel = (
+                '<td style="text-align:center;padding:3px;vertical-align:top;">'
+                '<div style="border-radius:6px;' + _borda + "background:" + _bg_dia
+                + ";color:" + _cor_dia + ';min-width:28px;padding:3px 2px;">'
+                + str(_dia)
+            )
+            if _tem_prazo:
+                _cel += (
+                    '<div style="font-size:0.6rem;font-weight:700;background:#f59e0b;'
+                    "color:#fff;border-radius:999px;padding:0 4px;margin-top:1px;"
+                    '">' + str(_qtd_prazo) + "</div>"
+                )
+            _cel += "</div></td>"
+            _html_cal += _cel
+            _col_idx += 1
+
+            if _col_idx % 7 == 0 and _dia < _ultimo_dia:
+                _html_cal += "</tr><tr>"
+
+        _html_cal += "</tr></table>"
+
+        st.markdown(_html_cal, unsafe_allow_html=True)
+
+        if _prazos_por_dia:
+            _total_no_mes = sum(_prazos_por_dia.values())
+            st.caption(str(_total_no_mes) + " edital(is) com prazo neste mês")
+        else:
+            st.caption("Nenhum prazo registrado neste mês")
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with col_funil:
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:10px;">Funil por aderencia</div>', unsafe_allow_html=True)
+
+        try:
+            import plotly.graph_objects as _go_funil
+            _df_opp_fun = listar_oportunidades()
+
+            if _df_opp_fun is not None and not _df_opp_fun.empty:
+                _col_ader = None
+                for _cc in _df_opp_fun.columns:
+                    if "ader" in _cc.lower() or "perfil" in _cc.lower():
+                        _col_ader = _cc
+                        break
+
+                _col_stat = None
+                for _cc in _df_opp_fun.columns:
+                    if _cc.lower() == "status":
+                        _col_stat = _cc
+                        break
+
+                if _col_ader and _col_stat:
+                    _df_fun = _df_opp_fun[[_col_ader, _col_stat]].copy()
+                    _df_fun[_col_ader] = _df_fun[_col_ader].fillna("Não def.").astype(str).str.strip()
+                    _df_fun[_col_stat] = _df_fun[_col_stat].fillna("Sem status").astype(str).str.strip()
+
+                    _status_order = ["Em análise","Submetido","Aprovado","Encerrado","Recusado"]
+                    _status_vals = sorted(_df_fun[_col_stat].unique(), key=lambda x: _status_order.index(x) if x in _status_order else 99)
+                    _ader_vals = sorted(_df_fun[_col_ader].unique())
+
+                    _cores_ader = {"A": "#10b981","B": "#3b82f6","C": "#f59e0b","Não def.": "#94a3b8"}
+
+                    _fig_fun = _go_funil.Figure()
+                    for _ad in _ader_vals:
+                        _counts = []
+                        for _st in _status_vals:
+                            _n = len(_df_fun[(_df_fun[_col_ader] == _ad) & (_df_fun[_col_stat] == _st)])
+                            _counts.append(_n)
+                        _fig_fun.add_trace(_go_funil.Bar(
+                            name=_ad,
+                            x=_status_vals,
+                            y=_counts,
+                            marker_color=_cores_ader.get(_ad, "#94a3b8"),
+                        ))
+
+                    _fig_fun.update_layout(
+                        barmode="stack",
+                        height=260,
+                        margin=dict(t=10, b=40, l=10, r=10),
+                        showlegend=True,
+                        legend=dict(orientation="h", y=-0.25, x=0.5, xanchor="center", font=dict(size=10)),
+                        template="plotly_white",
+                        xaxis=dict(tickfont=dict(size=10)),
+                        yaxis=dict(tickfont=dict(size=10)),
+                    )
+                    st.plotly_chart(_fig_fun, use_container_width=True)
+                else:
+                    st.caption("Colunas de aderência/status não encontradas.")
+            else:
+                st.caption("Sem dados de oportunidades.")
+        except ImportError:
+            st.caption("Plotly não disponível.")
+        except Exception as _e_fun:
+            st.caption("Erro ao gerar funil: " + str(_e_fun))
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
     # ── Historico de uploads ──
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
     st.markdown('<div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:12px;">Historico de uploads</div>', unsafe_allow_html=True)
@@ -4529,12 +4708,25 @@ def pagina_oportunidades():
                         _prazo_date = _today_date.fromisoformat(_prazo_raw)
                         _dias_rest = (_prazo_date - _hoje).days
                         if _dias_rest < 0:
-                            # prazo já passou mas não está marcado como encerrado
                             _prazo_proximo = True
-                            _prazo_label_extra = f" ({abs(_dias_rest)}d atraso)"
+                            _dias_abs = abs(_dias_rest)
+                            if _dias_abs == 1:
+                                _prazo_label_extra = " · venceu ontem"
+                            elif _dias_abs <= 30:
+                                _prazo_label_extra = f" · venceu há {_dias_abs}d"
+                            else:
+                                _prazo_label_extra = f" · vencido"
+                        elif _dias_rest == 0:
+                            _prazo_proximo = True
+                            _prazo_label_extra = " · vence hoje!"
+                        elif _dias_rest == 1:
+                            _prazo_proximo = True
+                            _prazo_label_extra = " · vence amanhã"
                         elif _dias_rest <= _PRAZO_AVISO_DIAS:
                             _prazo_proximo = True
-                            _prazo_label_extra = f" ({_dias_rest}d restantes)"
+                            _prazo_label_extra = f" · {_dias_rest} dias"
+                        else:
+                            _prazo_label_extra = f" · {_dias_rest} dias"
                     except Exception:
                         pass
 
@@ -4595,12 +4787,12 @@ def pagina_oportunidades():
                       </div>
                       <div style="margin-top:4px;">
                         <span style="display:inline-flex;align-items:center;gap:5px;
-                                     background:{'#fecaca' if _prazo_proximo else '#f1f5f9'};
-                                     color:{'#b91c1c' if _prazo_proximo else '#374151'};
+                                     background:{'#fecaca' if _prazo_proximo else ('#f1f5f9' if not _encerrado else '#e2e8f0')};
+                                     color:{'#b91c1c' if _prazo_proximo else ('#374151' if not _encerrado else '#94a3b8')};
                                      border:1px solid {'#fca5a5' if _prazo_proximo else '#e2e8f0'};
                                      border-radius:6px;padding:4px 10px;
                                      font-size:0.82rem;font-weight:700;letter-spacing:0.01em;">
-                          📅 Prazo de submissão: {_h_opp.escape(prazo_opp)}{_h_opp.escape(_prazo_label_extra)}
+                          📅 {_h_opp.escape(prazo_opp)}{_h_opp.escape(_prazo_label_extra)}
                         </span>
                       </div>
                       <div style="font-size:0.75rem;color:var(--ink-muted);margin-top:2px;">
