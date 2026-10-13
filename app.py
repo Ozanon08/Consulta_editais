@@ -1414,6 +1414,18 @@ def init_db():
         )
     """)
 
+    # Cria tabela de histórico de status de oportunidades
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS editais_oportunidades_historico (
+            id              SERIAL PRIMARY KEY,
+            oportunidade_id INTEGER NOT NULL,
+            status_anterior TEXT,
+            status_novo     TEXT NOT NULL,
+            alterado_por    TEXT,
+            alterado_em     TEXT NOT NULL
+        )
+    """)
+
     # Garante ADMIN
     cur.execute("SELECT COUNT(*) FROM usuarios WHERE username = 'ADMIN'")
     exists = cur.fetchone()[0]
@@ -2726,6 +2738,8 @@ def menu_sidebar():
         # ═══════════════════════════════════════
         _itens_controle = []
         if perfil in ("ADMIN", "PMO"):
+            _itens_controle.append("Dashboard")
+        if perfil in ("ADMIN", "PMO"):
             _itens_controle.append("Análise de Prazos")
         if perfil in ("ADMIN", "PMO"):
             _itens_controle.append("Base de dados")
@@ -2751,6 +2765,43 @@ def menu_sidebar():
 # =========================================================
 # DASHBOARD (ADMIN / PMO)
 # =========================================================
+def registrar_historico_status(oportunidade_id: int, status_anterior, status_novo: str, usuario: str):
+    """Registra uma mudança de status no histórico de oportunidades."""
+    if status_anterior == status_novo:
+        return
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO editais_oportunidades_historico
+                (oportunidade_id, status_anterior, status_novo, alterado_por, alterado_em)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (oportunidade_id, status_anterior, status_novo, usuario, agora_str()))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        conn.close()
+
+
+def carregar_historico_oportunidade(oportunidade_id: int):
+    """Retorna lista de mudanças de status para um edital."""
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT status_anterior, status_novo, alterado_por, alterado_em
+            FROM editais_oportunidades_historico
+            WHERE oportunidade_id = %s
+            ORDER BY alterado_em ASC
+        """, (oportunidade_id,))
+        return cur.fetchall()
+    except Exception:
+        return []
+    finally:
+        conn.close()
+
+
 def registrar_upload_historico(tipo: str, qtd_registros: int, usuario: str):
     """Registra um upload no historico."""
     conn = get_conn()
@@ -3188,6 +3239,7 @@ def pagina_dashboard():
                 "base": ("#dbeafe","#1e40af"),
                 "projetos": ("#dcfce7","#166534"),
                 "ipca": ("#fef3c7","#92400e"),
+                "oportunidades": ("#ede9fe","#5b21b6"),
             }
             bg_t, fg_t = tipo_cores.get(tipo, ("#f1f5f9","#475569"))
             st.markdown(f"""
@@ -4468,40 +4520,63 @@ def importar_oportunidades(arquivo, area_importacao: str, usuario: str):
                 ignorados += 1
                 continue
 
-            # Deduplicação
+            r_novo_status = str(row.get("status", "") or "").strip() or None
+            r_perfil      = str(row.get("perfil_aderencia", "") or "").strip() or None
+            r_escopo      = str(row.get("macro_escopo", "") or "").strip() or None
+            r_valor       = str(row.get("valor_financiamento", "") or "").strip() or None
+            r_link        = str(row.get("link", "") or "").strip() or None
+
+            # Verifica se já existe (deduplicação por area+tema+orgao+data_id)
             cur.execute("""
-                SELECT id FROM editais_oportunidades
+                SELECT id, status FROM editais_oportunidades
                 WHERE area IS NOT DISTINCT FROM %s
                   AND tema IS NOT DISTINCT FROM %s
                   AND orgao IS NOT DISTINCT FROM %s
                   AND data_identificacao IS NOT DISTINCT FROM %s
             """, (r_area, r_tema, r_orgao, r_data_id))
-            if cur.fetchone():
-                ignorados += 1
-                continue
+            existing = cur.fetchone()
 
-            cur.execute("""
-                INSERT INTO editais_oportunidades
-                    (area, perfil_aderencia, tema, orgao, macro_escopo,
-                     prazo_submissao, valor_financiamento, status, link,
-                     data_identificacao, semana_referencia, criado_em, importado_por)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            """, (
-                r_area,
-                str(row.get("perfil_aderencia", "") or "").strip() or None,
-                r_tema,
-                r_orgao,
-                str(row.get("macro_escopo", "") or "").strip() or None,
-                r_prazo,
-                str(row.get("valor_financiamento", "") or "").strip() or None,
-                str(row.get("status", "") or "").strip() or None,
-                str(row.get("link", "") or "").strip() or None,
-                r_data_id,
-                r_semana,
-                agora_str(),
-                usuario,
-            ))
-            inseridos += 1
+            if existing:
+                _ex_id, _ex_status = existing
+                # Atualiza campos que podem ter mudado
+                cur.execute("""
+                    UPDATE editais_oportunidades
+                    SET perfil_aderencia=%s, macro_escopo=%s, prazo_submissao=%s,
+                        valor_financiamento=%s, status=%s, link=%s,
+                        semana_referencia=%s, importado_por=%s
+                    WHERE id=%s
+                """, (r_perfil, r_escopo, r_prazo, r_valor, r_novo_status, r_link, r_semana, usuario, _ex_id))
+                # Registra histórico se status mudou
+                if r_novo_status and _ex_status != r_novo_status:
+                    cur.execute("""
+                        INSERT INTO editais_oportunidades_historico
+                            (oportunidade_id, status_anterior, status_novo, alterado_por, alterado_em)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (_ex_id, _ex_status, r_novo_status, usuario, agora_str()))
+                    inseridos += 1  # conta como atualização
+                else:
+                    ignorados += 1
+            else:
+                cur.execute("""
+                    INSERT INTO editais_oportunidades
+                        (area, perfil_aderencia, tema, orgao, macro_escopo,
+                         prazo_submissao, valor_financiamento, status, link,
+                         data_identificacao, semana_referencia, criado_em, importado_por)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    RETURNING id
+                """, (
+                    r_area, r_perfil, r_tema, r_orgao, r_escopo, r_prazo, r_valor,
+                    r_novo_status, r_link, r_data_id, r_semana, agora_str(), usuario,
+                ))
+                new_id = cur.fetchone()[0]
+                # Registra status inicial no histórico
+                if r_novo_status:
+                    cur.execute("""
+                        INSERT INTO editais_oportunidades_historico
+                            (oportunidade_id, status_anterior, status_novo, alterado_por, alterado_em)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (new_id, None, r_novo_status, usuario, agora_str()))
+                inseridos += 1
         except Exception as e:
             logger.warning("Erro ao importar linha de oportunidades: %s", e)
             erros += 1
@@ -4753,9 +4828,11 @@ def pagina_oportunidades():
                     'style="font-size:0.78rem;color:var(--ink-secondary);"'
                 )
 
+                _opp_id = row.get("id", None)
+
                 st.markdown(f"""
                 <div style="border:1px solid {card_border};border-radius:10px;
-                            padding:14px 16px;background:{card_bg};margin-bottom:10px;{card_opacity}">
+                            padding:14px 16px;background:{card_bg};margin-bottom:4px;{card_opacity}">
                   <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;">
                     <div style="flex:1;min-width:200px;">
                       <div style="font-weight:700;font-size:0.92rem;color:var(--ink-primary);
@@ -4803,6 +4880,52 @@ def pagina_oportunidades():
                   </div>
                 </div>
                 """, unsafe_allow_html=True)
+
+                # ── Histórico de status (expander abaixo do card) ──
+                if _opp_id is not None:
+                    _hist = carregar_historico_oportunidade(int(_opp_id))
+                    if _hist:
+                        with st.expander("📋 Histórico de status", expanded=False):
+                            _COR_STATUS_HIST = {
+                                "novo":        "#10b981",
+                                "atualização": "#3b82f6",
+                                "encerrado":   "#94a3b8",
+                                "submetido":   "#8b5cf6",
+                                "aprovado":    "#059669",
+                                "recusado":    "#ef4444",
+                            }
+                            _hist_html = '<div style="padding:4px 0;">'
+                            for i, (_st_ant, _st_nov, _alt_por, _alt_em) in enumerate(_hist):
+                                _data_fmt = str(_alt_em or "")[:16].replace("T", " ")
+                                _cor_dot = _COR_STATUS_HIST.get(str(_st_nov or "").lower(), "#64748b")
+                                _is_last = (i == len(_hist) - 1)
+                                _linha_estilo = "" if _is_last else (
+                                    "border-left:2px solid #e2e8f0;"
+                                    "margin-left:7px;padding-left:16px;padding-bottom:8px;"
+                                )
+                                _hist_html += (
+                                    '<div style="display:flex;align-items:flex-start;gap:10px;' + _linha_estilo + '">'
+                                    '<div style="flex-shrink:0;width:14px;height:14px;border-radius:50%;'
+                                    "background:" + _cor_dot + ';margin-top:2px;"></div>'
+                                    '<div style="flex:1;">'
+                                    '<span style="font-size:0.82rem;font-weight:600;color:var(--ink-primary);">'
+                                    + _h_opp.escape(str(_st_nov or "")) + "</span>"
+                                )
+                                if _st_ant:
+                                    _hist_html += (
+                                        '<span style="font-size:0.75rem;color:var(--ink-secondary);margin-left:6px;">'
+                                        "← " + _h_opp.escape(str(_st_ant)) + "</span>"
+                                    )
+                                _hist_html += (
+                                    '<div style="font-size:0.72rem;color:var(--ink-muted);margin-top:1px;">'
+                                    + _h_opp.escape(_data_fmt)
+                                    + (' &nbsp;·&nbsp; ' + _h_opp.escape(str(_alt_por or "")) if _alt_por else "")
+                                    + "</div></div></div>"
+                                )
+                            _hist_html += "</div>"
+                            st.markdown(_hist_html, unsafe_allow_html=True)
+
+                st.markdown('<div style="margin-bottom:6px;"></div>', unsafe_allow_html=True)
 
             # Botão exportar
             if pode_baixar_arquivos(perfil):
@@ -4876,9 +4999,10 @@ def pagina_oportunidades():
                                     st.session_state.usuario
                                 )
                                 if ins > 0:
-                                    st.success(f"✅ {ins} edital(is) importado(s).")
+                                    st.success(f"✅ {ins} edital(is) importado(s) / atualizados.")
+                                    registrar_upload_historico("oportunidades", ins, st.session_state.usuario)
                                 if ign > 0:
-                                    st.info(f"ℹ️ {ign} registro(s) já existentes — ignorados.")
+                                    st.info(f"ℹ️ {ign} registro(s) sem alteração — ignorados.")
                                 if err > 0:
                                     st.warning(f"⚠️ {err} linha(s) com erro e ignoradas.")
                                 st.cache_data.clear()
