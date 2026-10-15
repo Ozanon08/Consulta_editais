@@ -1414,6 +1414,17 @@ def init_db():
         )
     """)
 
+    # Migração: adiciona coluna descartado em editais_oportunidades se não existir
+    cur.execute("""
+        ALTER TABLE editais_oportunidades ADD COLUMN IF NOT EXISTS descartado BOOLEAN DEFAULT FALSE
+    """)
+    cur.execute("""
+        ALTER TABLE editais_oportunidades ADD COLUMN IF NOT EXISTS descartado_por TEXT
+    """)
+    cur.execute("""
+        ALTER TABLE editais_oportunidades ADD COLUMN IF NOT EXISTS descartado_em TEXT
+    """)
+
     # Cria tabela de histórico de status de oportunidades
     cur.execute("""
         CREATE TABLE IF NOT EXISTS editais_oportunidades_historico (
@@ -4438,11 +4449,34 @@ def listar_oportunidades(area: str = None, perfil_usuario: str = None):
                 df[col] = df[col].apply(
                     lambda v: str(v) if v is not None and str(v) not in ("None", "NaT", "nan", "") else None
                 )
+        # Garante coluna descartado mesmo em bases antigas
+        if "descartado" not in df.columns:
+            df["descartado"] = False
     except Exception:
         df = pd.DataFrame()
     finally:
         conn.close()
     return df
+
+
+def marcar_edital_descartado(opp_id: int, descartado: bool, usuario: str):
+    """Marca ou desmarca um edital como descartado (não será usado)."""
+    conn = get_conn()
+    cur = conn.cursor()
+    if descartado:
+        cur.execute("""
+            UPDATE editais_oportunidades
+            SET descartado = TRUE, descartado_por = %s, descartado_em = %s
+            WHERE id = %s
+        """, (usuario, agora_str(), opp_id))
+    else:
+        cur.execute("""
+            UPDATE editais_oportunidades
+            SET descartado = FALSE, descartado_por = NULL, descartado_em = NULL
+            WHERE id = %s
+        """, (opp_id,))
+    conn.commit()
+    conn.close()
 
 
 def _parse_data_oportunidade(val):
@@ -4622,16 +4656,18 @@ def pagina_oportunidades():
 
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
 
-    df_opp = listar_oportunidades(area=area_usr, perfil_usuario=perfil)
+    # ADMIN/PMO carregam tudo; outros só a sua área
+    df_opp_todos   = listar_oportunidades(perfil_usuario=perfil)           # todos os editais
+    df_opp_area    = listar_oportunidades(area=area_usr, perfil_usuario=perfil)  # filtrado por área
 
-    # ── Indicadores de topo ──
-    if not df_opp.empty:
-        # Status
-        status_aberto  = df_opp["status"].astype(str).str.lower().isin(["novo", "atualização", "atualiz", "open"])
-        n_abertos = int(status_aberto.sum())
-        n_encerrados = int(df_opp["status"].astype(str).str.lower().str.contains("encerrado").sum())
+    # ── Indicadores de topo — usa apenas editais não-descartados da área do usuário ──
+    _df_metricas = df_opp_area[~df_opp_area["descartado"].fillna(False)] if not df_opp_area.empty else df_opp_area
+    if not _df_metricas.empty:
+        status_aberto = _df_metricas["status"].astype(str).str.lower().isin(["novo", "atualização", "atualiz", "open"])
+        n_abertos     = int(status_aberto.sum())
+        n_encerrados  = int(_df_metricas["status"].astype(str).str.lower().str.contains("encerrado").sum())
         m1, m2, m3 = st.columns(3)
-        m1.metric("Total de editais", len(df_opp))
+        m1.metric("Editais específicos", len(_df_metricas))
         m2.metric("Em aberto", n_abertos)
         m3.metric("Encerrados", n_encerrados)
     st.markdown('</div>', unsafe_allow_html=True)
@@ -4639,285 +4675,211 @@ def pagina_oportunidades():
     # ── Abas ──
     _pode_importar = perfil in ("ADMIN", "PMO")
     if _pode_importar:
-        tab_base, tab_import = st.tabs(["Base de Editais", "Importação"])
+        tab_especificos, tab_todos, tab_import = st.tabs(["Editais Específicos", "Todos", "Importação"])
     else:
-        tab_base = st.tabs(["Base de Editais"])[0]
+        tab_especificos, tab_todos = st.tabs(["Editais Específicos", "Todos"])
         tab_import = None
 
-    # ═══════════════════════════════════════════
-    # ABA BASE DE EDITAIS
-    # ═══════════════════════════════════════════
-    with tab_base:
-        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+    # ─────────────────────────────────────────────────────────────
+    # Helpers compartilhados entre as abas
+    # ─────────────────────────────────────────────────────────────
+    from datetime import date as _today_date
+    import pandas as _pd_sort
 
-        if df_opp.empty:
-            st.info("Nenhum edital cadastrado. Caso deseje o acompanhamento registre uma solicitação.")
-            st.markdown('</div>', unsafe_allow_html=True)
-        else:
-            # ── Filtros ──
-            if perfil in ("ADMIN", "PMO"):
-                fa, fb, fc = st.columns([2, 1, 1])
-            else:
-                fa, fb = st.columns([2, 1])
-                fc = None
-            with fa:
-                busca_opp = st.text_input("Buscar", placeholder="Tema, órgão ou escopo...",
-                                          key="opp_busca", label_visibility="collapsed")
-            with fb:
-                status_opts = ["Todos"] + sorted(df_opp["status"].dropna().unique().tolist())
-                filtro_status = st.selectbox("Status", status_opts, key="opp_status",
-                                             label_visibility="collapsed")
-            if perfil in ("ADMIN", "PMO") and fc is not None:
-                with fc:
-                    areas_disp = ["Todas"] + sorted(df_opp["area"].dropna().unique().tolist())
-                    filtro_area_opp = st.selectbox("Área", areas_disp, key="opp_area",
-                                                   label_visibility="collapsed")
-            else:
-                filtro_area_opp = "Todas"
+    COR_STATUS = {
+        "novo":        ("#dcfce7","#166534"),
+        "atualização": ("#dbeafe","#1e40af"),
+        "encerrado":   ("#e2e8f0","#64748b"),
+    }
+    COR_PERF = {"A": ("#fef3c7","#92400e"), "B": ("#ede9fe","#5b21b6"), "C": ("#f0f9ff","#0369a1")}
+    _hoje = _today_date.today()
+    _PRAZO_AVISO_DIAS = 7
 
-            df_view = df_opp.copy()
-            if busca_opp:
-                mask = (
-                    df_view["tema"].astype(str).str.contains(busca_opp, case=False, na=False) |
-                    df_view["orgao"].astype(str).str.contains(busca_opp, case=False, na=False) |
-                    df_view["macro_escopo"].astype(str).str.contains(busca_opp, case=False, na=False)
+    def _prazo_sort_key(val):
+        s = str(val or "").strip()[:10]
+        if s in ("", "None", "nan", "NaT"): return _today_date(9999, 12, 31)
+        try: return _today_date.fromisoformat(s)
+        except Exception: return _today_date(9999, 12, 31)
+
+    def _fmt_data(val):
+        s = str(val or "").strip()
+        if s in ("", "None", "nan", "NaT", "—"): return "—"
+        try:
+            parsed = pd.to_datetime(s[:10], errors="coerce")
+            if pd.isnull(parsed): return s[:10]
+            return parsed.strftime("%d/%m/%Y")
+        except Exception: return s[:10]
+
+    def _prazo_info(row):
+        """Retorna (_prazo_proximo:bool, _prazo_label_extra:str, _prazo_vencido:bool)."""
+        st_key = str(row.get("status","")).lower()
+        _encerrado = "encerrado" in st_key
+        _raw = str(row.get("prazo_submissao","") or "").strip()[:10]
+        if _encerrado or _raw in ("", "None", "nan", "NaT", "—"):
+            return False, "", False
+        try:
+            _pd = _today_date.fromisoformat(_raw)
+            _dias = (_pd - _hoje).days
+            if _dias < 0:
+                _abs = abs(_dias)
+                lbl = " · venceu ontem" if _abs == 1 else (f" · venceu há {_abs}d" if _abs <= 30 else " · vencido")
+                return True, lbl, True
+            elif _dias == 0: return True, " · vence hoje!", False
+            elif _dias == 1: return True, " · vence amanhã", False
+            elif _dias <= _PRAZO_AVISO_DIAS: return True, f" · {_dias} dias", False
+            else: return False, f" · {_dias} dias", False
+        except Exception:
+            return False, "", False
+
+    _pode_descartar = perfil in ("ADMIN", "PMO")
+
+    def _render_cards(df_view, tab_key, mostrar_area=False, mostrar_flag=False):
+        """Renderiza os cards de editais. mostrar_flag=True habilita botão de descarte."""
+        if df_view.empty:
+            st.info("Nenhum edital encontrado com os filtros selecionados.")
+            return
+
+        st.caption(f"{len(df_view)} edital(is) exibido(s)")
+
+        for idx, row in df_view.iterrows():
+            tema_opp   = str(row.get("tema","") or "—")
+            orgao_opp  = str(row.get("orgao","") or "—")
+            escopo_opp = str(row.get("macro_escopo","") or "")
+            status_opp = str(row.get("status","") or "")
+            perf_opp   = str(row.get("perfil_aderencia","") or "")
+            area_opp   = str(row.get("area","") or "")
+            valor_opp  = str(row.get("valor_financiamento","") or "—")
+            prazo_opp  = _fmt_data(row.get("prazo_submissao",""))
+            link_opp   = str(row.get("link","") or "")
+            data_id    = _fmt_data(row.get("data_identificacao",""))
+            _opp_id    = row.get("id", None)
+            _descartado = bool(row.get("descartado", False))
+            _descartado_por = str(row.get("descartado_por","") or "")
+            _descartado_em  = str(row.get("descartado_em","") or "")[:16].replace("T"," ")
+
+            st_key = status_opp.lower()
+            _encerrado = "encerrado" in st_key
+            _prazo_proximo, _prazo_label_extra, _prazo_vencido = _prazo_info(row)
+
+            bg_s, fg_s   = COR_STATUS.get(st_key, ("#f8fafc","#475569"))
+            bg_pr, fg_pr = COR_PERF.get(perf_opp.upper(), ("#f8fafc","#64748b"))
+
+            # Cor do card
+            if _descartado:
+                card_bg = "#f1f5f9"; card_border = "#cbd5e1"; card_opacity = "opacity:0.55;"
+            elif _encerrado:
+                card_bg = "#f1f5f9"; card_border = "#cbd5e1"; card_opacity = "opacity:0.72;"
+            elif _prazo_proximo:
+                card_bg = "#fee2e2"; card_border = "#fca5a5"; card_opacity = ""
+            else:
+                card_bg = "var(--surface-1)"; card_border = "var(--border-subtle)"; card_opacity = ""
+
+            link_html = (
+                '<a href="' + _h_opp.escape(link_opp) + '" target="_blank" '
+                'style="color:var(--accent-primary);font-size:0.78rem;">🔗 Ver edital</a>'
+                if link_opp.startswith("http") else ""
+            )
+
+            area_badge = (
+                '<span style="background:#f0f9ff;color:#0369a1;padding:2px 10px;'
+                'border-radius:999px;font-size:11px;">' + _h_opp.escape(area_opp) + '</span>'
+                if (mostrar_area and area_opp) else ""
+            )
+
+            descartado_badge = (
+                '<span style="background:#f1f5f9;color:#64748b;padding:2px 10px;'
+                'border-radius:999px;font-size:11px;font-weight:600;">⊘ Descartado</span>'
+                if _descartado else ""
+            )
+
+            prazo_bg  = '#fecaca' if _prazo_proximo else ('#e2e8f0' if _encerrado else '#f1f5f9')
+            prazo_fg  = '#b91c1c' if _prazo_proximo else ('#94a3b8' if _encerrado else '#374151')
+            prazo_brd = '#fca5a5' if _prazo_proximo else '#e2e8f0'
+
+            descartado_info = ""
+            if _descartado and _descartado_por:
+                descartado_info = (
+                    '<div style="font-size:0.72rem;color:#94a3b8;margin-top:2px;">'
+                    'Descartado por ' + _h_opp.escape(_descartado_por)
+                    + (' em ' + _h_opp.escape(_descartado_em) if _descartado_em else "")
+                    + '</div>'
                 )
-                df_view = df_view[mask]
-            if filtro_status != "Todos":
-                df_view = df_view[df_view["status"] == filtro_status]
-            if filtro_area_opp != "Todas":
-                df_view = df_view[df_view["area"] == filtro_area_opp]
 
-            # ── Ordenação por data ──
-            fe = st.columns([2])[0]
-            with fe:
-                _ord_opcoes = [
-                    "Prazo mais próximo primeiro",
-                    "Prazo mais distante primeiro",
-                    "Mais recente identificado",
-                ]
-                _ord_sel = st.selectbox("Ordenar por", _ord_opcoes, key="opp_ordem",
-                                        label_visibility="collapsed")
+            st.markdown(
+                '<div style="border:1px solid ' + card_border + ';border-radius:10px;'
+                'padding:14px 16px;background:' + card_bg + ';margin-bottom:4px;' + card_opacity + '">'
+                '<div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;">'
+                '<div style="flex:1;min-width:200px;">'
+                '<div style="font-weight:700;font-size:0.92rem;color:var(--ink-primary);margin-bottom:4px;">'
+                + _h_opp.escape(tema_opp) + '</div>'
+                '<div style="font-size:0.8rem;color:var(--ink-secondary);margin-bottom:6px;">'
+                + _h_opp.escape(orgao_opp) + '</div>'
+                '<div style="font-size:0.78rem;color:var(--ink-muted);">'
+                + _h_opp.escape(escopo_opp[:400] + ("…" if len(escopo_opp)>400 else "")) + '</div>'
+                '</div>'
+                '<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;'
+                'min-width:180px;text-align:right;">'
+                '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">'
+                '<span style="background:' + bg_s + ';color:' + fg_s + ';padding:2px 10px;'
+                'border-radius:999px;font-size:11px;font-weight:600;">' + _h_opp.escape(status_opp) + '</span>'
+                + (('<span style="background:' + bg_pr + ';color:' + fg_pr + ';padding:2px 10px;'
+                'border-radius:999px;font-size:11px;font-weight:600;">Perf. '
+                + _h_opp.escape(perf_opp) + '</span>') if perf_opp else "")
+                + area_badge + descartado_badge + '</div>'
+                '<div style="font-size:0.78rem;color:var(--ink-secondary);">💰 ' + _h_opp.escape(valor_opp) + '</div>'
+                '<div style="margin-top:4px;">'
+                '<span style="display:inline-flex;align-items:center;gap:5px;'
+                'background:' + prazo_bg + ';color:' + prazo_fg + ';'
+                'border:1px solid ' + prazo_brd + ';border-radius:6px;padding:4px 10px;'
+                'font-size:0.82rem;font-weight:700;letter-spacing:0.01em;">'
+                '📅 ' + _h_opp.escape(prazo_opp) + _h_opp.escape(_prazo_label_extra) + '</span>'
+                '</div>'
+                '<div style="font-size:0.75rem;color:var(--ink-muted);margin-top:2px;">Identificado em '
+                + _h_opp.escape(data_id) + '</div>'
+                + descartado_info
+                + '<div style="margin-top:2px;">' + link_html + '</div>'
+                '</div></div></div>',
+                unsafe_allow_html=True
+            )
 
-            from datetime import date as _sort_date
-            import pandas as _pd_sort
-            _hoje_sort = _sort_date.today()
+            # ── Expanders: histórico + botão descarte ──
+            if _opp_id is not None:
+                _hist = carregar_historico_oportunidade(int(_opp_id))
+                _pode_flag = mostrar_flag and _pode_descartar
 
-            def _prazo_sort_key(val):
-                s = str(val or "").strip()[:10]
-                if s in ("", "None", "nan", "NaT"):
-                    return _sort_date(9999, 12, 31)
-                try:
-                    return _sort_date.fromisoformat(s)
-                except Exception:
-                    return _sort_date(9999, 12, 31)
-
-            def _is_encerrado(row):
-                return "encerrado" in str(row.get("status","")).lower()
-
-            if not df_view.empty:
-                df_view = df_view.copy()
-                df_view["_prazo_dt"] = df_view["prazo_submissao"].apply(_prazo_sort_key)
-                df_view["_encerrado"] = df_view.apply(_is_encerrado, axis=1)
-                # Grupo 0 = aberto/vencido, Grupo 1 = encerrado
-                df_view["_grupo"] = df_view["_encerrado"].astype(int)
-
-                if _ord_sel == "Prazo mais próximo primeiro":
-                    # Abertos: ordena por prazo asc (vencidos ficam antes dos sem prazo mas atrás dos futuros)
-                    # Encerrados: sempre no fim, ordenados por prazo desc
-                    df_abertos = df_view[~df_view["_encerrado"]].sort_values("_prazo_dt", ascending=True)
-                    df_enc     = df_view[df_view["_encerrado"]].sort_values("_prazo_dt", ascending=False)
-                    df_view = _pd_sort.concat([df_abertos, df_enc], ignore_index=True)
-                elif _ord_sel == "Prazo mais distante primeiro":
-                    df_abertos = df_view[~df_view["_encerrado"]].sort_values("_prazo_dt", ascending=False)
-                    df_enc     = df_view[df_view["_encerrado"]].sort_values("_prazo_dt", ascending=True)
-                    df_view = _pd_sort.concat([df_abertos, df_enc], ignore_index=True)
-                elif _ord_sel == "Mais recente identificado":
-                    def _data_id_key(val):
-                        s = str(val or "").strip()[:10]
-                        try:
-                            return _sort_date.fromisoformat(s)
-                        except Exception:
-                            return _sort_date(1900, 1, 1)
-                    df_view["_data_id_dt"] = df_view["data_identificacao"].apply(_data_id_key)
-                    df_abertos = df_view[~df_view["_encerrado"]].sort_values("_data_id_dt", ascending=False)
-                    df_enc     = df_view[df_view["_encerrado"]].sort_values("_data_id_dt", ascending=False)
-                    df_view = _pd_sort.concat([df_abertos, df_enc], ignore_index=True)
-
-            st.caption(f"{len(df_view)} edital(is) exibido(s)")
-
-            # Cores por status (badges)
-            COR_STATUS = {
-                "novo":        ("#dcfce7","#166534"),
-                "atualização": ("#dbeafe","#1e40af"),
-                "encerrado":   ("#e2e8f0","#64748b"),
-            }
-            COR_PERF = {"A": ("#fef3c7","#92400e"), "B": ("#ede9fe","#5b21b6"), "C": ("#f0f9ff","#0369a1")}
-
-            from datetime import date as _today_date, timedelta as _td
-            _hoje = _today_date.today()
-            _PRAZO_AVISO_DIAS = 7  # dias restantes para considerar "prazo próximo"
-
-            for _, row in df_view.iterrows():
-                tema_opp   = str(row.get("tema","") or "—")
-                orgao_opp  = str(row.get("orgao","") or "—")
-                escopo_opp = str(row.get("macro_escopo","") or "")
-                status_opp = str(row.get("status","") or "")
-                perf_opp   = str(row.get("perfil_aderencia","") or "")
-                area_opp   = str(row.get("area","") or "")
-                valor_opp  = str(row.get("valor_financiamento","") or "—")
-                def _fmt_data(val):
-                    """Converte YYYY-MM-DD (ou similar) para DD/MM/AAAA."""
-                    s = str(val or "").strip()
-                    if s in ("", "None", "nan", "NaT", "—"):
-                        return "—"
-                    try:
-                        import pandas as _pd2
-                        parsed = _pd2.to_datetime(s[:10], errors="coerce")
-                        if _pd2.isnull(parsed):
-                            return s[:10]
-                        return parsed.strftime("%d/%m/%Y")
-                    except Exception:
-                        return s[:10]
-
-                prazo_opp  = _fmt_data(row.get("prazo_submissao",""))
-                link_opp   = str(row.get("link","") or "")
-                data_id    = _fmt_data(row.get("data_identificacao",""))
-
-                st_key = status_opp.lower()
-                bg_s, fg_s = COR_STATUS.get(st_key, ("#f8fafc","#475569"))
-                bg_pr, fg_pr = COR_PERF.get(perf_opp.upper(), ("#f8fafc","#64748b"))
-
-                # ── Cor de fundo do card ──────────────────────────────────────────
-                # 1. Encerrado → cinza suave
-                # 2. Prazo próximo (≤ 7 dias, não encerrado) → vermelho pastel
-                # 3. Demais → padrão (surface-1)
-                _encerrado = "encerrado" in st_key
-                _prazo_proximo = False
-                _prazo_label_extra = ""
-                # Usa o valor bruto ISO para calcular dias (prazo_opp já está em DD/MM/AAAA)
-                _prazo_raw = str(row.get("prazo_submissao","") or "").strip()[:10]
-                if not _encerrado and _prazo_raw not in ("", "None", "nan", "NaT", "—"):
-                    try:
-                        _prazo_date = _today_date.fromisoformat(_prazo_raw)
-                        _dias_rest = (_prazo_date - _hoje).days
-                        if _dias_rest < 0:
-                            _prazo_proximo = True
-                            _dias_abs = abs(_dias_rest)
-                            if _dias_abs == 1:
-                                _prazo_label_extra = " · venceu ontem"
-                            elif _dias_abs <= 30:
-                                _prazo_label_extra = f" · venceu há {_dias_abs}d"
+                if _hist or _pode_flag:
+                    _exp_label = "📋 Histórico" + (" · ⊘ Descartar" if _pode_flag and not _descartado else
+                                                    " · ✅ Reverter descarte" if _pode_flag and _descartado else "")
+                    with st.expander(_exp_label, expanded=False):
+                        if _pode_flag:
+                            if _descartado:
+                                if st.button("✅ Reverter — este edital voltará para Editais Específicos",
+                                             key=f"rev_{tab_key}_{_opp_id}",
+                                             use_container_width=True):
+                                    marcar_edital_descartado(int(_opp_id), False, st.session_state.usuario)
+                                    st.cache_data.clear()
+                                    st.rerun()
                             else:
-                                _prazo_label_extra = f" · vencido"
-                        elif _dias_rest == 0:
-                            _prazo_proximo = True
-                            _prazo_label_extra = " · vence hoje!"
-                        elif _dias_rest == 1:
-                            _prazo_proximo = True
-                            _prazo_label_extra = " · vence amanhã"
-                        elif _dias_rest <= _PRAZO_AVISO_DIAS:
-                            _prazo_proximo = True
-                            _prazo_label_extra = f" · {_dias_rest} dias"
-                        else:
-                            _prazo_label_extra = f" · {_dias_rest} dias"
-                    except Exception:
-                        pass
+                                if st.button("⊘ Marcar como descartado — moverá para aba Todos",
+                                             key=f"desc_{tab_key}_{_opp_id}",
+                                             type="secondary",
+                                             use_container_width=True):
+                                    marcar_edital_descartado(int(_opp_id), True, st.session_state.usuario)
+                                    st.cache_data.clear()
+                                    st.rerun()
+                            if _hist:
+                                st.markdown("---")
 
-                if _encerrado:
-                    card_bg      = "#f1f5f9"
-                    card_border  = "#cbd5e1"
-                    card_opacity = "opacity:0.72;"
-                elif _prazo_proximo:
-                    card_bg      = "#fee2e2"
-                    card_border  = "#fca5a5"
-                    card_opacity = ""
-                else:
-                    card_bg      = "var(--surface-1)"
-                    card_border  = "var(--border-subtle)"
-                    card_opacity = ""
-
-                link_html = (f'<a href="{_h_opp.escape(link_opp)}" target="_blank" '
-                             f'style="color:var(--accent-primary);font-size:0.78rem;">🔗 Ver edital</a>'
-                             if link_opp.startswith("http") else "")
-
-                prazo_style = (
-                    'style="font-size:0.78rem;color:#b91c1c;font-weight:600;"'
-                    if _prazo_proximo else
-                    'style="font-size:0.78rem;color:var(--ink-secondary);"'
-                )
-
-                _opp_id = row.get("id", None)
-
-                st.markdown(f"""
-                <div style="border:1px solid {card_border};border-radius:10px;
-                            padding:14px 16px;background:{card_bg};margin-bottom:4px;{card_opacity}">
-                  <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;">
-                    <div style="flex:1;min-width:200px;">
-                      <div style="font-weight:700;font-size:0.92rem;color:var(--ink-primary);
-                                  margin-bottom:4px;">
-                        {_h_opp.escape(tema_opp)}
-                      </div>
-                      <div style="font-size:0.8rem;color:var(--ink-secondary);margin-bottom:6px;">
-                        {_h_opp.escape(orgao_opp)}
-                      </div>
-                      <div style="font-size:0.78rem;color:var(--ink-muted);">
-                        {_h_opp.escape(escopo_opp[:180] + ("…" if len(escopo_opp)>180 else ""))}
-                      </div>
-                    </div>
-                    <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;
-                                min-width:180px;text-align:right;">
-                      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
-                        <span style="background:{bg_s};color:{fg_s};padding:2px 10px;
-                                     border-radius:999px;font-size:11px;font-weight:600;">
-                          {_h_opp.escape(status_opp)}
-                        </span>
-                        <span style="background:{bg_pr};color:{fg_pr};padding:2px 10px;
-                                     border-radius:999px;font-size:11px;font-weight:600;">
-                          Perf. {_h_opp.escape(perf_opp)}
-                        </span>
-                        {(f'<span style="background:#f0f9ff;color:#0369a1;padding:2px 10px;border-radius:999px;font-size:11px;">{_h_opp.escape(area_opp)}</span>' if area_opp else "")}
-                      </div>
-                      <div style="font-size:0.78rem;color:var(--ink-secondary);">
-                        💰 {_h_opp.escape(valor_opp)}
-                      </div>
-                      <div style="margin-top:4px;">
-                        <span style="display:inline-flex;align-items:center;gap:5px;
-                                     background:{'#fecaca' if _prazo_proximo else ('#f1f5f9' if not _encerrado else '#e2e8f0')};
-                                     color:{'#b91c1c' if _prazo_proximo else ('#374151' if not _encerrado else '#94a3b8')};
-                                     border:1px solid {'#fca5a5' if _prazo_proximo else '#e2e8f0'};
-                                     border-radius:6px;padding:4px 10px;
-                                     font-size:0.82rem;font-weight:700;letter-spacing:0.01em;">
-                          📅 {_h_opp.escape(prazo_opp)}{_h_opp.escape(_prazo_label_extra)}
-                        </span>
-                      </div>
-                      <div style="font-size:0.75rem;color:var(--ink-muted);margin-top:2px;">
-                        Identificado em {_h_opp.escape(data_id)}
-                      </div>
-                      <div style="margin-top:2px;">{link_html}</div>
-                    </div>
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                # ── Histórico de status (expander abaixo do card) ──
-                if _opp_id is not None:
-                    _hist = carregar_historico_oportunidade(int(_opp_id))
-                    if _hist:
-                        with st.expander("📋 Histórico de status", expanded=False):
-                            _COR_STATUS_HIST = {
-                                "novo":        "#10b981",
-                                "atualização": "#3b82f6",
-                                "encerrado":   "#94a3b8",
-                                "submetido":   "#8b5cf6",
-                                "aprovado":    "#059669",
-                                "recusado":    "#ef4444",
+                        if _hist:
+                            _COR_HIST = {
+                                "novo":"#10b981","atualização":"#3b82f6","encerrado":"#94a3b8",
+                                "submetido":"#8b5cf6","aprovado":"#059669","recusado":"#ef4444",
                             }
                             _hist_html = '<div style="padding:4px 0;">'
                             for i, (_st_ant, _st_nov, _alt_por, _alt_em) in enumerate(_hist):
-                                _data_fmt = str(_alt_em or "")[:16].replace("T", " ")
-                                _cor_dot = _COR_STATUS_HIST.get(str(_st_nov or "").lower(), "#64748b")
-                                _is_last = (i == len(_hist) - 1)
+                                _data_fmt = str(_alt_em or "")[:16].replace("T"," ")
+                                _cor_dot  = _COR_HIST.get(str(_st_nov or "").lower(), "#64748b")
+                                _is_last  = (i == len(_hist) - 1)
                                 _linha_estilo = "" if _is_last else (
                                     "border-left:2px solid #e2e8f0;"
                                     "margin-left:7px;padding-left:16px;padding-bottom:8px;"
@@ -4944,27 +4906,155 @@ def pagina_oportunidades():
                             _hist_html += "</div>"
                             st.markdown(_hist_html, unsafe_allow_html=True)
 
-                st.markdown('<div style="margin-bottom:6px;"></div>', unsafe_allow_html=True)
+            st.markdown('<div style="margin-bottom:6px;"></div>', unsafe_allow_html=True)
 
-            # Botão exportar
-            if pode_baixar_arquivos(perfil):
+    def _aplicar_filtros_e_ordenar(df_base, busca_key, status_key, area_key,
+                                   ordem_key, mostrar_filtro_area,
+                                   excluir_descartados=False):
+        """Filtra, ordena e retorna (df_view, df_cinza) — df_cinza são os que vão pro fim."""
+        if df_base.empty:
+            return df_base, df_base
+
+        # Filtros
+        if perfil in ("ADMIN", "PMO") and mostrar_filtro_area:
+            _fa, _fb, _fc = st.columns([2, 1, 1])
+        else:
+            _fa, _fb = st.columns([2, 1])
+            _fc = None
+
+        with _fa:
+            busca = st.text_input("Buscar", placeholder="Tema, órgão ou escopo...",
+                                  key=busca_key, label_visibility="collapsed")
+        with _fb:
+            st_opts = ["Todos"] + sorted(df_base["status"].dropna().unique().tolist())
+            filtro_st = st.selectbox("Status", st_opts, key=status_key, label_visibility="collapsed")
+        filtro_ar = "Todas"
+        if perfil in ("ADMIN", "PMO") and _fc is not None:
+            with _fc:
+                ar_opts = ["Todas"] + sorted(df_base["area"].dropna().unique().tolist())
+                filtro_ar = st.selectbox("Área", ar_opts, key=area_key, label_visibility="collapsed")
+
+        _fe, = st.columns([2])
+        with _fe:
+            _ord_opcoes = ["Prazo mais próximo primeiro", "Prazo mais distante primeiro", "Mais recente identificado"]
+            _ord_sel = st.selectbox("Ordenar por", _ord_opcoes, key=ordem_key, label_visibility="collapsed")
+
+        df = df_base.copy()
+        if busca:
+            mask = (
+                df["tema"].astype(str).str.contains(busca, case=False, na=False) |
+                df["orgao"].astype(str).str.contains(busca, case=False, na=False) |
+                df["macro_escopo"].astype(str).str.contains(busca, case=False, na=False)
+            )
+            df = df[mask]
+        if filtro_st != "Todos":
+            df = df[df["status"] == filtro_st]
+        if filtro_ar != "Todas":
+            df = df[df["area"] == filtro_ar]
+
+        if df.empty:
+            return df, df
+
+        df["_prazo_dt"]   = df["prazo_submissao"].apply(_prazo_sort_key)
+        df["_encerrado"]  = df["status"].astype(str).str.lower().str.contains("encerrado")
+        df["_descartado"] = df["descartado"].fillna(False).astype(bool)
+        df["_prazo_venc"] = df.apply(
+            lambda r: (not r["_encerrado"] and not r["_descartado"] and
+                       r["_prazo_dt"] < _today_date.today() and
+                       r["_prazo_dt"] != _today_date(9999,12,31)), axis=1
+        )
+        # "Cinza" = descartado OU encerrado OU prazo vencido
+        df["_cinza"] = df["_descartado"] | df["_encerrado"] | df["_prazo_venc"]
+
+        df_norm  = df[~df["_cinza"]]
+        df_cinza = df[df["_cinza"]]
+
+        def _sort(dframe, asc):
+            if _ord_sel == "Prazo mais próximo primeiro":
+                return dframe.sort_values("_prazo_dt", ascending=asc)
+            elif _ord_sel == "Prazo mais distante primeiro":
+                return dframe.sort_values("_prazo_dt", ascending=not asc)
+            else:
+                def _did(v):
+                    s = str(v or "").strip()[:10]
+                    try: return _today_date.fromisoformat(s)
+                    except: return _today_date(1900,1,1)
+                dframe = dframe.copy()
+                dframe["_data_id_dt"] = dframe["data_identificacao"].apply(_did)
+                return dframe.sort_values("_data_id_dt", ascending=False)
+
+        df_norm  = _sort(df_norm,  asc=True)
+        df_cinza = _sort(df_cinza, asc=True)
+        return df_norm, df_cinza
+
+    # ═══════════════════════════════════════════
+    # ABA EDITAIS ESPECÍFICOS
+    # ═══════════════════════════════════════════
+    with tab_especificos:
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+        # Mostra apenas editais da área do usuário que NÃO foram descartados
+        _df_esp = df_opp_area[~df_opp_area["descartado"].fillna(False)].copy() if not df_opp_area.empty else df_opp_area
+        if _df_esp.empty:
+            st.info("Nenhum edital específico para a sua área. Verifique a aba 'Todos'.")
+            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            _df_esp_norm, _df_esp_cinza = _aplicar_filtros_e_ordenar(
+                _df_esp,
+                busca_key="esp_busca", status_key="esp_status",
+                area_key="esp_area",   ordem_key="esp_ordem",
+                mostrar_filtro_area=(perfil in ("ADMIN","PMO")),
+            )
+            _df_esp_final = _pd_sort.concat([_df_esp_norm, _df_esp_cinza], ignore_index=True)
+            _render_cards(_df_esp_final, tab_key="esp",
+                          mostrar_area=(perfil in ("ADMIN","PMO")),
+                          mostrar_flag=True)
+
+            if pode_baixar_arquivos(perfil) and not _df_esp_final.empty:
                 st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
-                cols_export = {
-                    "area": "Área", "perfil_aderencia": "Perfil",
-                    "tema": "Tema", "orgao": "Órgão",
-                    "macro_escopo": "Macro Escopo",
-                    "prazo_submissao": "Prazo Submissão",
-                    "valor_financiamento": "Valor Financiamento",
-                    "status": "Status", "link": "Link",
-                    "data_identificacao": "Data Identificação",
-                    "semana_referencia": "Semana Referência",
-                }
-                df_exp = df_view[[c for c in cols_export if c in df_view.columns]].rename(columns=cols_export)
+                _cols_exp = {"area":"Área","perfil_aderencia":"Perfil","tema":"Tema","orgao":"Órgão",
+                             "macro_escopo":"Macro Escopo","prazo_submissao":"Prazo Submissão",
+                             "valor_financiamento":"Valor Financiamento","status":"Status",
+                             "link":"Link","data_identificacao":"Data Identificação"}
+                _df_e = _df_esp_final[[c for c in _cols_exp if c in _df_esp_final.columns]].rename(columns=_cols_exp)
                 from io import BytesIO as _BIO
-                _buf = _BIO()
-                df_exp.to_excel(_buf, index=False)
+                _buf = _BIO(); _df_e.to_excel(_buf, index=False)
                 st.download_button("⬇️ Exportar Excel", _buf.getvalue(),
-                                   file_name="oportunidades_export.xlsx",
+                                   file_name="editais_especificos.xlsx",
+                                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # ═══════════════════════════════════════════
+    # ABA TODOS
+    # ═══════════════════════════════════════════
+    with tab_todos:
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+        if df_opp_todos.empty:
+            st.info("Nenhum edital cadastrado.")
+            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            _df_tod_norm, _df_tod_cinza = _aplicar_filtros_e_ordenar(
+                df_opp_todos,
+                busca_key="tod_busca", status_key="tod_status",
+                area_key="tod_area",   ordem_key="tod_ordem",
+                mostrar_filtro_area=True,
+            )
+            _df_tod_final = _pd_sort.concat([_df_tod_norm, _df_tod_cinza], ignore_index=True)
+            _render_cards(_df_tod_final, tab_key="tod",
+                          mostrar_area=True,
+                          mostrar_flag=True)
+
+            if pode_baixar_arquivos(perfil) and not _df_tod_final.empty:
+                st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
+                _cols_exp2 = {"area":"Área","perfil_aderencia":"Perfil","tema":"Tema","orgao":"Órgão",
+                              "macro_escopo":"Macro Escopo","prazo_submissao":"Prazo Submissão",
+                              "valor_financiamento":"Valor Financiamento","status":"Status",
+                              "link":"Link","data_identificacao":"Data Identificação",
+                              "descartado":"Descartado","descartado_por":"Descartado por"}
+                _df_t = _df_tod_final[[c for c in _cols_exp2 if c in _df_tod_final.columns]].rename(columns=_cols_exp2)
+                from io import BytesIO as _BIO2
+                _buf2 = _BIO2(); _df_t.to_excel(_buf2, index=False)
+                st.download_button("⬇️ Exportar Excel", _buf2.getvalue(),
+                                   file_name="editais_todos.xlsx",
                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         st.markdown('</div>', unsafe_allow_html=True)
 
