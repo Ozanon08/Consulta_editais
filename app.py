@@ -5035,7 +5035,8 @@ def pagina_oportunidades():
             st.info("Nenhum edital cadastrado.")
             st.markdown('</div>', unsafe_allow_html=True)
         else:
-            # Filtra: descartados OU de outras áreas (não da área do usuário)
+            # Aba Todos: apenas descartados ou com prazo vencido (de qualquer área)
+            # Editais ativos de outras áreas ficam nos Específicos delas, não visíveis aqui
             _today_todos = __import__("datetime").date.today()
             def _vencido_todos(r):
                 try:
@@ -5047,9 +5048,8 @@ def pagina_oportunidades():
 
             _mask_descartado = df_opp_todos["descartado"].fillna(False).astype(bool)
             _mask_vencido    = df_opp_todos.apply(_vencido_todos, axis=1)
-            _mask_outra_area = (df_opp_todos["area"].fillna("") != area_usr) if area_usr else pd.Series([True]*len(df_opp_todos))
-            # Aparece em Todos se: descartado, vencido, ou de outra área
-            _mask_todos = _mask_descartado | _mask_vencido | _mask_outra_area
+            # Aparece em Todos SOMENTE se: descartado OU vencido
+            _mask_todos = _mask_descartado | _mask_vencido
             _df_tod_base = df_opp_todos[_mask_todos].copy()
 
             if _df_tod_base.empty:
