@@ -4733,9 +4733,10 @@ def pagina_oportunidades():
 
     _pode_descartar = perfil in ("ADMIN", "PMO", "COORDENADOR")
 
-    def _render_cards(df_view, tab_key, mostrar_area=False, mostrar_flag=False, so_reverter=False):
+    def _render_cards(df_view, tab_key, mostrar_area=False, mostrar_flag=False, so_reverter=False, ignorar_cinza=False):
         """Renderiza os cards de editais. mostrar_flag=True habilita botão de descarte/reverter.
-        so_reverter=True exibe apenas o botão de reverter (para a aba Todos)."""
+        so_reverter=True exibe apenas o botão de reverter (para a aba Todos).
+        ignorar_cinza=True renderiza todos os cards com estilo normal, sem opacidade."""
         if df_view.empty:
             st.info("Nenhum edital encontrado com os filtros selecionados.")
             return
@@ -4766,9 +4767,9 @@ def pagina_oportunidades():
             bg_pr, fg_pr = COR_PERF.get(perf_opp.upper(), ("#f8fafc","#64748b"))
 
             # Cor do card
-            if _descartado:
+            if not ignorar_cinza and _descartado:
                 card_bg = "#f1f5f9"; card_border = "#cbd5e1"; card_opacity = "opacity:0.55;"
-            elif _encerrado or _prazo_vencido:
+            elif not ignorar_cinza and (_encerrado or _prazo_vencido):
                 card_bg = "#f1f5f9"; card_border = "#cbd5e1"; card_opacity = "opacity:0.72;"
             elif _prazo_proximo:
                 card_bg = "#fee2e2"; card_border = "#fca5a5"; card_opacity = ""
@@ -4854,10 +4855,10 @@ def pagina_oportunidades():
                 _mostrar_descartar = _pode_flag and not _descartado and not so_reverter
 
                 if _mostrar_reverter or _mostrar_descartar:
-                    _exp_label = "✅ Reverter descarte" if _mostrar_reverter else "⊘ Descartar"
+                    _exp_label = "Reverter descarte" if _mostrar_reverter else "⊘ Descartar"
                     with st.expander(_exp_label, expanded=False):
                         if _mostrar_reverter:
-                            if st.button("✅ Reverter — este edital voltará para Editais Específicos",
+                            if st.button("Reverter - este edital voltará para Editais Específicos",
                                          key=f"rev_{tab_key}_{_opp_id}",
                                          use_container_width=True):
                                 marcar_edital_descartado(int(_opp_id), False, st.session_state.usuario)
@@ -5048,7 +5049,8 @@ def pagina_oportunidades():
                 _render_cards(_df_tod_final, tab_key="tod",
                               mostrar_area=True,
                               mostrar_flag=True,
-                              so_reverter=True)
+                              so_reverter=True,
+                              ignorar_cinza=True)
 
                 if pode_baixar_arquivos(perfil) and not _df_tod_final.empty:
                     st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
