@@ -4660,17 +4660,17 @@ def pagina_oportunidades():
     df_opp_todos   = listar_oportunidades(perfil_usuario=perfil)           # todos os editais
     df_opp_area    = listar_oportunidades(area=area_usr, perfil_usuario=perfil)  # filtrado por área
 
-    # ── Indicadores de topo — usa apenas editais não-descartados da área do usuário ──
-    _df_metricas = df_opp_area[~df_opp_area["descartado"].fillna(False)] if not df_opp_area.empty else df_opp_area
-    if not _df_metricas.empty:
-        status_aberto = _df_metricas["status"].astype(str).str.lower().isin(["novo", "atualização", "atualiz", "open"])
-        n_abertos     = int(status_aberto.sum())
-        n_encerrados  = int(_df_metricas["status"].astype(str).str.lower().str.contains("encerrado").sum())
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Editais específicos", len(_df_metricas))
-        m2.metric("Em aberto", n_abertos)
-        m3.metric("Encerrados", n_encerrados)
     st.markdown('</div>', unsafe_allow_html=True)
+
+    def _render_metricas(df_m, label_total="Total"):
+        if df_m.empty: return
+        _st = df_m["status"].astype(str).str.lower() if "status" in df_m.columns else pd.Series([], dtype=str)
+        _n_abertos    = int(_st.isin(["novo","atualização","atualiz","open"]).sum())
+        _n_encerrados = int(_st.str.contains("encerrado").sum())
+        _m1, _m2, _m3 = st.columns(3)
+        _m1.metric(label_total, len(df_m))
+        _m2.metric("Em aberto", _n_abertos)
+        _m3.metric("Encerrados", _n_encerrados)
 
     # ── Abas ──
     _pode_importar = perfil in ("ADMIN", "PMO")
@@ -4976,6 +4976,8 @@ def pagina_oportunidades():
             st.info("Nenhum edital específico para a sua área. Verifique a aba 'Todos'.")
             st.markdown('</div>', unsafe_allow_html=True)
         else:
+            _render_metricas(_df_esp, label_total="Editais específicos")
+            st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
             _df_esp_norm, _df_esp_cinza = _aplicar_filtros_e_ordenar(
                 _df_esp,
                 busca_key="esp_busca", status_key="esp_status",
@@ -5032,6 +5034,8 @@ def pagina_oportunidades():
                 st.info("Nenhum edital para exibir aqui.")
                 st.markdown('</div>', unsafe_allow_html=True)
             else:
+                _render_metricas(_df_tod_base, label_total="Descartados")
+                st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
                 _df_tod_norm, _df_tod_cinza = _aplicar_filtros_e_ordenar(
                     _df_tod_base,
                     busca_key="tod_busca", status_key="tod_status",
