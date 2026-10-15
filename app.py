@@ -4767,7 +4767,7 @@ def pagina_oportunidades():
             # Cor do card
             if _descartado:
                 card_bg = "#f1f5f9"; card_border = "#cbd5e1"; card_opacity = "opacity:0.55;"
-            elif _encerrado:
+            elif _encerrado or _prazo_vencido:
                 card_bg = "#f1f5f9"; card_border = "#cbd5e1"; card_opacity = "opacity:0.72;"
             elif _prazo_proximo:
                 card_bg = "#fee2e2"; card_border = "#fca5a5"; card_opacity = ""
@@ -4842,69 +4842,31 @@ def pagina_oportunidades():
                 unsafe_allow_html=True
             )
 
-            # ── Expanders: histórico + botão descarte ──
+            # ── Botão descarte ──
             if _opp_id is not None:
-                _hist = carregar_historico_oportunidade(int(_opp_id))
                 _pode_flag = mostrar_flag and _pode_descartar
 
-                if _hist or _pode_flag:
-                    _exp_label = "📋 Histórico" + (" · ⊘ Descartar" if _pode_flag and not _descartado else
-                                                    " · ✅ Reverter descarte" if _pode_flag and _descartado else "")
+                if _pode_flag:
+                    if _descartado:
+                        _exp_label = "Reverter descarte"
+                    else:
+                        _exp_label = "⊘ Descartar"
                     with st.expander(_exp_label, expanded=False):
-                        if _pode_flag:
-                            if _descartado:
-                                if st.button("✅ Reverter — este edital voltará para Editais Específicos",
-                                             key=f"rev_{tab_key}_{_opp_id}",
-                                             use_container_width=True):
-                                    marcar_edital_descartado(int(_opp_id), False, st.session_state.usuario)
-                                    st.cache_data.clear()
-                                    st.rerun()
-                            else:
-                                if st.button("⊘ Marcar como descartado — moverá para aba Todos",
-                                             key=f"desc_{tab_key}_{_opp_id}",
-                                             type="secondary",
-                                             use_container_width=True):
-                                    marcar_edital_descartado(int(_opp_id), True, st.session_state.usuario)
-                                    st.cache_data.clear()
-                                    st.rerun()
-                            if _hist:
-                                st.markdown("---")
-
-                        if _hist:
-                            _COR_HIST = {
-                                "novo":"#10b981","atualização":"#3b82f6","encerrado":"#94a3b8",
-                                "submetido":"#8b5cf6","aprovado":"#059669","recusado":"#ef4444",
-                            }
-                            _hist_html = '<div style="padding:4px 0;">'
-                            for i, (_st_ant, _st_nov, _alt_por, _alt_em) in enumerate(_hist):
-                                _data_fmt = str(_alt_em or "")[:16].replace("T"," ")
-                                _cor_dot  = _COR_HIST.get(str(_st_nov or "").lower(), "#64748b")
-                                _is_last  = (i == len(_hist) - 1)
-                                _linha_estilo = "" if _is_last else (
-                                    "border-left:2px solid #e2e8f0;"
-                                    "margin-left:7px;padding-left:16px;padding-bottom:8px;"
-                                )
-                                _hist_html += (
-                                    '<div style="display:flex;align-items:flex-start;gap:10px;' + _linha_estilo + '">'
-                                    '<div style="flex-shrink:0;width:14px;height:14px;border-radius:50%;'
-                                    "background:" + _cor_dot + ';margin-top:2px;"></div>'
-                                    '<div style="flex:1;">'
-                                    '<span style="font-size:0.82rem;font-weight:600;color:var(--ink-primary);">'
-                                    + _h_opp.escape(str(_st_nov or "")) + "</span>"
-                                )
-                                if _st_ant:
-                                    _hist_html += (
-                                        '<span style="font-size:0.75rem;color:var(--ink-secondary);margin-left:6px;">'
-                                        "← " + _h_opp.escape(str(_st_ant)) + "</span>"
-                                    )
-                                _hist_html += (
-                                    '<div style="font-size:0.72rem;color:var(--ink-muted);margin-top:1px;">'
-                                    + _h_opp.escape(_data_fmt)
-                                    + (' &nbsp;·&nbsp; ' + _h_opp.escape(str(_alt_por or "")) if _alt_por else "")
-                                    + "</div></div></div>"
-                                )
-                            _hist_html += "</div>"
-                            st.markdown(_hist_html, unsafe_allow_html=True)
+                        if _descartado:
+                            if st.button("Reverter — este edital voltará para Editais Específicos",
+                                         key=f"rev_{tab_key}_{_opp_id}",
+                                         use_container_width=True):
+                                marcar_edital_descartado(int(_opp_id), False, st.session_state.usuario)
+                                st.cache_data.clear()
+                                st.rerun()
+                        else:
+                            if st.button("⊘ Confirmar descarte — moverá para aba Todos",
+                                         key=f"desc_{tab_key}_{_opp_id}",
+                                         type="secondary",
+                                         use_container_width=True):
+                                marcar_edital_descartado(int(_opp_id), True, st.session_state.usuario)
+                                st.cache_data.clear()
+                                st.rerun()
 
             st.markdown('<div style="margin-bottom:6px;"></div>', unsafe_allow_html=True)
 
@@ -5065,7 +5027,7 @@ def pagina_oportunidades():
                 _df_tod_final = _pd_sort.concat([_df_tod_norm, _df_tod_cinza], ignore_index=True)
                 _render_cards(_df_tod_final, tab_key="tod",
                               mostrar_area=True,
-                              mostrar_flag=True)
+                              mostrar_flag=False)
 
                 if pode_baixar_arquivos(perfil) and not _df_tod_final.empty:
                     st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
