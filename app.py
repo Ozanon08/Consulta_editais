@@ -4733,8 +4733,9 @@ def pagina_oportunidades():
 
     _pode_descartar = perfil in ("ADMIN", "PMO", "COORDENADOR")
 
-    def _render_cards(df_view, tab_key, mostrar_area=False, mostrar_flag=False):
-        """Renderiza os cards de editais. mostrar_flag=True habilita botão de descarte."""
+    def _render_cards(df_view, tab_key, mostrar_area=False, mostrar_flag=False, so_reverter=False):
+        """Renderiza os cards de editais. mostrar_flag=True habilita botão de descarte/reverter.
+        so_reverter=True exibe apenas o botão de reverter (para a aba Todos)."""
         if df_view.empty:
             st.info("Nenhum edital encontrado com os filtros selecionados.")
             return
@@ -4842,18 +4843,19 @@ def pagina_oportunidades():
                 unsafe_allow_html=True
             )
 
-            # ── Botão descarte ──
+            # ── Botão descarte / reverter ──
             if _opp_id is not None:
                 _pode_flag = mostrar_flag and _pode_descartar
 
-                if _pode_flag:
-                    if _descartado:
-                        _exp_label = "Reverter descarte"
-                    else:
-                        _exp_label = "⊘ Descartar"
+                # so_reverter: aba Todos — mostra reverter só se descartado; nunca mostra Descartar
+                _mostrar_reverter = _pode_flag and _descartado
+                _mostrar_descartar = _pode_flag and not _descartado and not so_reverter
+
+                if _mostrar_reverter or _mostrar_descartar:
+                    _exp_label = "✅ Reverter descarte" if _mostrar_reverter else "⊘ Descartar"
                     with st.expander(_exp_label, expanded=False):
-                        if _descartado:
-                            if st.button("Reverter — este edital voltará para Editais Específicos",
+                        if _mostrar_reverter:
+                            if st.button("✅ Reverter — este edital voltará para Editais Específicos",
                                          key=f"rev_{tab_key}_{_opp_id}",
                                          use_container_width=True):
                                 marcar_edital_descartado(int(_opp_id), False, st.session_state.usuario)
@@ -4956,6 +4958,20 @@ def pagina_oportunidades():
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
         # Mostra apenas editais da área do usuário que NÃO foram descartados
         _df_esp = df_opp_area[~df_opp_area["descartado"].fillna(False)].copy() if not df_opp_area.empty else df_opp_area
+
+        # Toggle para ocultar vencidos
+        _ocultar_vencidos = st.toggle("Ocultar vencidos", value=True, key="esp_ocultar_vencidos")
+        if _ocultar_vencidos and not _df_esp.empty:
+            import datetime as _dt_esp
+            _hoje_esp = _dt_esp.date.today()
+            def _nao_vencido(r):
+                try:
+                    p = str(r.get("prazo_submissao","") or "").strip()[:10]
+                    if p in ("","None","nan","NaT"): return True
+                    return _dt_esp.date.fromisoformat(p) >= _hoje_esp
+                except: return True
+            _df_esp = _df_esp[_df_esp.apply(_nao_vencido, axis=1)].copy()
+
         if _df_esp.empty:
             st.info("Nenhum edital específico para a sua área. Verifique a aba 'Todos'.")
             st.markdown('</div>', unsafe_allow_html=True)
@@ -5009,10 +5025,8 @@ def pagina_oportunidades():
                 except: return False
 
             _mask_descartado = df_opp_todos["descartado"].fillna(False).astype(bool)
-            _mask_vencido    = df_opp_todos.apply(_vencido_todos, axis=1)
-            # Aparece em Todos SOMENTE se: descartado OU vencido
-            _mask_todos = _mask_descartado | _mask_vencido
-            _df_tod_base = df_opp_todos[_mask_todos].copy()
+            # Aparece em Todos SOMENTE se: descartado
+            _df_tod_base = df_opp_todos[_mask_descartado].copy()
 
             if _df_tod_base.empty:
                 st.info("Nenhum edital para exibir aqui.")
@@ -5027,7 +5041,8 @@ def pagina_oportunidades():
                 _df_tod_final = _pd_sort.concat([_df_tod_norm, _df_tod_cinza], ignore_index=True)
                 _render_cards(_df_tod_final, tab_key="tod",
                               mostrar_area=True,
-                              mostrar_flag=False)
+                              mostrar_flag=True,
+                              so_reverter=True)
 
                 if pode_baixar_arquivos(perfil) and not _df_tod_final.empty:
                     st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
