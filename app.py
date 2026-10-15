@@ -4845,7 +4845,9 @@ def pagina_oportunidades():
 
             # ── Botão descarte / reverter ──
             if _opp_id is not None:
-                _pode_flag = mostrar_flag and _pode_descartar
+                # ADMIN/PMO podem sempre; COORDENADOR só se for da mesma área do edital
+                _mesma_area = (perfil in ("ADMIN","PMO")) or (area_opp == area_usr) or not area_opp
+                _pode_flag = mostrar_flag and _pode_descartar and _mesma_area
 
                 # so_reverter: aba Todos — mostra reverter só se descartado; nunca mostra Descartar
                 _mostrar_reverter = _pode_flag and _descartado
