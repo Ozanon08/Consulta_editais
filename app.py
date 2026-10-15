@@ -4731,7 +4731,7 @@ def pagina_oportunidades():
         except Exception:
             return False, "", False
 
-    _pode_descartar = perfil in ("ADMIN", "PMO")
+    _pode_descartar = perfil in ("ADMIN", "PMO", "COORDENADOR")
 
     def _render_cards(df_view, tab_key, mostrar_area=False, mostrar_flag=False):
         """Renderiza os cards de editais. mostrar_flag=True habilita botão de descarte."""
@@ -5025,6 +5025,9 @@ def pagina_oportunidades():
 
     # ═══════════════════════════════════════════
     # ABA TODOS
+    # Exibe: descartados + prazo vencido (de todas as áreas)
+    # + editais de outras áreas que não sejam da área do usuário
+    # Editais ativos da própria área ficam apenas em Específicos
     # ═══════════════════════════════════════════
     with tab_todos:
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
@@ -5032,30 +5035,51 @@ def pagina_oportunidades():
             st.info("Nenhum edital cadastrado.")
             st.markdown('</div>', unsafe_allow_html=True)
         else:
-            _df_tod_norm, _df_tod_cinza = _aplicar_filtros_e_ordenar(
-                df_opp_todos,
-                busca_key="tod_busca", status_key="tod_status",
-                area_key="tod_area",   ordem_key="tod_ordem",
-                mostrar_filtro_area=True,
-            )
-            _df_tod_final = _pd_sort.concat([_df_tod_norm, _df_tod_cinza], ignore_index=True)
-            _render_cards(_df_tod_final, tab_key="tod",
-                          mostrar_area=True,
-                          mostrar_flag=True)
+            # Filtra: descartados OU de outras áreas (não da área do usuário)
+            _today_todos = __import__("datetime").date.today()
+            def _vencido_todos(r):
+                try:
+                    import datetime as _dt
+                    p = r.get("prazo_submissao","")
+                    if not p: return False
+                    return _dt.date.fromisoformat(str(p)[:10]) < _today_todos
+                except: return False
 
-            if pode_baixar_arquivos(perfil) and not _df_tod_final.empty:
-                st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
-                _cols_exp2 = {"area":"Área","perfil_aderencia":"Perfil","tema":"Tema","orgao":"Órgão",
-                              "macro_escopo":"Macro Escopo","prazo_submissao":"Prazo Submissão",
-                              "valor_financiamento":"Valor Financiamento","status":"Status",
-                              "link":"Link","data_identificacao":"Data Identificação",
-                              "descartado":"Descartado","descartado_por":"Descartado por"}
-                _df_t = _df_tod_final[[c for c in _cols_exp2 if c in _df_tod_final.columns]].rename(columns=_cols_exp2)
-                from io import BytesIO as _BIO2
-                _buf2 = _BIO2(); _df_t.to_excel(_buf2, index=False)
-                st.download_button("⬇️ Exportar Excel", _buf2.getvalue(),
-                                   file_name="editais_todos.xlsx",
-                                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            _mask_descartado = df_opp_todos["descartado"].fillna(False).astype(bool)
+            _mask_vencido    = df_opp_todos.apply(_vencido_todos, axis=1)
+            _mask_outra_area = (df_opp_todos["area"].fillna("") != area_usr) if area_usr else pd.Series([True]*len(df_opp_todos))
+            # Aparece em Todos se: descartado, vencido, ou de outra área
+            _mask_todos = _mask_descartado | _mask_vencido | _mask_outra_area
+            _df_tod_base = df_opp_todos[_mask_todos].copy()
+
+            if _df_tod_base.empty:
+                st.info("Nenhum edital para exibir aqui.")
+                st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                _df_tod_norm, _df_tod_cinza = _aplicar_filtros_e_ordenar(
+                    _df_tod_base,
+                    busca_key="tod_busca", status_key="tod_status",
+                    area_key="tod_area",   ordem_key="tod_ordem",
+                    mostrar_filtro_area=True,
+                )
+                _df_tod_final = _pd_sort.concat([_df_tod_norm, _df_tod_cinza], ignore_index=True)
+                _render_cards(_df_tod_final, tab_key="tod",
+                              mostrar_area=True,
+                              mostrar_flag=True)
+
+                if pode_baixar_arquivos(perfil) and not _df_tod_final.empty:
+                    st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
+                    _cols_exp2 = {"area":"Área","perfil_aderencia":"Perfil","tema":"Tema","orgao":"Órgão",
+                                  "macro_escopo":"Macro Escopo","prazo_submissao":"Prazo Submissão",
+                                  "valor_financiamento":"Valor Financiamento","status":"Status",
+                                  "link":"Link","data_identificacao":"Data Identificação",
+                                  "descartado":"Descartado","descartado_por":"Descartado por"}
+                    _df_t = _df_tod_final[[c for c in _cols_exp2 if c in _df_tod_final.columns]].rename(columns=_cols_exp2)
+                    from io import BytesIO as _BIO2
+                    _buf2 = _BIO2(); _df_t.to_excel(_buf2, index=False)
+                    st.download_button("⬇️ Exportar Excel", _buf2.getvalue(),
+                                       file_name="editais_todos.xlsx",
+                                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         st.markdown('</div>', unsafe_allow_html=True)
 
     # ═══════════════════════════════════════════
