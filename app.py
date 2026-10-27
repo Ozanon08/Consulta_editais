@@ -1572,7 +1572,7 @@ def alterar_senha_usuario(username: str, senha_atual: str, nova_senha: str):
     if not row:
         conn.close()
         return False, "Usuário não encontrado."
-    if row[0] != hash_senha(senha_atual):
+    if not verificar_senha(senha_atual, row[0]):
         conn.close()
         return False, "Senha atual incorreta."
     cur.execute(
