@@ -7,7 +7,7 @@ import threading
 import bcrypt
 import smtplib
 import base64
-from datetime import datetime, timezone
+from datetime import datetime
 from io import BytesIO
 
 logger = logging.getLogger(__name__)
@@ -18,6 +18,11 @@ import warnings
 import pandas as pd
 import psycopg2
 import streamlit as st
+
+import drive_sync
+from oportunidades_import import (
+    get_conn, agora_str, registrar_upload_historico, importar_oportunidades,
+)
 
 warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy connectable")
 
@@ -1323,10 +1328,6 @@ def aplicar_estilo(modo="light"):
 # =========================================================
 # BANCO / UTIL
 # =========================================================
-def get_conn():
-    return psycopg2.connect(DATABASE_URL)
-
-
 def hash_senha(senha: str) -> str:
     """Retorna o hash bcrypt da senha."""
     return bcrypt.hashpw(senha.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -1372,10 +1373,6 @@ def _dummy_bcrypt(senha: str) -> None:
         bcrypt.checkpw(senha.encode("utf-8"), _DUMMY_BCRYPT_HASH.encode("utf-8"))
     except Exception:
         pass
-
-
-def agora_str() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
 AREAS_DISPONIVEIS = ["Celog", "ECMI", "PMO", "Outra"]
@@ -1453,6 +1450,9 @@ def init_db():
         """, ("ADMIN", "", hash_senha(senha_inicial), "ADMIN", 1, agora_str(), agora_str()))
     conn.commit()
     conn.close()
+
+    # Tabelas da sincronização com o Google Drive
+    drive_sync.garantir_tabelas()
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -2809,22 +2809,6 @@ def carregar_historico_oportunidade(oportunidade_id: int):
         return cur.fetchall()
     except Exception:
         return []
-    finally:
-        conn.close()
-
-
-def registrar_upload_historico(tipo: str, qtd_registros: int, usuario: str):
-    """Registra um upload no historico."""
-    conn = get_conn()
-    try:
-        cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO upload_historico (tipo, qtd_registros, usuario, criado_em)
-            VALUES (%s, %s, %s, %s)
-        """, (tipo, qtd_registros, usuario, agora_str()))
-        conn.commit()
-    except Exception:
-        conn.rollback()
     finally:
         conn.close()
 
@@ -4479,172 +4463,99 @@ def marcar_edital_descartado(opp_id: int, descartado: bool, usuario: str):
     conn.close()
 
 
-def _parse_data_oportunidade(val):
-    """Converte número serial Excel, datetime, date ou string para date ISO (ou None)."""
-    import math
-    from datetime import date as _date, datetime as _datetime, timedelta as _timedelta
-    if val is None:
-        return None
-    # Verifica pd.NaT e outros valores nulos do pandas ANTES de qualquer str()
-    try:
-        if pd.isnull(val):
-            return None
-    except Exception:
-        pass
-    # Tipos nativos Python
-    if isinstance(val, _datetime):
-        return val.date().isoformat()
-    if isinstance(val, _date):
-        return val.isoformat()
-    # String: verifica marcadores nulos e faz parse
-    if isinstance(val, str):
-        s = val.strip()
-        if s in ("", "nan", "None", "NaT", "NaN", "NAT", "N/A", "NA", "-"):
-            return None
-        try:
-            parsed = pd.to_datetime(s, dayfirst=False, errors="coerce")
-            if pd.isnull(parsed):
-                return None
-            return parsed.date().isoformat()
-        except Exception:
-            return None
-    # Número serial Excel (int ou float)
-    try:
-        fval = float(val)
-        if math.isnan(fval):
-            return None
-        return (_date(1899, 12, 30) + _timedelta(days=int(fval))).isoformat()
-    except Exception:
-        pass
-    # Fallback: tenta converter como string
-    try:
-        s = str(val).strip()
-        if s in ("", "nan", "None", "NaT", "NaN", "NAT", "N/A", "NA", "-"):
-            return None
-        parsed = pd.to_datetime(s, dayfirst=False, errors="coerce")
-        if pd.isnull(parsed):
-            return None
-        return parsed.date().isoformat()
-    except Exception:
-        return None
+def secao_sync_drive():
+    """Bloco da aba Importação: planilhas por área sincronizadas a partir do Google Drive."""
+    st.markdown("#### Sincronização automática (Google Drive)")
 
+    if not drive_sync.credenciais_configuradas():
+        st.warning("Credencial do Google não configurada. Defina `GDRIVE_SA_JSON` nos secrets "
+                   "do Streamlit para habilitar a sincronização.")
+        return
 
-def importar_oportunidades(arquivo, area_importacao: str, usuario: str):
-    """Lê planilha Controle-Oportunidades e insere registros em editais_oportunidades.
-    Deduplicação por (area, tema, orgao, data_identificacao).
-    Retorna (inseridos, ignorados, erros).
-    """
-    import pandas as pd
-    from io import BytesIO
+    st.caption(
+        f"Compartilhe cada planilha (como Leitor) com `{drive_sync.email_service_account()}`. "
+        "As planilhas cadastradas são importadas automaticamente toda segunda-feira às 06h "
+        "(horário de Brasília); só são reimportadas se tiverem sido alteradas."
+    )
 
-    COLUMN_MAP_OPP = {
-        "Área": "area",
-        "Perfil (A/B/C)": "perfil_aderencia",
-        "Tema do edital": "tema",
-        "Órgão/empresa publicador": "orgao",
-        "Macro escopo do projeto": "macro_escopo",
-        "Prazo para submissão": "prazo_submissao",
-        "Valor do financiamento (quando disponível)": "valor_financiamento",
-        "Status (Novo/Atualização/Encerrado)": "status",
-        "Status": "status",
-        "Link direto": "link",
-        "Data de identificação": "data_identificacao",
-        "Semana de referência": "semana_referencia",
-    }
-
-    xl = pd.ExcelFile(arquivo)
-    sheet = xl.sheet_names[0]
-    # Primeira linha já é o cabeçalho (header=0)
-    df = pd.read_excel(arquivo, sheet_name=sheet, header=0)
-    df = df[[c for c in df.columns if not str(c).startswith("Unnamed:")]]
-    df = df.rename(columns=COLUMN_MAP_OPP)
-
-    # Descarta linhas completamente vazias
-    df = df.dropna(how="all")
-
-    conn = get_conn()
-    conn.autocommit = False
-    cur = conn.cursor()
-    inseridos = ignorados = erros = 0
-
-    for _, row in df.iterrows():
-        try:
-            r_area = str(row.get("area", "") or area_importacao or "").strip() or area_importacao
-            r_tema = str(row.get("tema", "") or "").strip() or None
-            r_orgao = str(row.get("orgao", "") or "").strip() or None
-            r_data_id = _parse_data_oportunidade(row.get("data_identificacao"))
-            r_semana = _parse_data_oportunidade(row.get("semana_referencia"))
-            r_prazo = _parse_data_oportunidade(row.get("prazo_submissao"))
-
-            if not r_tema:
-                ignorados += 1
-                continue
-
-            r_novo_status = str(row.get("status", "") or "").strip() or None
-            r_perfil      = str(row.get("perfil_aderencia", "") or "").strip() or None
-            r_escopo      = str(row.get("macro_escopo", "") or "").strip() or None
-            r_valor       = str(row.get("valor_financiamento", "") or "").strip() or None
-            r_link        = str(row.get("link", "") or "").strip() or None
-
-            # Verifica se já existe (deduplicação por area+tema+orgao+data_id)
-            cur.execute("""
-                SELECT id, status FROM editais_oportunidades
-                WHERE area IS NOT DISTINCT FROM %s
-                  AND tema IS NOT DISTINCT FROM %s
-                  AND orgao IS NOT DISTINCT FROM %s
-                  AND data_identificacao IS NOT DISTINCT FROM %s
-            """, (r_area, r_tema, r_orgao, r_data_id))
-            existing = cur.fetchone()
-
-            if existing:
-                _ex_id, _ex_status = existing
-                # Atualiza campos que podem ter mudado
-                cur.execute("""
-                    UPDATE editais_oportunidades
-                    SET perfil_aderencia=%s, macro_escopo=%s, prazo_submissao=%s,
-                        valor_financiamento=%s, status=%s, link=%s,
-                        semana_referencia=%s, importado_por=%s
-                    WHERE id=%s
-                """, (r_perfil, r_escopo, r_prazo, r_valor, r_novo_status, r_link, r_semana, usuario, _ex_id))
-                # Registra histórico se status mudou
-                if r_novo_status and _ex_status != r_novo_status:
-                    cur.execute("""
-                        INSERT INTO editais_oportunidades_historico
-                            (oportunidade_id, status_anterior, status_novo, alterado_por, alterado_em)
-                        VALUES (%s, %s, %s, %s, %s)
-                    """, (_ex_id, _ex_status, r_novo_status, usuario, agora_str()))
-                    inseridos += 1  # conta como atualização
-                else:
-                    ignorados += 1
+    # Resultado da última sincronização manual (sobrevive ao rerun)
+    _resultado = st.session_state.pop("drive_sync_resultado", None)
+    if _resultado is not None:
+        if not _resultado:
+            st.info("Nenhuma planilha ativa cadastrada.")
+        for r in _resultado:
+            if r["status"] == "importado":
+                st.success(f"✅ {r['area']}: {r.get('inseridos', 0)} edital(is) importado(s) / atualizados, "
+                           f"{r.get('ignorados', 0)} sem alteração, {r.get('erros', 0)} com erro.")
+            elif r["status"] == "sem_alteracao":
+                st.info(f"ℹ️ {r['area']}: planilha não foi alterada desde a última importação.")
             else:
-                cur.execute("""
-                    INSERT INTO editais_oportunidades
-                        (area, perfil_aderencia, tema, orgao, macro_escopo,
-                         prazo_submissao, valor_financiamento, status, link,
-                         data_identificacao, semana_referencia, criado_em, importado_por)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    RETURNING id
-                """, (
-                    r_area, r_perfil, r_tema, r_orgao, r_escopo, r_prazo, r_valor,
-                    r_novo_status, r_link, r_data_id, r_semana, agora_str(), usuario,
-                ))
-                new_id = cur.fetchone()[0]
-                # Registra status inicial no histórico
-                if r_novo_status:
-                    cur.execute("""
-                        INSERT INTO editais_oportunidades_historico
-                            (oportunidade_id, status_anterior, status_novo, alterado_por, alterado_em)
-                        VALUES (%s, %s, %s, %s, %s)
-                    """, (new_id, None, r_novo_status, usuario, agora_str()))
-                inseridos += 1
-        except Exception as e:
-            logger.warning("Erro ao importar linha de oportunidades: %s", e)
-            erros += 1
-            continue
+                st.error(f"❌ {r['area']}: {r.get('mensagem')}")
 
-    conn.commit()
-    conn.close()
-    return inseridos, ignorados, erros
+    try:
+        fontes = drive_sync.listar_fontes()
+    except Exception as e:
+        logger.error("Erro ao listar fontes do Drive: %s", e)
+        st.error(f"Erro ao carregar planilhas cadastradas: {e}")
+        return
+
+    _rotulo_status = {"importado": "Importado", "sem_alteracao": "Sem alteração", "erro": "Erro"}
+    if fontes:
+        df_fontes = pd.DataFrame([{
+            "Área": f["area"],
+            "Planilha": f"https://docs.google.com/spreadsheets/d/{f['file_id']}",
+            "Última execução (UTC)": f["ultima_execucao"] or "—",
+            "Status": _rotulo_status.get(f["ultimo_status"], "—"),
+            "Importados/atualizados": f["ultimos_inseridos"] or 0,
+            "Mensagem": f["ultima_mensagem"] or "",
+        } for f in fontes])
+        st.dataframe(df_fontes, use_container_width=True, hide_index=True,
+                     column_config={"Planilha": st.column_config.LinkColumn("Planilha", display_text="Abrir")})
+    else:
+        st.info("Nenhuma planilha cadastrada ainda.")
+
+    c_add, c_acoes = st.columns(2)
+    with c_add:
+        with st.form("form_fonte_drive", clear_on_submit=True):
+            st.markdown("**Cadastrar / substituir planilha de uma área**")
+            _area = st.text_input("Área *", placeholder="Ex.: Celog, ECMI, PMO...")
+            _link = st.text_input("Link da Planilha Google *",
+                                  placeholder="https://docs.google.com/spreadsheets/d/...")
+            if st.form_submit_button("Salvar planilha"):
+                _file_id = drive_sync.extrair_file_id(_link)
+                if not _area.strip():
+                    st.error("Informe a área.")
+                elif not _file_id:
+                    st.error("Link inválido. Cole o link da planilha copiado do navegador.")
+                else:
+                    drive_sync.salvar_fonte(_area, _file_id, st.session_state.usuario)
+                    st.rerun()
+
+    with c_acoes:
+        st.markdown("**Sincronizar agora**")
+        _forcar = st.checkbox("Reimportar mesmo sem alteração", key="drive_sync_forcar")
+        if st.button("🔄 Sincronizar com Drive", type="primary", key="btn_drive_sync",
+                     disabled=not fontes):
+            with st.spinner("Baixando planilhas do Drive e importando..."):
+                try:
+                    st.session_state["drive_sync_resultado"] = drive_sync.sincronizar(
+                        usuario=st.session_state.usuario, forcar=_forcar
+                    )
+                except Exception as e:
+                    logger.error("Erro na sincronização com o Drive: %s", e)
+                    st.session_state["drive_sync_resultado"] = [
+                        {"area": "Sincronização", "status": "erro", "mensagem": str(e)}
+                    ]
+            st.cache_data.clear()
+            st.rerun()
+
+        if fontes:
+            _opcoes = {f["area"]: f["id"] for f in fontes}
+            _remover = st.selectbox("Remover planilha da área", ["—"] + list(_opcoes),
+                                    key="drive_sync_remover")
+            if _remover != "—" and st.button("Remover", key="btn_drive_remover"):
+                drive_sync.remover_fonte(_opcoes[_remover])
+                st.rerun()
 
 
 def pagina_oportunidades():
@@ -5078,6 +4989,9 @@ def pagina_oportunidades():
                 st.warning("Importação disponível apenas para o perfil ADMIN.")
                 st.markdown('</div>', unsafe_allow_html=True)
             else:
+                secao_sync_drive()
+                st.divider()
+                st.markdown("#### Importação manual")
                 st.markdown("""
                 **Formato esperado:** planilha no modelo *Controle-Oportunidades-FGV*, com as colunas:
                 `Área`, `Perfil (A/B/C)`, `Tema do edital`, `Órgão/empresa publicador`,

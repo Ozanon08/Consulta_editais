@@ -1,0 +1,29 @@
+name: Sincronizar oportunidades (Google Drive)
+
+on:
+  schedule:
+    # Toda segunda-feira às 09:00 UTC (06:00 em Brasília).
+    # O GitHub pode atrasar execuções agendadas em alguns minutos.
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+    inputs: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências
+        run: pip install "pandas>=2.2" "openpyxl>=3.1" "psycopg2-binary>=2.9" "google-api-python-client>=2.100" "google-auth>=2.23"
+
+      - name: Sincronizar planilhas
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GDRIVE_SA_JSON: ${{ secrets.GDRIVE_SA_JSON }}
+        run: python drive_sync.py
