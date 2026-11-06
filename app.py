@@ -5413,7 +5413,10 @@ def processar_upload_projetos_concluidos(arquivo):
                 return None
         except Exception:
             pass
-        s = str(v).strip().replace(" ", "")
+        import re as _re
+        s = str(v).strip()
+        # Remove prefixo de moeda (R$, $, €, etc.) e espaços
+        s = _re.sub(r"[R$€£¥\s]", "", s)
         if s in ("", "-", "nan", "None", "NaN"):
             return None
         if "," in s and "." in s:
